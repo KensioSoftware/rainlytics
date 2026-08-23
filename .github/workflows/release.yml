@@ -1,0 +1,330 @@
+---
+# Publishes @kensio/rainlytics, when someone runs it from the Actions tab.
+# What it does is decided by .releaserc.yaml. This file is the plumbing.
+#
+# Several things this depends on live in repository or npm settings rather
+# than in any file here, and no checkout can prove they are still true. Below
+# is the list, what breaks if one of them is undone, and where each stands.
+#
+# None of it is in place yet. Nothing has been published under this name and
+# main carries no ruleset, so every STATUS reads "to do". Work through them
+# before the first dispatch, and update the STATUS lines as you go. They are
+# the only record.
+#
+#   1. A trusted publisher on npmjs.com for @kensio/rainlytics, pointing at
+#      this repository, this workflow file, and the "release" environment
+#      below, with npm publish as the only allowed action. This is what
+#      replaces a stored NPM_TOKEN, and there is no npm credential anywhere in
+#      this repository. Renaming this file silently invalidates it, so an
+#      authentication error on publish is the first place to look.
+#
+#      A trusted publisher can only be attached to a package that exists, so
+#      the first publish cannot use one. Push a version by hand to create
+#      @kensio/rainlytics, attach the publisher, and let everything after it
+#      go through OIDC. That first version carries no provenance attestation,
+#      and it will be the only version without one.
+#      STATUS: to do. npm exposes no public endpoint for this. A checkout can
+#      never verify it, and that is the reason for writing it down here.
+#
+#   2. A repository environment named "release". Adding a required reviewer
+#      makes a publish wait for a second pair of eyes. Worth having if anyone
+#      else ever gains write access. Starting the run is already a deliberate
+#      act, and approving your own run adds little on its own.
+#      STATUS: to do. Create it, and put a branch policy on it.
+#
+#   3. Settings -> Actions -> General -> "Allow GitHub Actions to create and
+#      approve pull requests", for the version job at the bottom. Without it
+#      `gh pr create` fails with a permissions error that never mentions the
+#      setting.
+#      STATUS: to do.
+#
+#   4. Squash as the only merge method, with "Default commit message" set to
+#      "Pull request title". Everything below assumes a commit on main is a
+#      pull request title, because that is what semantic-release reads and
+#      what the release notes are made of. A merge commit or a rebase merge
+#      puts subjects on main that pr.yml never checked, and re-enabling either
+#      one quietly removes the guarantee the Title check exists to give.
+#      STATUS: to do.
+#
+#   5. A ruleset on main requiring the checks pr.yml posts: Lint, Build, and
+#      both halves of the test matrix, "Test (Node 22.x)" and
+#      "Test (Node 26.x)". Several comments below explain themselves in terms
+#      of it, in particular why the version job opens a pull request rather
+#      than pushing. Add pull requests, and refuse deletion and
+#      non-fast-forward pushes, while you are in there.
+#      STATUS: to do. Adding a runtime to that matrix in pr.yml adds a check
+#      name here, and the ruleset will not notice on its own.
+
+name: Release
+
+on:
+  # Started by hand, not by merging. Pull requests land here in bursts, and
+  # publishing each one would put a version on the registry that nobody
+  # installs any sooner: pnpm v11 holds new versions back for a day by
+  # default. One run ships everything accumulated since the last tag, as a
+  # single version with one set of release notes.
+  #
+  # Running this from a branch other than main is harmless — .releaserc.yaml
+  # releases from main only, so semantic-release finds nothing to do.
+  #
+  # Worth knowing before the first run. semantic-release starts at 1.0.0 when
+  # it finds no tag, whatever the commit subjects say and whatever version
+  # package.json holds (0.0.0, until the first release writes a real one
+  # back). A version pushed to npm by hand to bootstrap item 1 above is not a
+  # tag and does not count. Anchoring a 0.x line takes an annotated tag: push
+  # v0.1.0 and the next run works out 0.1.1 from there.
+  workflow_dispatch:
+    inputs:
+      minor:
+        description: >-
+          Release a minor version. Leave unticked for a patch, which is
+          what everything releasable defaults to.
+        type: boolean
+        default: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CI: true
+
+# One release at a time, and never cancelled part-way: a run killed between
+# pushing the tag and publishing the tarball leaves a version that exists in
+# git and not on the registry, which is awkward to unpick.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+# Nothing is granted by default; each job below asks for the scopes it needs
+# and no more.
+permissions: {}
+
+# The checks pr.yml already ran, run again against main, and then publish.
+#
+# Re-running them is not belt and braces. A ruleset can require a pull request
+# to be up to date with main before it merges, but "up to date" is measured when
+# the merge happens and this run may be days later — long enough for another
+# pull request to have landed a change that only conflicts with this one
+# semantically, which no merge check can see.
+#
+# They are separate jobs from the publish because three jobs cost the slowest of
+# them rather than the sum. The check names here are deliberately not the ones
+# pr.yml uses. Those are the names intended as main's required checks, and a
+# ruleset matches a check by name whatever workflow posted it, so a release
+# dispatched from a branch with an open pull request would otherwise report
+# into that pull request's gate. That holds whether or not the ruleset of item
+# 5 exists yet, and the distinct names are worth keeping either way.
+#
+# Spelled out rather than calling `pnpm check`, which starts with `pnpm fmt`
+# and rewrites files instead of reporting on them. Keep these jobs and the ones
+# in pr.yml in step with each other.
+jobs:
+  lint:
+    name: Release lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # Actions are pinned to commit SHAs rather than the tags pr.yml uses. A
+      # tag can be moved to point at new code, which is how the
+      # tj-actions/changed-files compromise reached the repositories using it;
+      # a SHA cannot. It matters here and not there because this is the
+      # workflow that mints a credential to publish under this package's name.
+      # The trailing comment is the tag each SHA was resolved from, so a bump
+      # is still readable in review.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint:ci
+      - run: pnpm fta
+      - run: pnpm docs:check
+
+  # The same two runtimes pr.yml proves, for the same reason: `engines` floors
+  # at Node 22 and .nvmrc develops against 26. Keep this list and pr.yml's in
+  # step.
+  test:
+    name: Release test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22.x", "26.x"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:coverage
+
+  build:
+    name: Release build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:check
+      - run: pnpm build
+      # The last gate before a stale dist/ reaches the registry: builds the
+      # real tarball and checks what is in it. The release job below builds its
+      # own through prepack rather than taking this one — that check proves the
+      # build packs correctly, it does not hand anything on.
+      - run: pnpm pack:check
+
+  release:
+    name: Release
+    # Nothing runs here until every check above is green. They check out the
+    # same commit this one publishes, so a green check is a statement about the
+    # tarball semantic-release is about to build.
+    needs: [lint, test, build]
+
+    runs-on: ubuntu-latest
+
+    # What the npm trusted publisher is scoped to, and where any approval
+    # requirement lives. See the note at the top of this file.
+    environment: release
+
+    permissions:
+      # Push the tag and create the GitHub Release.
+      contents: write
+      # Mint the OIDC token npm exchanges for a short-lived publish
+      # credential. Without this, @semantic-release/npm falls back to looking
+      # for an NPM_TOKEN and fails.
+      id-token: write
+
+    # Empty when the commits since the last tag were only chore/test/docs, and
+    # nothing was published. The version job below reads it to decide whether
+    # there is anything to write down.
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # semantic-release works out the next version by reading the
+          # existing tags, so a shallow clone would have it start from zero.
+          fetch-depth: 0
+          # semantic-release authenticates its own push with GITHUB_TOKEN, so
+          # leaving checkout's credential in .git/config only widens what a
+          # later step could use.
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Decides the version, builds the release notes out of the commit
+      # subjects since the last tag, publishes to npm, tags, and writes the
+      # GitHub Release with those notes as its body. Does nothing at all if
+      # those commits are only chore/test/docs. See .releaserc.yaml.
+      - id: release
+        run: pnpm exec semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Read by analyzeCommitsCmd in .releaserc.yaml, which raises the
+          # release to a minor when this is "true".
+          RELEASE_MINOR: ${{ inputs.minor }}
+
+  # `version` in package.json, caught up to what was just published, and sent
+  # to main as a pull request.
+  #
+  # A pull request rather than a push, because main's ruleset requires three
+  # passing status checks and a commit created inside this run has none.
+  #
+  # Opening it here does start a run of pr.yml, so those checks do report —
+  # but GitHub holds that run as `action_required` until someone approves it,
+  # because the actor is `github-actions[bot]`. Expect one approval click in
+  # the Actions tab per release before this pull request can merge. See the
+  # `on:` comment in pr.yml, which records what was actually observed.
+  #
+  # That number is not what the released version *is* — the tag and the
+  # registry are that, and both already exist by the time this runs. So a
+  # failure here, or a pull request left unmerged, costs a stale package.json
+  # and nothing else. It does not cost a broken release, and nothing about the
+  # next one depends on it having been merged: semantic-release reads the tags.
+  version:
+    name: Write the version back
+    needs: release
+    if: needs.release.outputs.version != ''
+    runs-on: ubuntu-latest
+    permissions:
+      # Pushing the branch.
+      contents: write
+      # Opening the pull request.
+      pull-requests: write
+    steps:
+      # The one job here that keeps checkout's credential, because it is the
+      # one that pushes. It holds no npm credential and publishes nothing.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: true
+
+      # For `npm pkg set` below, and so that the version of npm rewriting
+      # package.json is the one everyone else's edits go through.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Commit and open a pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          npm pkg set version="$VERSION"
+
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "Nothing changed. Already written back?"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          branch="release/v$VERSION"
+          git switch --create "$branch"
+          git add package.json
+          git commit --message "chore: version $VERSION"
+          git push origin "$branch"
+
+          # --body-file rather than --body, so the markdown below is not at the
+          # mercy of how this block is indented.
+          cat > "$RUNNER_TEMP/pr-body.md" <<EOF
+          [$VERSION](https://github.com/KensioSoftware/rainlytics/releases/tag/v$VERSION) is published. This is the part of it that belongs on main: \`version\` in package.json caught up to it.
+
+          Nothing depends on this being merged — the tag and the registry are the version of record, and the next release works out its own number from the tags rather than from this file.
+          EOF
+
+          gh pr create \
+            --base main \
+            --head "$branch" \
+            --title "chore: version $VERSION" \
+            --body-file "$RUNNER_TEMP/pr-body.md"

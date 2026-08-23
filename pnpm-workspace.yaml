@@ -1,0 +1,15 @@
+---
+# Not a workspace. pnpm reads its own settings out of this file from v10
+# onwards, and the one below is the reason it exists.
+#
+# pnpm holds a newly published version back for a day before it will install
+# it, which is a defence against a compromised release being pulled into
+# everything within the hour. Our own packages skip the wait. We publish them,
+# so there is no unknown publisher to wait out.
+#
+# This has to stay in step with the `cooldown.exclude` list in
+# .github/dependabot.yml. Excluding a package there without excluding it here
+# moves the wait to a bump pull request whose every job dies at
+# "pnpm install --frozen-lockfile".
+minimumReleaseAgeExclude:
+  - "@kensio/*"
