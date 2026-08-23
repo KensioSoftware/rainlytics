@@ -65,5 +65,46 @@ export async function deployStacks(
     directoryPath: app.synth().directory,
   });
 
+  refuseSkippedResources(stacks);
+
   return { simAws, stacks };
+}
+
+/**
+ * Fails a deployment that Yulin only partly carried out.
+ *
+ * Simulated CloudFormation skips a resource type it has no implementation
+ * for, records it on the stack, and takes the stack to `CREATE_COMPLETE`
+ * anyway. That is deliberate, and it is the right default for pointing an
+ * existing template at the simulator to see how far it gets. See
+ * KensioSoftware/yulin#273.
+ *
+ * It is the wrong default for a test. A construct whose whole output was
+ * skipped deploys green and proves nothing, and the test reads as though it
+ * covered something. So the report Yulin already keeps becomes an assertion
+ * here, once, rather than something every construct test has to remember.
+ *
+ * A test that genuinely wants to deploy alongside an unsimulated resource
+ * should say so in its own words and read `stacks` itself.
+ */
+function refuseSkippedResources(
+  stacks: ReadonlyMap<string, SimCfnDeployedStack>,
+): void {
+  const skipped = [...stacks.values()].flatMap((stack) =>
+    stack.skippedResources.map(
+      (resource) =>
+        `  ${resource.stackName ?? "?"}.${resource.logicalId}` +
+        ` (${resource.type ?? "unknown type"})`,
+    ),
+  );
+
+  if (skipped.length > 0) {
+    throw new Error(
+      `Simulated CloudFormation skipped ${skipped.length} resource(s), so` +
+        ` this deployment proves less than it appears to:\n${skipped.join("\n")}\n` +
+        `Yulin has no implementation for those types. Raise them upstream at` +
+        ` https://github.com/KensioSoftware/yulin rather than asserting` +
+        ` around them.`,
+    );
+  }
 }
