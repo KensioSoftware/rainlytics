@@ -14,6 +14,9 @@ importers:
       '@kensio/smartass':
         specifier: ^1.33.0
         version: 1.37.4
+      '@kensio/yulin':
+        specifier: ^1.20.4
+        version: 1.20.4
       '@semantic-release/exec':
         specifier: 7.1.0
         version: 7.1.0(semantic-release@25.0.9(@typescript/typescript6@6.0.2)(supports-color@7.2.0))(supports-color@7.2.0)
@@ -55,7 +58,7 @@ importers:
         version: '@typescript/typescript6@6.0.2'
       vitest:
         specifier: ^4.1.10
-        version: 4.1.11(@types/node@26.2.0)(@vitest/coverage-v8@4.1.11)(vite@8.2.2(@types/node@26.2.0))
+        version: 4.1.11(@types/node@26.2.0)(@vitest/coverage-v8@4.1.11)(vite@8.2.2(@types/node@26.2.0)(yaml@2.9.0))
 
 packages:
 
@@ -127,9 +130,26 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
+  '@kensio/part-factory@1.10.1':
+    resolution: {integrity: sha512-P/qUVhAaMF98uZ4NsSfiEp5WhfCRSN44nGQDgGY8MA6w9CkCVs4IdxguPGfK7+qNBCViK/xXN/gpj099YiSf1A==}
+    engines: {node: '>=22.0.0'}
+
   '@kensio/smartass@1.37.4':
     resolution: {integrity: sha512-y6IWM/TkodIt3Fq4DcVXve0W3nzz8gRRUJ4V5hQ7uGiyszLj5ApYjQ5Y+11D7U8OXyEtxgzDaObNWTGUF5+VNg==}
     engines: {node: '>=24.0.0'}
+
+  '@kensio/yulin@1.20.4':
+    resolution: {integrity: sha512-1xM12d/l6ue207wh4BUD6tC96FOb98CagO6BqKTvTd1RZSdJPxea+a+VjUgH/NL/CBvs0orFabMdYxrw1bQjbg==}
+    engines: {node: '>=24.0.0'}
+    hasBin: true
+    peerDependencies:
+      eslint: ^10.4.1
+      typescript-eslint: ^8.60.0
+    peerDependenciesMeta:
+      eslint:
+        optional: true
+      typescript-eslint:
+        optional: true
 
   '@octokit/auth-token@6.0.0':
     resolution: {integrity: sha512-P4YJBPdPSpWTQ1NU4XYdvHvXJJDxM6YwpS0FZHRgP7YFkdVxsWcpWGy/NVqlAA7PcPCnMacXlRm1y2PFZRWL/w==}
@@ -2189,6 +2209,11 @@ packages:
     resolution: {integrity: sha512-0pfFzegeDWJHJIAmTLRP2DwHjdF5s7jo9tuztdQxAhINCdvS+3nGINqPd00AphqJR/0LhANUS6/+7SCb98YOfA==}
     engines: {node: '>=10'}
 
+  yaml@2.9.0:
+    resolution: {integrity: sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==}
+    engines: {node: '>= 14.6'}
+    hasBin: true
+
   yargs-parser@20.2.9:
     resolution: {integrity: sha512-y11nGElTIV+CT3Zv9t7VKl+Q3hTQoT9a1Qzezhhl6Rp21gJ/IVTW7Z3y9EWXhuUBC2Shnf+DX0antecpAwSP8w==}
     engines: {node: '>=10'}
@@ -2268,7 +2293,16 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
+  '@kensio/part-factory@1.10.1': {}
+
   '@kensio/smartass@1.37.4': {}
+
+  '@kensio/yulin@1.20.4':
+    dependencies:
+      '@faker-js/faker': 10.6.0
+      '@kensio/part-factory': 1.10.1
+      lodash-es: 4.18.1
+      yaml: 2.9.0
 
   '@octokit/auth-token@6.0.0': {}
 
@@ -2715,7 +2749,7 @@ snapshots:
       obug: 2.1.4
       std-env: 4.2.0
       tinyrainbow: 3.1.1
-      vitest: 4.1.11(@types/node@26.2.0)(@vitest/coverage-v8@4.1.11)(vite@8.2.2(@types/node@26.2.0))
+      vitest: 4.1.11(@types/node@26.2.0)(@vitest/coverage-v8@4.1.11)(vite@8.2.2(@types/node@26.2.0)(yaml@2.9.0))
 
   '@vitest/expect@4.1.11':
     dependencies:
@@ -2726,13 +2760,13 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.1.1
 
-  '@vitest/mocker@4.1.11(vite@8.2.2(@types/node@26.2.0))':
+  '@vitest/mocker@4.1.11(vite@8.2.2(@types/node@26.2.0)(yaml@2.9.0))':
     dependencies:
       '@vitest/spy': 4.1.11
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 8.2.2(@types/node@26.2.0)
+      vite: 8.2.2(@types/node@26.2.0)(yaml@2.9.0)
 
   '@vitest/pretty-format@4.1.11':
     dependencies:
@@ -3907,7 +3941,7 @@ snapshots:
       spdx-correct: 3.2.0
       spdx-expression-parse: 3.0.1
 
-  vite@8.2.2(@types/node@26.2.0):
+  vite@8.2.2(@types/node@26.2.0)(yaml@2.9.0):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.5
@@ -3917,11 +3951,12 @@ snapshots:
     optionalDependencies:
       '@types/node': 26.2.0
       fsevents: 2.3.3
+      yaml: 2.9.0
 
-  vitest@4.1.11(@types/node@26.2.0)(@vitest/coverage-v8@4.1.11)(vite@8.2.2(@types/node@26.2.0)):
+  vitest@4.1.11(@types/node@26.2.0)(@vitest/coverage-v8@4.1.11)(vite@8.2.2(@types/node@26.2.0)(yaml@2.9.0)):
     dependencies:
       '@vitest/expect': 4.1.11
-      '@vitest/mocker': 4.1.11(vite@8.2.2(@types/node@26.2.0))
+      '@vitest/mocker': 4.1.11(vite@8.2.2(@types/node@26.2.0)(yaml@2.9.0))
       '@vitest/pretty-format': 4.1.11
       '@vitest/runner': 4.1.11
       '@vitest/snapshot': 4.1.11
@@ -3938,7 +3973,7 @@ snapshots:
       tinyexec: 1.3.0
       tinyglobby: 0.2.17
       tinyrainbow: 3.1.1
-      vite: 8.2.2(@types/node@26.2.0)
+      vite: 8.2.2(@types/node@26.2.0)(yaml@2.9.0)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 26.2.0
@@ -3974,6 +4009,8 @@ snapshots:
   xtend@4.0.2: {}
 
   y18n@5.0.8: {}
+
+  yaml@2.9.0: {}
 
   yargs-parser@20.2.9: {}
 

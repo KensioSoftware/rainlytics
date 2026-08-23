@@ -1,6 +1,9 @@
 import { faker } from "@faker-js/faker";
+import { Bucket } from "aws-cdk-lib/aws-s3";
 import { App, Stack } from "aws-cdk-lib/core";
 import { describe, expect, it } from "vitest";
+
+import { deployStacks } from "#test/simulated-deployment.js";
 
 import { requireStackRegion } from "./index.js";
 
@@ -74,5 +77,80 @@ describe("requiring a stack region", () => {
 
     // Then the nested stack is the one reported.
     expect(requiring).toThrow(/NestedScope/u);
+  });
+});
+
+describe("deploying the two regions Rainlytics needs", () => {
+  const anAccount = (): string =>
+    faker.string.numeric({ length: 12, allowLeadingZeros: false });
+
+  it("puts each stack in the region its own environment names", async () => {
+    // Given the shape a consumer ends up with: their site and its log bucket
+    // wherever they keep them, and a second stack in us-east-1, which is the
+    // only region the log delivery API accepts these calls in.
+    const account = anAccount();
+    const logBucketName = `rainlytics-logs-${faker.string.uuid()}`;
+    const resultsBucketName = `rainlytics-results-${faker.string.uuid()}`;
+
+    // When both stacks are deployed together, as one cloud assembly.
+    const { simAws, stacks } = await deployStacks((app) => {
+      const site = new Stack(app, "SiteStack", {
+        env: { account, region: "eu-west-2" },
+      });
+      new Bucket(site, "LogBucket", { bucketName: logBucketName });
+
+      const delivery = new Stack(app, "DeliveryStack", {
+        env: { account, region: "us-east-1" },
+      });
+      requireStackRegion(delivery, "us-east-1");
+      // CloudFormation refuses a template carrying no resources, and the
+      // region check creates none, so the stack needs something in it to be
+      // deployable at all. The log delivery resources take this place in #8.
+      new Bucket(delivery, "ResultsBucket", { bucketName: resultsBucketName });
+    });
+
+    // Then both went up.
+    expect([...stacks.keys()]).toStrictEqual(
+      expect.arrayContaining(["SiteStack", "DeliveryStack"]),
+    );
+
+    // And the bucket is in the site's region rather than the delivery one,
+    // which is the split the delivery construct will have to work across.
+    const inSiteRegion = await simAws
+      .region("eu-west-2")
+      .s3()
+      .listBuckets({ input: {} });
+    expect(inSiteRegion.Buckets?.map((bucket) => bucket.Name)).toContain(
+      logBucketName,
+    );
+
+    const inDeliveryRegion = await simAws
+      .region("us-east-1")
+      .s3()
+      .listBuckets({ input: {} });
+    const deliveryRegionBuckets = inDeliveryRegion.Buckets?.map(
+      (bucket) => bucket.Name,
+    );
+    expect(deliveryRegionBuckets).not.toContain(logBucketName);
+    expect(deliveryRegionBuckets).toContain(resultsBucketName);
+  });
+
+  it("refuses a delivery stack put in the site's region", async () => {
+    // Given the delivery stack placed beside everything else, which is the
+    // easy mistake, since that is where the rest of a consumer's app lives.
+    const account = anAccount();
+
+    // When the app is synthesised.
+    const deploying = deployStacks((app) => {
+      const delivery = new Stack(app, "DeliveryStack", {
+        env: { account, region: "eu-west-2" },
+      });
+      requireStackRegion(delivery, "us-east-1");
+    });
+
+    // Then it fails on the way through synthesis, before anything deploys.
+    // The unit cases above build a Stack by hand, and this one proves the
+    // check still fires where a construct will actually sit.
+    await expect(deploying).rejects.toThrow(/us-east-1/u);
   });
 });

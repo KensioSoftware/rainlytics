@@ -46,6 +46,12 @@
   ],
 
   "rules": {
+    // A CDK stack is built by constructing constructs. `new Bucket(this, ...)`
+    // registers itself with the scope it is given, and there is nothing to
+    // assign it to. This repository ships CDK constructs, so the pattern is
+    // the point rather than an exception to it.
+    "no-new": "off",
+
     // ── Wanted, and not in a category above ─────────────────
     // Oxlint files these under `restriction`, which is off here because most
     // of what is in there — magic numbers, readonly parameter types, banning
