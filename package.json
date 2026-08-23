@@ -12,6 +12,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./cdk": {
+      "types": "./dist/cdk/index.d.ts",
+      "import": "./dist/cdk/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -43,6 +47,18 @@
     "pack:check": "./scripts/sh/pack-check.sh",
     "check": "pnpm fmt && pnpm docs:check && pnpm fta && pnpm build:check && pnpm pack:check && pnpm test:coverage"
   },
+  "peerDependencies": {
+    "aws-cdk-lib": "^2.265.0",
+    "constructs": "^10.7.2"
+  },
+  "peerDependenciesMeta": {
+    "aws-cdk-lib": {
+      "optional": true
+    },
+    "constructs": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@faker-js/faker": "^10.6.0",
     "@kensio/smartass": "^1.33.0",
@@ -50,6 +66,8 @@
     "@types/node": "^26.1.1",
     "@typescript/native": "npm:typescript@^7.0.2",
     "@vitest/coverage-v8": "^4.1.10",
+    "aws-cdk-lib": "^2.265.0",
+    "constructs": "^10.7.2",
     "conventional-changelog-conventionalcommits": "9.3.1",
     "fta-cli": "^3.0.0",
     "oxfmt": "^0.63.0",

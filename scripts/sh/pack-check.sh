@@ -7,11 +7,12 @@
 # and the failure shows up as a bare "Cannot find module" for whoever installs
 # it. That is the wrong place to find out, so it is found out here.
 #
-# The second check below guards the beacon. That code is bundled into a site's
-# own JavaScript, and a stray import of `aws-cdk-lib` or of a Node built-in
-# from `src/beacon` either breaks the bundler or drags a megabyte of CDK into
-# a page whose whole point is that it downloads nothing extra. It skips while
-# that directory is still to be written.
+# The second check below is why the entry points are separate. `./beacon` is
+# bundled into a site's own JavaScript and the package root is reachable from
+# it, so a stray import of `aws-cdk-lib` or of a Node built-in from either one
+# breaks the bundler or drags a megabyte of CDK into a page whose whole point
+# is that it downloads nothing extra. `./cdk` is exempt, being the entry point
+# that exists to hold exactly those imports.
 #
 # Run by `pnpm check` and by the build job in both workflows.
 
@@ -34,8 +35,11 @@ expected=(
   package/README.md
   package/LICENSE
   package/src/index.ts
+  package/src/cdk/index.ts
   package/dist/index.js
   package/dist/index.d.ts
+  package/dist/cdk/index.js
+  package/dist/cdk/index.d.ts
 )
 
 missing=()
@@ -63,37 +67,57 @@ if grep --quiet --extended-regexp 'package/(dist|src)/.*\.(test|spec)\.' <<<"$co
   exit 1
 fi
 
-# What the beacon half of the tarball imports, read out of the built
+# What the browser-facing half of the tarball imports, read out of the built
 # JavaScript rather than the source. A re-export chain that reaches CDK
 # through the package root is the way this happens, and it is invisible in any
 # one source file.
 tar --extract --file "$tarball" --directory "$tmp"
 
-if [[ ! -d "$tmp/package/dist/beacon" ]]; then
-  echo "Tarball looks right (no beacon to check yet):"
-  sed 's/^/  /' <<<"$contents" | sort
-  exit 0
+# The root module, and the beacon once it exists. `./cdk` is deliberately not
+# on this list.
+browser_reachable=("$tmp/package/dist/index.js")
+if [[ -d "$tmp/package/dist/beacon" ]]; then
+  browser_reachable+=("$tmp/package/dist/beacon")
 fi
 
-# `|| true` because a beacon that imports nothing at all is a pass, and grep
+# Three import forms reach a module specifier, and only the first carries a
+# `from`:
+#
+#     import { x } from "spec"     export * from "spec"
+#     import "spec"                 side effect, no binding
+#     import("spec")                dynamic
+#
+# An earlier version of this matched `from` alone, and both of the others
+# walked past it. That is the failure mode this whole file argues against: a
+# guard that passes silently reads like one that ran.
+#
+# `--only-matching` leaves one specifier construct per line for sed to strip.
+# The pattern errs towards matching, so a stray "import" inside a string
+# literal can produce a false positive. That direction is the safe one. A
+# false positive fails loudly and takes a minute to dismiss, and a false
+# negative is a megabyte of CDK in somebody's page.
+#
+# `|| true` because a module that imports nothing at all is a pass, and grep
 # reports that as exit 1 like any other empty result.
-beacon_imports="$(
+browser_imports="$(
   {
-    grep --recursive --no-filename --extended-regexp \
-      "from[[:space:]]+[\"'][^\"']+[\"']" \
-      "$tmp/package/dist/beacon" --include='*.js' || true
+    grep --recursive --no-filename --only-matching --extended-regexp \
+      "(from|import)[[:space:]]*\(?[[:space:]]*[\"'][^\"']+[\"']" \
+      "${browser_reachable[@]}" --include='*.js' || true
   } |
-    sed -E "s/.*from[[:space:]]+[\"']([^\"']+)[\"'].*/\1/" |
+    sed -E "s/.*[\"']([^\"']+)[\"'].*/\1/" |
     sort --unique
 )"
 
-forbidden="$(grep --extended-regexp '^(node:|aws-cdk-lib|constructs)' <<<"$beacon_imports" || true)"
+forbidden="$(grep --extended-regexp '^(node:|aws-cdk-lib|constructs)' <<<"$browser_imports" || true)"
 
 if [[ -n "$forbidden" ]]; then
-  echo "The beacon imports things a browser has no use for:" >&2
+  echo "Browser-reachable code imports things a browser has no use for:" >&2
   sed 's/^/  /' <<<"$forbidden" >&2
   echo >&2
-  echo "It ships inside a site's own bundle. Keep it to what a browser has." >&2
+  echo "Checked: ${browser_reachable[*]#"$tmp/package/"}" >&2
+  echo "This ships inside a site's own bundle. Keep it to what a browser has." >&2
+  echo "CDK imports belong under src/cdk, behind the ./cdk export." >&2
   exit 1
 fi
 
