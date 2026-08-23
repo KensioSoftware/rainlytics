@@ -80,15 +80,32 @@ if [[ -d "$tmp/package/dist/beacon" ]]; then
   browser_reachable+=("$tmp/package/dist/beacon")
 fi
 
+# Three import forms reach a module specifier, and only the first carries a
+# `from`:
+#
+#     import { x } from "spec"     export * from "spec"
+#     import "spec"                 side effect, no binding
+#     import("spec")                dynamic
+#
+# An earlier version of this matched `from` alone, and both of the others
+# walked past it. That is the failure mode this whole file argues against: a
+# guard that passes silently reads like one that ran.
+#
+# `--only-matching` leaves one specifier construct per line for sed to strip.
+# The pattern errs towards matching, so a stray "import" inside a string
+# literal can produce a false positive. That direction is the safe one. A
+# false positive fails loudly and takes a minute to dismiss, and a false
+# negative is a megabyte of CDK in somebody's page.
+#
 # `|| true` because a module that imports nothing at all is a pass, and grep
 # reports that as exit 1 like any other empty result.
 browser_imports="$(
   {
-    grep --recursive --no-filename --extended-regexp \
-      "from[[:space:]]+[\"'][^\"']+[\"']" \
+    grep --recursive --no-filename --only-matching --extended-regexp \
+      "(from|import)[[:space:]]*\(?[[:space:]]*[\"'][^\"']+[\"']" \
       "${browser_reachable[@]}" --include='*.js' || true
   } |
-    sed -E "s/.*from[[:space:]]+[\"']([^\"']+)[\"'].*/\1/" |
+    sed -E "s/.*[\"']([^\"']+)[\"'].*/\1/" |
     sort --unique
 )"
 
