@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+
+  // oxfmt rather than Prettier: near enough byte for byte across TypeScript,
+  // Markdown, JSON and YAML, and fast enough to run on every save.
+  "trailingComma": "all",
+  "tabWidth": 2,
+  "printWidth": 80,
+  "sortPackageJson": false,
+
+  "ignorePatterns": [
+    "tmp/",
+    ".tmp/",
+    "dist/",
+    "coverage/",
+    "test/.coverage/",
+    "node_modules/",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    // Notes written by hand and read by people and agents. Reflowing prose
+    // someone laid out deliberately is not an improvement.
+    ".claude/",
+    "CLAUDE.md",
+    "AGENTS.md"
+  ]
+}

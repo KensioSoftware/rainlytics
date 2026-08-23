@@ -1,0 +1,39 @@
+{
+  "compilerOptions": {
+    // ES2022 is the floor both halves of this package can meet. `engines`
+    // asks for Node 22, and the beacon runs in whatever browser the site it
+    // is bundled into supports.
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    // DOM alongside the ES library because the beacon is browser code.
+    "lib": ["ES2022", "DOM"],
+    // Applies to the whole project, so a Node global referenced from beacon
+    // code still compiles. Keep `src/beacon` to what a browser has.
+    "types": ["node"],
+
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "allowUnusedLabels": false,
+    "allowUnreachableCode": false,
+
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "removeComments": false
+  },
+  "include": ["src/**/*", "test/**/*"]
+}

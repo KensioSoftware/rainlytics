@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  // `outDir` and `rootDir` live here rather than in the base config, which
+  // covers `src` and `test` together and is only ever run with `--noEmit`.
+  // A base config that names an output directory it never writes to is one
+  // oxlint reads as a mistake, and says so.
+  "compilerOptions": { "rootDir": "src", "outDir": "dist" },
+  "include": ["src/**/*"],
+  "exclude": ["test", "**/*.test.ts", "**/*.spec.ts"]
+}

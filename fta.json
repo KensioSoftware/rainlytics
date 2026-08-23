@@ -1,0 +1,7 @@
+{
+  "output_limit": 250,
+  "score_cap": 50,
+  "exclude_directories": ["dist", "node_modules"],
+  "exclude_filenames": ["*.test.ts", "*.d.ts"],
+  "include_comments": false
+}
