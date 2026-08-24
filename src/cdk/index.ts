@@ -45,3 +45,9 @@ export function requireStackRegion(
     );
   }
 }
+
+export {
+  defaultLogRetention,
+  LogBucket,
+  type LogBucketProps,
+} from "./log-bucket.js";

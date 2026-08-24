@@ -1,0 +1,145 @@
+import {
+  BlockPublicAccess,
+  Bucket,
+  BucketEncryption,
+  ObjectOwnership,
+} from "aws-cdk-lib/aws-s3";
+import type { IKey } from "aws-cdk-lib/aws-kms";
+import { Duration, RemovalPolicy } from "aws-cdk-lib/core";
+import { Construct } from "constructs";
+
+/**
+ * How long raw logs are kept when nothing says otherwise.
+ *
+ * A year, which is long enough to recompute a full history and to compare a
+ * month against the same month last year. Raw is the immutable record every
+ * derived dataset is rebuilt from, so this expiry is also the hard limit on
+ * what can ever be recomputed. Shortening it discards history that cannot be
+ * recovered.
+ *
+ * Generous is cheap at the traffic Rainlytics is built for. A busy site
+ * should set it deliberately.
+ */
+export const defaultLogRetention = Duration.days(365);
+
+/**
+ * The delivery service writes with `bucket-owner-full-control`, which
+ * `BUCKET_OWNER_ENFORCED` permits while refusing every other ACL. Objects
+ * therefore belong to the account that owns the bucket rather than to the
+ * service that put them there.
+ */
+const objectOwnership = ObjectOwnership.BUCKET_OWNER_ENFORCED;
+
+/** What a Rainlytics log bucket can be told. */
+export interface LogBucketProps {
+  /**
+   * A name for the bucket. Left out, CloudFormation names it.
+   *
+   * CloudFront's delivery destination accepts a bucket name matching `[\w-]`
+   * only, and S3 forbids uppercase and underscores in a name, so what is
+   * left is lowercase letters, digits and hyphens. A name carrying a dot
+   * deploys as a bucket and then fails when the delivery is pointed at it,
+   * which is why this is checked here instead.
+   */
+  readonly bucketName?: string | undefined;
+
+  /**
+   * How long an object is kept before S3 expires it.
+   *
+   * @default {@link defaultLogRetention}
+   */
+  readonly retention?: Duration | undefined;
+
+  /**
+   * A KMS key to encrypt objects with, in place of S3-managed encryption.
+   *
+   * Left out on purpose by default. SSE-KMS charges per request, and a log
+   * bucket is written to constantly and read by every query, so the cost
+   * arrives twice and scales with use. The key policy also has to grant
+   * `delivery.logs.amazonaws.com` the usual five actions, or delivery fails
+   * silently from the bucket's point of view.
+   *
+   * @default S3-managed encryption, which costs nothing
+   */
+  readonly encryptionKey?: IKey | undefined;
+
+  /**
+   * What happens to the bucket when the stack goes.
+   *
+   * @default RemovalPolicy.RETAIN, so destroying a stack never destroys the
+   *   analytics history along with it
+   */
+  readonly removalPolicy?: RemovalPolicy | undefined;
+}
+
+/**
+ * An S3 bucket set up to receive CloudFront standard logging v2 deliveries.
+ *
+ * Nothing here transitions objects to a colder storage class, which is the
+ * usual reflex for logs and the wrong one at this size. S3 Standard-IA bills
+ * a minimum of 128KB per object, and CloudFront log objects on a quiet site
+ * are frequently smaller than that, so the cheaper per-GB rate is applied to
+ * several times the bytes and the transition costs more than it saves.
+ * Expiry does the work instead.
+ *
+ * Versioning is off for the same reason it is off on most log stores. The
+ * objects are written once by a service and never updated, so a version
+ * history would hold one version each and be billed for it.
+ */
+export class LogBucket extends Construct {
+  /** The bucket itself, for the delivery to be pointed at. */
+  readonly bucket: Bucket;
+
+  constructor(scope: Construct, id: string, props: LogBucketProps = {}) {
+    super(scope, id);
+
+    if (props.bucketName !== undefined) {
+      assertDeliverableBucketName(props.bucketName);
+    }
+
+    this.bucket = new Bucket(this, "Bucket", {
+      ...(props.bucketName === undefined
+        ? {}
+        : { bucketName: props.bucketName }),
+      blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+      objectOwnership,
+      encryption:
+        props.encryptionKey === undefined
+          ? BucketEncryption.S3_MANAGED
+          : BucketEncryption.KMS,
+      ...(props.encryptionKey === undefined
+        ? {}
+        : { encryptionKey: props.encryptionKey }),
+      enforceSSL: true,
+      removalPolicy: props.removalPolicy ?? RemovalPolicy.RETAIN,
+      lifecycleRules: [
+        {
+          id: "expire-raw-logs",
+          enabled: true,
+          expiration: props.retention ?? defaultLogRetention,
+        },
+        {
+          // Parts of an upload that never completed are invisible in the
+          // console and billed like anything else.
+          id: "abort-incomplete-uploads",
+          enabled: true,
+          abortIncompleteMultipartUploadAfter: Duration.days(7),
+        },
+      ],
+    });
+  }
+}
+
+/** The names CloudFront's delivery destination will accept. */
+const deliverableBucketName = /^[a-z0-9-]+$/u;
+
+function assertDeliverableBucketName(bucketName: string): void {
+  if (!deliverableBucketName.test(bucketName)) {
+    throw new Error(
+      `Bucket name "${bucketName}" cannot receive CloudFront log deliveries.` +
+        ` The delivery destination accepts lowercase letters, digits and` +
+        ` hyphens only, so a name with a dot in it creates a bucket that` +
+        ` delivery then refuses to write to.`,
+    );
+  }
+}
