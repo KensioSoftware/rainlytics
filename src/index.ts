@@ -9,6 +9,8 @@
 
 export {
   availableLogFields,
+  type DeliveredLogField,
+  deliveredLogFieldNames,
   deliveredLogFields,
   omittedLogFields,
 } from "./log-fields.js";
