@@ -24,6 +24,21 @@ belong to your account rather than to AWS.
 Two lifecycle rules run. Objects expire after a year, and multipart uploads that never completed are
 aborted after seven days (those parts are invisible in the console and billed like anything else).
 
+## The delivery grant
+
+The bucket policy lets `delivery.logs.amazonaws.com` put objects, scoped to your account and to
+delivery sources in us-east-1.
+
+AWS adds that statement itself when logging is enabled, so carrying it here looks redundant.
+It is not. Requiring TLS makes CloudFormation the owner of this bucket policy, and CloudFormation
+writes whatever the template says on every update, so a statement added outside the template lasts
+until the next stack update touches the policy and then goes, taking log delivery with it and
+reporting nothing.
+
+The `s3:x-amz-acl` condition AWS documents is left out. This bucket has ACLs disabled, and a
+`StringEquals` on a condition key the request never carries denies the write rather than allowing
+it.
+
 ## Retention is the limit on what can be recomputed
 
 Raw logs are the immutable record, and every rollup and summary is rebuilt from them. The expiry

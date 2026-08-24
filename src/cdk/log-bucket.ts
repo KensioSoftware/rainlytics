@@ -5,8 +5,11 @@ import {
   ObjectOwnership,
 } from "aws-cdk-lib/aws-s3";
 import type { IKey } from "aws-cdk-lib/aws-kms";
-import { Duration, RemovalPolicy } from "aws-cdk-lib/core";
+import { ServicePrincipal } from "aws-cdk-lib/aws-iam";
+import { ArnFormat, Duration, RemovalPolicy, Stack } from "aws-cdk-lib/core";
 import { Construct } from "constructs";
+
+import { logDeliveryRegion } from "./delivery-region.js";
 
 /**
  * How long raw logs are kept when nothing says otherwise.
@@ -146,6 +149,45 @@ export class LogBucket extends Construct {
         },
       ],
     });
+
+    this.allowLogDelivery();
+  }
+
+  /**
+   * Lets the CloudFront delivery service write into the bucket.
+   *
+   * AWS adds this statement itself when logging is enabled, so it looks
+   * redundant. It is not, because `enforceSSL` above makes CloudFormation the
+   * owner of the bucket policy, and CloudFormation sets that policy to
+   * whatever the template says on every update. A statement AWS added out of
+   * band survives until the next stack update touches the policy and then
+   * disappears, taking log delivery with it and reporting nothing.
+   *
+   * Scoped to this account and to delivery sources in the region deliveries
+   * are configured from. The `s3:x-amz-acl` condition AWS documents is left
+   * out on purpose: this bucket has ACLs disabled, and a `StringEquals` on a
+   * condition key the request never carries denies the write.
+   */
+  private allowLogDelivery(): void {
+    const stack = Stack.of(this);
+
+    this.bucket.grantPut(
+      new ServicePrincipal("delivery.logs.amazonaws.com", {
+        conditions: {
+          StringEquals: { "aws:SourceAccount": stack.account },
+          ArnLike: {
+            "aws:SourceArn": stack.formatArn({
+              service: "logs",
+              region: logDeliveryRegion,
+              account: stack.account,
+              resource: "delivery-source",
+              resourceName: "*",
+              arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+            }),
+          },
+        },
+      }),
+    );
   }
 }
 

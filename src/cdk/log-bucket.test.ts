@@ -403,6 +403,57 @@ describe("the raw log bucket", () => {
       template.hasResource("AWS::S3::Bucket", { DeletionPolicy: "Retain" });
     });
 
+    it("lets the CloudFront delivery service write into it", () => {
+      // Given a log bucket.
+      // When the stack is synthesised.
+      const { template } = synthesiseLogBucket();
+
+      // Then the bucket policy allows the delivery service to put objects.
+      // AWS adds this itself when logging is enabled, but `enforceSSL` makes
+      // CloudFormation the owner of this policy, and CloudFormation writes
+      // whatever the template says on every update. A statement added out of
+      // band lasts until the next one and then takes delivery with it.
+      const policy = JSON.stringify(
+        template.findResources("AWS::S3::BucketPolicy"),
+      );
+      expect(policy).toContain("delivery.logs.amazonaws.com");
+      expect(policy).toContain("s3:PutObject");
+    });
+
+    it("scopes that write to this account and its delivery sources", () => {
+      // Given a log bucket in a known account.
+      const stack = new Stack(new App(), "LogStack", {
+        env: { account: "123456789012", region: "eu-west-2" },
+      });
+      new LogBucket(stack, "RainlyticsLogs", { bucketName: aBucketName() });
+
+      // When the stack is synthesised.
+      const policy = JSON.stringify(
+        Template.fromStack(stack).findResources("AWS::S3::BucketPolicy"),
+      );
+
+      // Then both conditions are on it, and the delivery-source ARN names
+      // us-east-1 whatever region the bucket is in, because that is the only
+      // region a delivery can be configured from.
+      expect(policy).toContain('"aws:SourceAccount":"123456789012"');
+      expect(policy).toContain(
+        ":logs:us-east-1:123456789012:delivery-source:*",
+      );
+    });
+
+    it("asks for no ACL, because the bucket has them disabled", () => {
+      // Given a log bucket, whose object ownership is BucketOwnerEnforced.
+      const { template } = synthesiseLogBucket();
+
+      // Then the delivery grant carries no `s3:x-amz-acl` condition. AWS
+      // documents one, and a StringEquals on a key the request never sends
+      // denies the write rather than permitting it.
+      const policy = JSON.stringify(
+        template.findResources("AWS::S3::BucketPolicy"),
+      );
+      expect(policy).not.toContain("x-amz-acl");
+    });
+
     it("refuses a request that did not arrive over TLS", () => {
       // Given a log bucket.
       // When the stack is synthesised.

@@ -14,15 +14,8 @@ import {
 import { deliveredLogFieldNames } from "../log-fields.js";
 import { deliverySuffixPath } from "../partitions.js";
 import { grantLogDeliveryKeyUse } from "./delivery-key-grant.js";
+import { logDeliveryRegion } from "./delivery-region.js";
 import { requireStackRegion } from "./stack-region.js";
-
-/**
- * The region CloudFront log delivery is configured from.
- *
- * Standard logging v2 is set up through the CloudWatch Logs API, and that API
- * only accepts these calls in us-east-1 however far away the bucket is.
- */
-export const logDeliveryRegion = "us-east-1";
 
 /**
  * What this construct needs of a log bucket, which is an ARN and whatever

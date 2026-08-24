@@ -6,12 +6,12 @@
 // and `constructs` are optional peer dependencies, so installing Rainlytics
 // for the beacon alone pulls neither of them in.
 
+export { logDeliveryRegion } from "./delivery-region.js";
 export {
   CloudFrontLogDelivery,
   type CloudFrontLogDeliveryProps,
   type LogDeliveryBucket,
   type LogOutputFormat,
-  logDeliveryRegion,
 } from "./log-delivery.js";
 export {
   defaultLogRetention,
