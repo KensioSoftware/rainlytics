@@ -61,7 +61,7 @@
   },
   "devDependencies": {
     "@faker-js/faker": "^10.6.0",
-    "@kensio/smartass": "^1.33.0",
+    "@kensio/smartass": "^1.37.5",
     "@kensio/yulin": "^1.20.4",
     "@semantic-release/exec": "7.1.0",
     "@types/node": "^26.1.1",
