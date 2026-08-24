@@ -64,6 +64,22 @@ export interface LogBucketProps {
   readonly encryptionKey?: IKey | undefined;
 
   /**
+   * Whether destroying the bucket empties it first.
+   *
+   * Off by default, and deliberately not implied by `removalPolicy`. A
+   * bucket that still holds objects refuses to be deleted, which reads as a
+   * confusing CloudFormation failure. Emptying it silently is the worse of
+   * the two, because what gets deleted is the raw record every derived
+   * dataset is rebuilt from, so this stays something a caller asks for.
+   *
+   * Only meaningful alongside `RemovalPolicy.DESTROY`. CDK refuses the
+   * combination with any other policy.
+   *
+   * @default false
+   */
+  readonly autoDeleteObjects?: boolean | undefined;
+
+  /**
    * What happens to the bucket when the stack goes.
    *
    * @default RemovalPolicy.RETAIN, so destroying a stack never destroys the
@@ -112,6 +128,9 @@ export class LogBucket extends Construct {
         : { encryptionKey: props.encryptionKey }),
       enforceSSL: true,
       removalPolicy: props.removalPolicy ?? RemovalPolicy.RETAIN,
+      ...(props.autoDeleteObjects === undefined
+        ? {}
+        : { autoDeleteObjects: props.autoDeleteObjects }),
       lifecycleRules: [
         {
           id: "expire-raw-logs",

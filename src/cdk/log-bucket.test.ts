@@ -252,6 +252,30 @@ describe("the raw log bucket", () => {
       });
     });
 
+    it("empties itself on the way out only when asked", () => {
+      // Given a bucket set to be destroyed and emptied first.
+      const { template } = synthesiseLogBucket({
+        removalPolicy: RemovalPolicy.DESTROY,
+        autoDeleteObjects: true,
+      });
+
+      // Then CDK adds the custom resource that empties it. A bucket holding
+      // objects refuses to be deleted, so DESTROY without this turns a
+      // teardown into a CloudFormation failure.
+      template.resourceCountIs("Custom::S3AutoDeleteObjects", 1);
+    });
+
+    it("leaves a destroyed bucket to be emptied by hand by default", () => {
+      // Given a bucket set to be destroyed and nothing said about emptying.
+      const { template } = synthesiseLogBucket({
+        removalPolicy: RemovalPolicy.DESTROY,
+      });
+
+      // Then nothing is added to empty it. Deleting the raw record every
+      // derived dataset is rebuilt from should be asked for out loud.
+      template.resourceCountIs("Custom::S3AutoDeleteObjects", 0);
+    });
+
     it("goes with the stack when told to", () => {
       // Given a removal policy chosen deliberately, which is the only way a
       // log bucket should ever become destroyable.

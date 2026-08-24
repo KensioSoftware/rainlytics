@@ -4,6 +4,7 @@ The S3 bucket CloudFront delivers raw access logs into, and the first thing a Ra
 needs. Everything else is derived from what lands here.
 
 ```typescript
+import { Duration } from "aws-cdk-lib/core";
 import { LogBucket } from "@kensio/rainlytics/cdk";
 
 const logs = new LogBucket(this, "RainlyticsLogs", {
@@ -36,6 +37,8 @@ new LogBucket(this, "RainlyticsLogs", {
 });
 ```
 
+`Duration` comes from `aws-cdk-lib/core`.
+
 Shortening it discards history that cannot be recovered afterwards.
 
 ## Deliberate omissions
@@ -64,6 +67,18 @@ is pointed at it. The construct refuses such a name at synthesis instead.
 
 The bucket is retained when its stack is destroyed, so `cdk destroy` never takes the analytics
 history with it. Pass `removalPolicy` to change that.
+
+A bucket that still holds objects refuses to be deleted, so `RemovalPolicy.DESTROY` on its own
+turns `cdk destroy` into a CloudFormation failure rather than a deletion. `autoDeleteObjects`
+empties it first. That is off by default and is not implied by the removal policy, because what it
+deletes is the raw record everything else is rebuilt from.
+
+```typescript
+new LogBucket(this, "RainlyticsLogs", {
+  removalPolicy: RemovalPolicy.DESTROY,
+  autoDeleteObjects: true,
+});
+```
 
 <!-- card
 ```typescript
