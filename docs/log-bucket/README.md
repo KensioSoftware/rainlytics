@@ -17,9 +17,9 @@ const logs = new LogBucket(this, "RainlyticsLogs", {
 ## What it sets up
 
 Public access is blocked on all four switches, TLS is required, and objects are encrypted with
-S3-managed keys. Object ownership is `BucketOwnerEnforced`, which turns ACLs off while still
-permitting the `bucket-owner-full-control` the delivery service writes with, so delivered objects
-belong to your account rather than to AWS.
+S3-managed keys. Object ownership is `BucketOwnerEnforced`. That turns ACLs off while still
+permitting the `bucket-owner-full-control` the delivery service writes with, and delivered objects
+then belong to your account.
 
 Two lifecycle rules run. Objects expire after a year, and multipart uploads that never completed are
 aborted after seven days (those parts are invisible in the console and billed like anything else).
@@ -29,15 +29,14 @@ aborted after seven days (those parts are invisible in the console and billed li
 The bucket policy lets `delivery.logs.amazonaws.com` put objects, scoped to your account and to
 delivery sources in us-east-1.
 
-AWS adds that statement itself when logging is enabled, so carrying it here looks redundant.
-It is not. Requiring TLS makes CloudFormation the owner of this bucket policy, and CloudFormation
-writes whatever the template says on every update, so a statement added outside the template lasts
+AWS adds that statement itself when logging is enabled, which makes carrying it here look redundant.
+Requiring TLS puts CloudFormation in charge of this bucket policy, and CloudFormation writes
+whatever the template says on every update. A statement added outside the template therefore lasts
 until the next stack update touches the policy and then goes, taking log delivery with it and
 reporting nothing.
 
 The `s3:x-amz-acl` condition AWS documents is left out. This bucket has ACLs disabled, and a
-`StringEquals` on a condition key the request never carries denies the write rather than allowing
-it.
+`StringEquals` on a condition key the request never carries denies the write.
 
 ## Retention is the limit on what can be recomputed
 
