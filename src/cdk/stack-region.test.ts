@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { deployStacks } from "#test/simulated-deployment.js";
 
-import { requireStackRegion } from "./index.js";
+import { requireStackRegion } from "./stack-region.js";
 
 describe("requiring a stack region", () => {
   const anAccount = (): string =>
