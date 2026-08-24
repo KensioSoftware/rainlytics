@@ -9,6 +9,15 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    /*
+     * Longer than the 5 second default, because a construct case deploys a
+     * synthesised cloud assembly into a simulated account rather than calling
+     * a function. That takes a few hundred milliseconds here and rather more
+     * on a loaded CI runner, and the default was tight enough that a job
+     * failed on timing while the same commit passed locally and on the other
+     * Node in the matrix.
+     */
+    testTimeout: 20_000,
     // Tests live beside the code they test. `test/` is for fixtures and
     // helpers, which is what the `#test` alias above and the `imports` entry in
     // package.json address.

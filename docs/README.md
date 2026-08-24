@@ -10,3 +10,4 @@ runs on every `pnpm check`.
 ## Constructs
 
 - [Log bucket](log-bucket/), where CloudFront delivers raw access logs.
+- [Log delivery](log-delivery/), which points a distribution at that bucket.

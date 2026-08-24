@@ -45,7 +45,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "pack:check": "./scripts/sh/pack-check.sh",
-    "check": "pnpm fmt && pnpm docs:check && pnpm fta && pnpm build:check && pnpm pack:check && pnpm test:coverage"
+    "check": "pnpm fmt && pnpm lint && pnpm docs:check && pnpm fta && pnpm build:check && pnpm pack:check && pnpm test:coverage"
   },
   "peerDependencies": {
     "aws-cdk-lib": "^2.265.0",
