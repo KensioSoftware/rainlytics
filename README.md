@@ -18,10 +18,33 @@ Everything runs on usage-priced AWS services, batched and precomputed on a
 schedule rather than processed per request. Nothing in the pipeline is always
 on, and a low-traffic site should cost cents a month.
 
+## What works today
+
+CDK constructs for the collection half of the pipeline. A distribution's
+access logs land in an S3 bucket, partitioned and carrying the field set the
+rollups will read.
+
+```typescript
+import { CloudFrontLogDelivery, LogBucket } from "@kensio/rainlytics/cdk";
+
+const logs = new LogBucket(this, "RainlyticsLogs");
+
+new CloudFrontLogDelivery(this, "RainlyticsDelivery", {
+  distributionId: "E1EXAMPLE1234",
+  logBucket: logs.bucket,
+});
+```
+
+That stack has to be in us-east-1, which is the only region CloudFront log
+delivery can be configured from. See the
+[log bucket](docs/log-bucket/) and [log delivery](docs/log-delivery/) pages.
+
+Querying and rollups come next. Nothing reads the data back yet.
+
 ## Status
 
-Early. The architecture is settled and most of the code is still to be
-written.
+Experimental and pre-1.0. The construct API changes without a major version
+behind it, and the only consumer so far is the maintainer's own sites.
 
 ## License
 
