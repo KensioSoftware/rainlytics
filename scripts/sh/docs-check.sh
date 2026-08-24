@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# The contract rainlytics.dev's scaffold expects of `docs/`, checked here.
+# The contract rainlytics.com's scaffold expects of `docs/`, checked here.
 #
 # That site copies each `docs/<path>/README.md` to a page, lifts the H1 into
 # the title, and reads a trailing `<!-- card -->` comment for the snippet on

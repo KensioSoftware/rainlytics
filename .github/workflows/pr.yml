@@ -62,7 +62,7 @@ jobs:
       # only in the log.
       - run: pnpm lint:ci
       - run: pnpm fta
-      # rainlytics.dev builds its pages out of docs/ here. A page that breaks
+      # rainlytics.com builds its pages out of docs/ here. A page that breaks
       # its scaffold breaks it in that repo, at deploy time, long after the
       # change responsible. Cheaper to find it on the pull request that wrote
       # it. See scripts/sh/docs-check.sh for the contract.

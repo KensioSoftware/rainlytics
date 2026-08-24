@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Self-hosted web analytics for AWS sites, built on CloudFront logs",
   "repository": "https://github.com/KensioSoftware/rainlytics",
-  "homepage": "https://rainlytics.dev",
+  "homepage": "https://rainlytics.com",
   "bugs": "https://github.com/KensioSoftware/rainlytics/issues",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
