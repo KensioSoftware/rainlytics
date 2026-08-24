@@ -8,20 +8,51 @@ import { deployStacks } from "#test/simulated-deployment.js";
 
 import { LogBucket, type LogBucketProps } from "./log-bucket.js";
 
+/**
+ * The parts of an S3 lifecycle rule these cases read.
+ *
+ * Declared here rather than imported, so that reading a bucket back does not
+ * pull `@aws-sdk/client-s3` into a package whose production code has no use
+ * for it.
+ */
+interface LifecycleRule {
+  readonly ID?: string | undefined;
+  readonly Status?: string | undefined;
+  readonly Expiration?: { readonly Days?: number | undefined } | undefined;
+  readonly AbortIncompleteMultipartUpload?:
+    | { readonly DaysAfterInitiation?: number | undefined }
+    | undefined;
+}
+
 describe("the raw log bucket", () => {
   const anAccount = (): string =>
     faker.string.numeric({ length: 12, allowLeadingZeros: false });
 
   const aBucketName = (): string => `rainlytics-logs-${faker.string.uuid()}`;
 
-  /** A lifecycle rule matcher, named so the assertions stay one call deep. */
-  const lifecycleRule = (
-    rule: Record<string, unknown>,
-  ): Record<string, unknown> => ({
-    LifecycleConfiguration: {
-      Rules: Match.arrayWith([Match.objectLike(rule)]),
-    },
-  });
+  /**
+   * One lifecycle rule by id, failing loudly when it is absent.
+   *
+   * A rule that has gone missing should fail as a missing rule rather than as
+   * `undefined` having no `Expiration`, which reads as though the assertion
+   * itself is broken.
+   */
+  const ruleNamed = (
+    lifecycle: { Rules?: readonly LifecycleRule[] | undefined },
+    id: string,
+  ): LifecycleRule => {
+    const rule = (lifecycle.Rules ?? []).find(
+      (candidate) => candidate.ID === id,
+    );
+    if (rule === undefined) {
+      throw new Error(
+        `No lifecycle rule "${id}". Found: ${(lifecycle.Rules ?? [])
+          .map((candidate) => candidate.ID)
+          .join(", ")}`,
+      );
+    }
+    return rule;
+  };
 
   /** One stack holding one log bucket, synthesised but not deployed. */
   const synthesiseLogBucket = (
@@ -102,6 +133,137 @@ describe("the raw log bucket", () => {
       });
     });
 
+    it("expires raw logs after a year unless told otherwise", async () => {
+      // Given a deployed log bucket taking the default retention.
+      const bucketName = aBucketName();
+      const { simAws } = await deployStacks((app: App) => {
+        const stack = new Stack(app, "LogStack", {
+          env: { account: anAccount(), region: "eu-west-2" },
+        });
+        new LogBucket(stack, "RainlyticsLogs", { bucketName });
+      });
+
+      // When S3 is asked what lifecycle rules the bucket carries.
+      const lifecycle = await simAws
+        .region("eu-west-2")
+        .s3()
+        .getBucketLifecycleConfiguration({ input: { Bucket: bucketName } });
+
+      // Then objects expire after a year. Raw is the immutable record
+      // everything else is rebuilt from, so this rule is also the limit on
+      // what can ever be recomputed.
+      //
+      // The number is written out. Reading it from `defaultLogRetention`
+      // would take the expected value from the thing under test, so changing
+      // the default would move both sides and this would still pass.
+      const expiry = ruleNamed(lifecycle, "expire-raw-logs");
+      expect(expiry.Status).toBe("Enabled");
+      expect(expiry.Expiration?.Days).toBe(365);
+    });
+
+    it("actually deletes an object once its year is up", async () => {
+      // Given a deployed log bucket with a log object in it.
+      const bucketName = aBucketName();
+      const key = `distributionid=E1EXAMPLE/year=2026/${faker.string.uuid()}`;
+      const { simAws } = await deployStacks((app: App) => {
+        const stack = new Stack(app, "LogStack", {
+          env: { account: anAccount(), region: "eu-west-2" },
+        });
+        new LogBucket(stack, "RainlyticsLogs", { bucketName });
+      });
+
+      const s3 = simAws.region("eu-west-2").s3();
+      await s3.putObject({
+        input: { Bucket: bucketName, Key: key, Body: "a log line" },
+      });
+
+      // When a year and a day pass.
+      await simAws.clock().advanceBy({ days: 366 });
+
+      // Then the object is gone. This is the case the retention rule exists
+      // for, and until yulin 1.20.6 nothing here could tell the difference
+      // between a rule that works and a rule that was merely written down.
+      const remaining = await s3.listObjectsV2({
+        input: { Bucket: bucketName },
+      });
+      expect(remaining.Contents ?? []).toHaveLength(0);
+    });
+
+    it("keeps an object that is still inside its retention", async () => {
+      // Given the same bucket and object.
+      const bucketName = aBucketName();
+      const key = `distributionid=E1EXAMPLE/year=2026/${faker.string.uuid()}`;
+      const { simAws } = await deployStacks((app: App) => {
+        const stack = new Stack(app, "LogStack", {
+          env: { account: anAccount(), region: "eu-west-2" },
+        });
+        new LogBucket(stack, "RainlyticsLogs", { bucketName });
+      });
+
+      const s3 = simAws.region("eu-west-2").s3();
+      await s3.putObject({
+        input: { Bucket: bucketName, Key: key, Body: "a log line" },
+      });
+
+      // When most of a year passes, but not all of it.
+      await simAws.clock().advanceBy({ days: 364 });
+
+      // Then it is still there. Without this, a rule that expired everything
+      // immediately would pass the case above.
+      const remaining = await s3.listObjectsV2({
+        input: { Bucket: bucketName },
+      });
+      expect(remaining.Contents?.map((object) => object.Key)).toContain(key);
+    });
+
+    it("keeps raw logs for as long as it is told to", async () => {
+      // Given a site that wants two years rather than the default one.
+      const bucketName = aBucketName();
+      const { simAws } = await deployStacks((app: App) => {
+        const stack = new Stack(app, "LogStack", {
+          env: { account: anAccount(), region: "eu-west-2" },
+        });
+        new LogBucket(stack, "RainlyticsLogs", {
+          bucketName,
+          retention: Duration.days(730),
+        });
+      });
+
+      // When S3 is asked what it will do.
+      const lifecycle = await simAws
+        .region("eu-west-2")
+        .s3()
+        .getBucketLifecycleConfiguration({ input: { Bucket: bucketName } });
+
+      // Then that is the rule it holds.
+      expect(ruleNamed(lifecycle, "expire-raw-logs").Expiration?.Days).toBe(
+        730,
+      );
+    });
+
+    it("aborts uploads that never finished", async () => {
+      // Given a deployed log bucket.
+      const bucketName = aBucketName();
+      const { simAws } = await deployStacks((app: App) => {
+        const stack = new Stack(app, "LogStack", {
+          env: { account: anAccount(), region: "eu-west-2" },
+        });
+        new LogBucket(stack, "RainlyticsLogs", { bucketName });
+      });
+
+      // When S3 is asked what lifecycle rules it carries.
+      const lifecycle = await simAws
+        .region("eu-west-2")
+        .s3()
+        .getBucketLifecycleConfiguration({ input: { Bucket: bucketName } });
+
+      // Then abandoned multipart parts are aborted rather than billed
+      // indefinitely. They do not appear in the console, so nothing else
+      // would ever notice them.
+      const abort = ruleNamed(lifecycle, "abort-incomplete-uploads");
+      expect(abort.AbortIncompleteMultipartUpload?.DaysAfterInitiation).toBe(7);
+    });
+
     it("records the properties the simulation could not model", async () => {
       // Given a deployed log bucket.
       const { stacks } = await deployStacks((app: App) => {
@@ -111,73 +273,18 @@ describe("the raw log bucket", () => {
         new LogBucket(stack, "RainlyticsLogs", { bucketName: aBucketName() });
       });
 
-      // Then lifecycle and ownership are reported as unmodelled rather than
-      // quietly applied. This case exists to keep the template assertions
-      // below honest: the day yulin simulates either one, this fails and the
-      // case for those assertions goes with it.
+      // Then ownership is reported as unmodelled rather than quietly
+      // applied, which is what keeps the one remaining template assertion
+      // below honest. Lifecycle used to be on this list and was simulated in
+      // yulin 1.20.6, so those cases read the deployment now.
       const ignored = stacks.get("LogStack")?.ignoredProperties ?? [];
       const unmodelled = ignored.map((property) => property.path).join(" ");
-      expect(unmodelled).toContain("LifecycleConfiguration");
       expect(unmodelled).toContain("OwnershipControls");
+      expect(unmodelled).not.toContain("LifecycleConfiguration");
     });
   });
 
   describe("read off the synthesised template", () => {
-    it("expires raw logs after a year unless told otherwise", () => {
-      // Given a log bucket taking the default retention.
-      // When the stack is synthesised.
-      const { template } = synthesiseLogBucket();
-
-      // Then CloudFormation is asked to expire objects after a year. Raw is
-      // the immutable record everything else is rebuilt from, so this rule is
-      // also the limit on what can ever be recomputed.
-      template.hasResourceProperties(
-        "AWS::S3::Bucket",
-        lifecycleRule({
-          Id: "expire-raw-logs",
-          Status: "Enabled",
-          // A year, written out. Reading it from `defaultLogRetention` would
-          // take the expected value from the thing under test, so changing
-          // the default would move both sides and the case would still pass.
-          ExpirationInDays: 365,
-        }),
-      );
-    });
-
-    it("keeps raw logs for as long as it is told to", () => {
-      // Given a site that wants two years rather than the default one.
-      // When the stack is synthesised with that retention.
-      const { template } = synthesiseLogBucket({
-        retention: Duration.days(730),
-      });
-
-      // Then that is the rule in the template.
-      template.hasResourceProperties(
-        "AWS::S3::Bucket",
-        lifecycleRule({
-          Id: "expire-raw-logs",
-          ExpirationInDays: 730,
-        }),
-      );
-    });
-
-    it("aborts uploads that never finished", () => {
-      // Given a log bucket.
-      // When the stack is synthesised.
-      const { template } = synthesiseLogBucket();
-
-      // Then abandoned multipart parts are aborted rather than billed
-      // indefinitely. They do not appear in the console, so nothing else
-      // would ever notice them.
-      template.hasResourceProperties(
-        "AWS::S3::Bucket",
-        lifecycleRule({
-          Id: "abort-incomplete-uploads",
-          AbortIncompleteMultipartUpload: { DaysAfterInitiation: 7 },
-        }),
-      );
-    });
-
     it("takes ownership of what the delivery service writes", () => {
       // Given a log bucket.
       // When the stack is synthesised.
