@@ -18,6 +18,33 @@ describe("the S3 partition layout", () => {
   const keyNamesIn = (path: string): readonly string[] =>
     path.split("/").map((segment) => segment.split("=")[0] ?? "");
 
+  /**
+   * The Hive key name AWS writes for each partition variable.
+   *
+   * Written out here so the invariant below is checked against AWS's
+   * rendering and not against the same table the code under test reads.
+   * Taken from the "Example paths to access logs" tables and the
+   * "Hive-compatible file name format" example in the CloudFront standard
+   * logging documentation.
+   */
+  const hiveKeyFor: Readonly<Record<string, string>> = {
+    "{distributionid}": "distributionid",
+    "{yyyy}": "year",
+    "{MM}": "month",
+    "{dd}": "day",
+    "{HH}": "hour",
+  };
+
+  /**
+   * The partition keys CloudFront derives from a suffix path, delivering
+   * Hive-compatible paths.
+   *
+   * A variable AWS has no documented rendering for comes back as it went in,
+   * which no key name matches.
+   */
+  const asCloudFrontWrites = (suffixPath: string): readonly string[] =>
+    suffixPath.split("/").map((variable) => hiveKeyFor[variable] ?? variable);
+
   const aDistributionId = (): string =>
     `E${faker.string.alphanumeric({ length: 13, casing: "upper" })}`;
 
@@ -30,29 +57,32 @@ describe("the S3 partition layout", () => {
         at: faker.date.past(),
       };
 
-      // When the two halves of the layout are rendered: the path CloudFront is
-      // told to write under, and the prefix a reader addresses.
-      const written = deliverySuffixPath(granularity);
-      const read = partitionPrefix(address, granularity);
+      // When the two halves of the layout are rendered. The path CloudFront is
+      // told to write under carries variables, so it is put through the same
+      // substitution CloudFront applies to reach the keys it lands on.
+      const written = asCloudFrontWrites(deliverySuffixPath(granularity));
+      const read = keyNamesIn(partitionPrefix(address, granularity));
 
       // Then they name the same partition keys in the same order. This is the
       // agreement the whole module exists to hold. CloudFront writing under a
       // prefix Athena does not read fails silently at both ends.
-      expect(keyNamesIn(read)).toStrictEqual(keyNamesIn(written));
+      expect(read).toStrictEqual(written);
     },
   );
 
-  it("leaves CloudFront's variables in the path CloudFront fills in", () => {
+  it("leaves the Hive key names for CloudFront to write", () => {
     // Given the hourly layout, which uses every time variable there is.
     // When the delivery path is rendered.
     const written = deliverySuffixPath("hourly");
 
-    // Then it carries the variable names CloudFront substitutes, spelled the
-    // way CloudFront spells them. A typo here deploys and then writes a
-    // literal "{yyyy}" directory.
-    expect(written).toBe(
-      "distributionid={distributionid}/year={yyyy}/month={MM}/day={dd}/hour={HH}",
-    );
+    // Then it carries the variables alone, spelled the way CloudFront spells
+    // them. A typo here deploys and then writes a literal "{yyyy}" directory.
+    expect(written).toBe("{distributionid}/{yyyy}/{MM}/{dd}/{HH}");
+
+    // And it writes none of the `key=` halves. CloudFront adds those itself
+    // when the delivery is Hive-compatible, and CloudWatch Logs rejects a
+    // suffix path that has already done it: "Provided suffixPath is invalid".
+    expect(written).not.toContain("=");
   });
 
   it("uses lowercase key names, which is what Glue reads", () => {
@@ -65,10 +95,13 @@ describe("the S3 partition layout", () => {
 
     // Then no key name carries a capital. Glue expects lowercase partition
     // names, and CloudFront offers `{DistributionId}` as well, so the other
-    // spelling produces a dataset Athena reads back as empty.
-    for (const name of [...keyNamesIn(written), ...keyNamesIn(read)]) {
+    // spelling produces a dataset Athena reads back as empty. The write side
+    // settles this by its choice of variable, since CloudFront carries the
+    // case of the variable into the key it writes.
+    for (const name of [...asCloudFrontWrites(written), ...keyNamesIn(read)]) {
       expect(name).toBe(name.toLowerCase());
     }
+    expect(written).toContain("{distributionid}");
   });
 
   it("pads every component to the width partition projection expects", () => {

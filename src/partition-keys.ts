@@ -29,7 +29,13 @@ export const defaultPartitionGranularity: PartitionGranularity = "hourly";
 
 /** A partition key, as the write side of the layout names it. */
 export interface PartitionKey {
-  /** The Hive key name, lowercase because Glue expects lowercase. */
+  /**
+   * The Hive key name CloudFront writes for the variable below.
+   *
+   * AWS chooses this, and the choice of variable is the only influence we
+   * have over it. The read side spells it out because a reader addresses the
+   * finished prefix.
+   */
   readonly name: string;
 
   /** The variable CloudFront substitutes when it writes the path. */
@@ -51,7 +57,8 @@ function padded(value: number, width: number): string {
  *
  * Lowercase in both halves. CloudFront offers `{DistributionId}` as well, and
  * Glue expects partition names in lowercase, so the other spelling produces a
- * dataset Athena reads back as empty.
+ * dataset Athena reads back as empty. The case of the variable carries into
+ * the key CloudFront writes (`{DistributionId}` gives `DistributionId=`).
  *
  * No `valueAt`, because the distribution id comes from the caller rather than
  * from the instant being addressed.
