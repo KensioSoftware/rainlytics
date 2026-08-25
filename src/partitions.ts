@@ -7,6 +7,14 @@
 // healthy from where they stand. So both renderings below come from the keys
 // in `partition-keys.ts` rather than from two string literals that happen to
 // match today.
+//
+// The two renderings look different, and that is deliberate. The write side
+// names CloudFront's variables and stops there, because CloudFront applies
+// the `key=` half of each segment itself when the delivery is
+// Hive-compatible. The read side spells the whole `key=value` pair out. They
+// agree through AWS's substitution. Squaring them up by hand would put
+// `year=year=2026` on S3, and CloudWatch Logs refuses the delivery long
+// before it gets that far.
 
 import {
   defaultPartitionGranularity,
@@ -23,17 +31,28 @@ export function timePartitionKeyNames(
 }
 
 /**
- * The `suffixPath` CloudFront writes under, with its variables left in for
- * CloudFront to substitute.
+ * The `suffixPath` CloudFront writes under, being the bare partition
+ * variables.
  *
- * Goes on the delivery alongside the Hive-compatible option, which is what
- * makes the `key=value` segments here mean anything to Athena.
+ * CloudFront supplies the `key=` half of each segment when the delivery
+ * carries the Hive-compatible option, turning `{yyyy}` into `year=2026` and
+ * `{distributionid}` into `distributionid=E1EXAMPLE1234`. Naming those keys
+ * here as well is what CloudWatch Logs refuses, with "Provided suffixPath is
+ * invalid".
+ *
+ * AWS documents that substitution twice and the two readings pull opposite
+ * ways. The "Example paths to access logs" tables carry a column for what
+ * you specify and a column for where the logs land (`myFolderA/{yyyy}` in,
+ * `myFolderA/year=2025` out). The "Hive-compatible file name format" example
+ * a few paragraphs above them prints `year={yyyy}` inside a path. That
+ * example is output after substitution, and it is the one anyone
+ * rederiving this finds first.
  */
 export function deliverySuffixPath(
   granularity: PartitionGranularity = defaultPartitionGranularity,
 ): string {
   return [distributionKey, ...timeKeysFor(granularity)]
-    .map((key) => `${key.name}=${key.cloudFrontVariable}`)
+    .map((key) => key.cloudFrontVariable)
     .join("/");
 }
 
@@ -49,8 +68,9 @@ export interface PartitionAddress {
 /**
  * The prefix holding the logs for one instant, as a reader addresses it.
  *
- * The same keys in the same order as {@link deliverySuffixPath}, with values
- * filled in rather than left as CloudFront variables.
+ * The same keys in the same order as the variables in
+ * {@link deliverySuffixPath}, with the values filled in and the `key=` half
+ * written out. CloudFront writes those same pairs from those variables.
  *
  * @throws {RangeError} when the instant is an invalid Date, rather than
  *   addressing a `year=NaN` prefix every later query silently misses.

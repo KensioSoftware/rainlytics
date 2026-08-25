@@ -67,6 +67,17 @@ Fields default to the Rainlytics set, which is the minimum the rollups need. Par
 by default, Hive-compatible, and land under a `rainlytics` prefix inside the bucket. Changing the
 prefix later splits the dataset, because what was already written stays where it was written.
 
+Objects arrive under the partition keys CloudFront derives from that layout:
+
+```
+s3://your-log-bucket/rainlytics/distributionid=E1EXAMPLE1234/year=2026/month=08/day=25/hour=14/
+```
+
+Rainlytics sends the suffix path as bare variables (`{distributionid}/{yyyy}/{MM}/{dd}/{HH}`).
+CloudFront supplies the `year=` half of each segment itself, because the delivery carries the
+Hive-compatible option. A suffix path that has already added those key names is refused outright,
+with `Provided suffixPath is invalid`.
+
 ## Encrypted buckets
 
 A bucket encrypted with a customer-managed key needs the delivery service allowed to use it. Without

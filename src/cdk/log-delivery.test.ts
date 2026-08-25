@@ -165,6 +165,10 @@ describe("delivering CloudFront access logs", () => {
     // Then it writes Hive-compatible paths under exactly the suffix the
     // partition layout renders. These two agreeing is what lets Athena read
     // back what CloudFront wrote.
+    //
+    // The suffix path holds bare variables. CloudFront adds the `key=` half
+    // of each segment because the Hive-compatible option is on, and
+    // CloudWatch Logs rejects a suffix path that has already added it.
     const described = await logsApi.describeDeliveries({ input: {} });
     const delivery = described.deliveries?.[0];
     expect(delivery?.s3DeliveryConfiguration?.enableHiveCompatiblePath).toBe(
@@ -180,15 +184,14 @@ describe("delivering CloudFront access logs", () => {
     // When the delivery is deployed with that granularity.
     const { logsApi } = await deployDelivery({ granularity: "daily" });
 
-    // Then the suffix path carries no hour.
+    // Then the suffix path carries no hour variable, and CloudFront has no
+    // hour to write a partition for.
     const described = await logsApi.describeDeliveries({ input: {} });
     const delivery = described.deliveries?.[0];
     expect(delivery?.s3DeliveryConfiguration?.suffixPath).toBe(
       deliverySuffixPath("daily"),
     );
-    expect(delivery?.s3DeliveryConfiguration?.suffixPath).not.toContain(
-      "hour=",
-    );
+    expect(delivery?.s3DeliveryConfiguration?.suffixPath).not.toContain("{HH}");
   });
 
   it("asks for the Rainlytics field set", async () => {
