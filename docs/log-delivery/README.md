@@ -122,8 +122,19 @@ new PolicyStatement({
 });
 ```
 
-The action list is the whole of the scope here. A `Put` creates a source or destination whose ARN
-exists only once the call returns. A resource scope would have no ARN to match against.
+`"*"` is what has been deployed, and it is wider than it has to be. CloudWatch Logs supports
+resource-level permissions on most of these actions, against `delivery-source`,
+`delivery-destination` and `delivery` ARNs. A `Put` names the resource it is about, and a wildcard
+such as `arn:aws:logs:us-east-1:<account>:delivery-source:*` therefore matches the call that creates
+one.
+
+Narrowing it is more work than that makes it sound. `DescribeDeliverySources` and
+`DescribeDeliveries` support no resource type and stay on `"*"`. `CreateDelivery` is authorised
+against all three resource types at once, and so are the tagging actions.
+Check each action in the [service authorization
+reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazoncloudwatchlogs.html)
+before scoping, and deploy the result before believing it. Nothing here has been run against a
+scoped version of this statement.
 
 ### Creates alone leave the stack stuck
 

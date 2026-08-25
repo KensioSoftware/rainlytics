@@ -104,6 +104,11 @@ each with its `Get` and `Delete` counterpart. Six verb families before a single 
 Treat that list as inferred from reading the construct. Nobody has yet deployed this bucket with a
 policy narrower than `s3:*`, so the list has never been tested against the failure it would cause.
 
+The object ARN carries the same warning. It is in the statement above because it is in the one that
+was deployed. Every action the construct configures is bucket-level, and a deploying role plausibly
+needs `logBucketArn` on its own. `autoDeleteObjects` is the case to check before dropping it, since
+the objects go through a custom resource holding a role of its own rather than through this one.
+
 ### Name the bucket if you are going to scope a policy to it
 
 A bucket left unnamed is named by CloudFormation after the stack and the logical id, plus a suffix
