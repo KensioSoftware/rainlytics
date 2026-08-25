@@ -76,6 +76,35 @@ A CloudFront delivery destination accepts a bucket name of lowercase letters, di
 itself also allows dots, so `logs.example.com` creates a bucket and then fails when the delivery is
 pointed at it. The construct refuses such a name at synthesis instead.
 
+## Permissions for a scoped deploy role
+
+Skippable on an account whose CloudFormation execution role holds `AdministratorAccess`, which is
+what `cdk bootstrap` gives it by default. Where that role has been narrowed, it needs S3 permissions
+on this bucket.
+
+```typescript
+import { PolicyStatement } from "aws-cdk-lib/aws-iam";
+
+new PolicyStatement({
+  sid: "TheLogBucket",
+  actions: ["s3:*"],
+  resources: [logBucketArn, `${logBucketArn}/*`],
+});
+```
+
+`s3:*` because the bucket is the log store, and every S3 call this role could make against it
+belongs to a deploy of the stack that owns it. Narrowing it means covering what the construct sets
+up. That is creating the bucket, its bucket policy, lifecycle rules, the public access block,
+encryption, object ownership controls and tagging. Six verb families before a single object is
+written.
+
+A bucket left unnamed is named by CloudFormation after the stack and the logical id, plus a suffix
+that appears only once the bucket exists. Matching a prefix (`arn:aws:s3:::mystack-*`) covers that.
+The bucket is `RETAIN` by default, so a name written into a policy could only ever be wrong once.
+
+The CloudWatch Logs and CloudFront permissions the delivery needs are on the
+[log delivery](../log-delivery/) page.
+
 ## Removal
 
 The bucket is retained when its stack is destroyed, so `cdk destroy` never takes the analytics
