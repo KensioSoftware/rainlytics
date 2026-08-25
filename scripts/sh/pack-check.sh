@@ -34,6 +34,12 @@ expected=(
   package/package.json
   package/README.md
   package/LICENSE
+  # The construct pages. README.md ships and links to these with relative
+  # paths, and unpacked those links are dead in node_modules. That is where
+  # an agent working in a consumer's repository reads them, and the docs are
+  # 17KB against a tarball already carrying dist/ and src/.
+  package/docs/log-bucket/README.md
+  package/docs/log-delivery/README.md
   package/src/index.ts
   package/src/cdk/index.ts
   package/dist/index.js
