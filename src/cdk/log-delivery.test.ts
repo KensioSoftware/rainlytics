@@ -77,34 +77,37 @@ describe("delivering CloudFront access logs", () => {
   const deployDelivery = async (
     props: Partial<CloudFrontLogDeliveryProps> = {},
   ) => {
-    const account = anAccount();
-    const { simAws, stacks } = await deployStacks((app: App) => {
-      const stack = new Stack(app, "DeliveryStack", {
-        env: { account, region: "us-east-1" },
-      });
+    let account = "";
+    const { simAws, stacks } = await deployStacks(
+      (app: App, simulated: string) => {
+        account = simulated;
+        const stack = new Stack(app, "DeliveryStack", {
+          env: { account: simulated, region: "us-east-1" },
+        });
 
-      // An HTTP origin rather than a bucket. What the distribution serves is
-      // scenery here, and CDK's own `Bucket` is not assignable to `IBucket`
-      // under `exactOptionalPropertyTypes`, which is the same mismatch that
-      // shaped `LogDeliveryBucket`.
-      const distribution = new Distribution(stack, "SiteDistribution", {
-        defaultBehavior: { origin: new HttpOrigin("origin.example.com") },
-      });
-      // The id is a token until the stack goes up, so the test reads it back
-      // through an output rather than guessing what it resolved to.
-      new CfnOutput(stack, "DistributionId", {
-        value: distribution.distributionId,
-      });
+        // An HTTP origin rather than a bucket. What the distribution serves is
+        // scenery here, and CDK's own `Bucket` is not assignable to `IBucket`
+        // under `exactOptionalPropertyTypes`, which is the same mismatch that
+        // shaped `LogDeliveryBucket`.
+        const distribution = new Distribution(stack, "SiteDistribution", {
+          defaultBehavior: { origin: new HttpOrigin("origin.example.com") },
+        });
+        // The id is a token until the stack goes up, so the test reads it back
+        // through an output rather than guessing what it resolved to.
+        new CfnOutput(stack, "DistributionId", {
+          value: distribution.distributionId,
+        });
 
-      const logs = new LogBucket(stack, "RainlyticsLogs", {
-        bucketName: `rainlytics-logs-${faker.string.uuid()}`,
-      });
-      new CloudFrontLogDelivery(stack, "Delivery", {
-        ...props,
-        distributionId: props.distributionId ?? distribution.distributionId,
-        logBucket: props.logBucket ?? logs.bucket,
-      });
-    });
+        const logs = new LogBucket(stack, "RainlyticsLogs", {
+          bucketName: `rainlytics-logs-${faker.string.uuid()}`,
+        });
+        new CloudFrontLogDelivery(stack, "Delivery", {
+          ...props,
+          distributionId: props.distributionId ?? distribution.distributionId,
+          logBucket: props.logBucket ?? logs.bucket,
+        });
+      },
+    );
 
     const distributionId = stacks
       .get("DeliveryStack")
@@ -336,9 +339,9 @@ describe("delivering CloudFront access logs", () => {
   it("refuses to be deployed outside us-east-1", async () => {
     // Given the delivery placed beside the rest of a consumer's site, which
     // is the easy mistake since that is where everything else lives.
-    const deploying = deployStacks((app: App) => {
+    const deploying = deployStacks((app: App, account: string) => {
       const stack = new Stack(app, "SiteStack", {
-        env: { account: anAccount(), region: "eu-west-2" },
+        env: { account, region: "eu-west-2" },
       });
       const logs = new LogBucket(stack, "RainlyticsLogs", {
         bucketName: `rainlytics-logs-${faker.string.uuid()}`,

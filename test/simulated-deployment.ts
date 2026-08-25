@@ -53,14 +53,20 @@ export interface SimulatedDeployment {
  * `defineStacks` adds the stacks under test to the app it is handed. Throwing
  * from in there, which is what a construct validating its own scope does,
  * rejects the returned promise before anything is deployed.
+ *
+ * It is also handed the account the simulation runs as, and stacks should
+ * take their `env.account` from it rather than inventing one. Several AWS
+ * services check that a resource belongs to the account acting on it, and a
+ * stack pinned to an account the simulation has never heard of fails those
+ * checks for a reason that has nothing to do with the construct under test.
  */
 export async function deployStacks(
-  defineStacks: (app: App) => void,
+  defineStacks: (app: App, account: string) => void,
 ): Promise<SimulatedDeployment> {
-  const app = new App();
-  defineStacks(app);
-
   const simAws = new SimAws({ clock: new SimFixedClock(simStartedAt) });
+
+  const app = new App();
+  defineStacks(app, simulatedAccount(simAws));
   const stacks = await simAws.cloudFormation().deployCdkOut({
     directoryPath: app.synth().directory,
   });
@@ -107,4 +113,9 @@ function refuseSkippedResources(
         ` around them.`,
     );
   }
+}
+
+/** The account a simulated AWS acts as, which stacks should be pinned to. */
+function simulatedAccount(simAws: SimAws): string {
+  return simAws.account().accountId;
 }
