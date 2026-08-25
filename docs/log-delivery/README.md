@@ -178,6 +178,16 @@ as creating the bucket and stops.
 needs the bucket verbs as well as the delivery ones. They are on the [log bucket](../log-bucket/)
 page, along with a warning about scoping them to a generated bucket name.
 
+### Widening the policy can be a deploy of its own
+
+Where the execution policy is itself managed by CDK, it usually lives in a different stack from the
+one it governs, and sometimes in a different region. Editing it and rerunning the deploy that needed
+it then changes nothing, because the policy stack has to go first.
+
+The failure that follows looks the same as the one just fixed. A reader who has added the missing
+action and redeployed can reasonably conclude the action was wrong, when the policy carrying it was
+never applied.
+
 ### SSE-KMS is unverified
 
 Passing `encryptionKey` puts a customer-managed key in the stack, and the construct grants

@@ -93,11 +93,16 @@ new PolicyStatement({
 });
 ```
 
-`s3:*` because the bucket is the log store, and every S3 call this role could make against it
-belongs to a deploy of the stack that owns it. Narrowing it means covering what the construct sets
-up. That is creating the bucket, its bucket policy, lifecycle rules, the public access block,
-encryption, object ownership controls and tagging. Six verb families before a single object is
-written.
+`s3:*` is what the first site to run a narrowed role granted, and it is the only version of this
+statement a deploy has proved. The bucket is the log store, and every S3 call this role could make
+against it belongs to a deploy of the stack that owns it.
+
+A shorter list has to cover what the construct configures. That is creating the bucket, its bucket
+policy, lifecycle rules, the public access block, encryption, object ownership controls and tagging,
+each with its `Get` and `Delete` counterpart. Six verb families before a single object is written.
+
+Treat that list as inferred from reading the construct. Nobody has yet deployed this bucket with a
+policy narrower than `s3:*`, so the list has never been tested against the failure it would cause.
 
 ### Name the bucket if you are going to scope a policy to it
 
