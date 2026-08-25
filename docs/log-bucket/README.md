@@ -76,6 +76,67 @@ A CloudFront delivery destination accepts a bucket name of lowercase letters, di
 itself also allows dots, so `logs.example.com` creates a bucket and then fails when the delivery is
 pointed at it. The construct refuses such a name at synthesis instead.
 
+## Permissions for a scoped deploy role
+
+Skippable on an account whose CloudFormation execution role holds `AdministratorAccess`, which is
+what `cdk bootstrap` gives it by default. Where that role has been narrowed, it needs S3 permissions
+on this bucket. A role holding the delivery permissions from the
+[log delivery](../log-delivery/) page and nothing else fails on `s3:CreateBucket`.
+
+```typescript
+import { PolicyStatement } from "aws-cdk-lib/aws-iam";
+
+new PolicyStatement({
+  sid: "TheLogBucket",
+  actions: ["s3:*"],
+  resources: [logBucketArn, `${logBucketArn}/*`],
+});
+```
+
+`s3:*` is what the first site to run a narrowed role granted, and it is the only version of this
+statement a deploy has proved. The bucket is the log store, and every S3 call this role could make
+against it belongs to a deploy of the stack that owns it.
+
+A shorter list has to cover what the construct configures. That is creating the bucket, its bucket
+policy, lifecycle rules, the public access block, encryption, object ownership controls and tagging,
+each with its `Get` and `Delete` counterpart. Six verb families before a single object is written.
+
+Treat that list as inferred from reading the construct. Nobody has yet deployed this bucket with a
+policy narrower than `s3:*`, so the list has never been tested against the failure it would cause.
+
+The object ARN carries the same warning. It is in the statement above because it is in the one that
+was deployed. Every action the construct configures is bucket-level, and a deploying role plausibly
+needs `logBucketArn` on its own. `autoDeleteObjects` is the case to check before dropping it, since
+the objects go through a custom resource holding a role of its own rather than through this one.
+
+### Name the bucket if you are going to scope a policy to it
+
+A bucket left unnamed is named by CloudFormation after the stack and the logical id, plus a suffix
+that appears only once the bucket exists. The obvious way to reach that from a policy is a prefix
+built from the stack name, and it has a trap in it.
+
+S3 caps a bucket name at 63 characters, and CloudFormation fits a generated name to that by
+truncating **both** the stack name and the logical id. A stack called
+`ChineseboostAnalyticsStack` produced a bucket beginning `chineseboostanalyticsstac`, one character
+short. So `arn:aws:s3:::chineseboostanalyticsstack-*` matched nothing, and the deploy failed on a
+bucket the policy looked like it covered.
+
+Passing `bucketName` avoids the whole question. The name is then yours, the policy can quote it, and
+the two cannot drift:
+
+```typescript
+const logs = new LogBucket(this, "RainlyticsLogs", {
+  bucketName: "example-com-rainlytics-logs",
+});
+```
+
+Where the name stays generated, match a prefix short enough to survive truncation and check it
+against the bucket that actually got created. The bucket is `RETAIN` by default, so its name
+outlives the stack that made it.
+
+The CloudWatch Logs and CloudFront permissions the delivery needs are on the
+[log delivery](../log-delivery/) page.
+
 ## Removal
 
 The bucket is retained when its stack is destroyed, so `cdk destroy` never takes the analytics

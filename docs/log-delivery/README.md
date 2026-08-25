@@ -88,6 +88,140 @@ An imported key is the exception. CDK cannot add a statement to a key policy bel
 template. The grant would be written and never applied. The construct emits a build warning instead,
 and the statement to add by hand is on the [log bucket](../log-bucket/) page.
 
+## Permissions for a scoped deploy role
+
+`cdk bootstrap` gives the CloudFormation execution role `AdministratorAccess` unless told otherwise.
+An account still on that default deploys this construct with no IAM work at all, and can stop
+reading here. The rest of this section is for a role narrowed with `cdk bootstrap
+--cloudformation-execution-policies`, where a missing action arrives as a rolled-back deploy.
+
+Three `AWS::Logs::*` resources are created here (a delivery source naming the distribution, a
+delivery destination naming the bucket and prefix, and a delivery joining the two), and one
+CloudFront permission is checked on the caller. Establishing that list took three failed deploys on
+the first site to run a narrowed role. The three headings below are the three failures, in the order
+they arrived.
+
+### The CloudWatch Logs half
+
+```typescript
+import { PolicyStatement } from "aws-cdk-lib/aws-iam";
+
+new PolicyStatement({
+  sid: "TheLogDelivery",
+  actions: [
+    "logs:PutDeliverySource",
+    "logs:GetDeliverySource",
+    "logs:DeleteDeliverySource",
+    "logs:DescribeDeliverySources",
+    "logs:PutDeliveryDestination",
+    "logs:GetDeliveryDestination",
+    "logs:DeleteDeliveryDestination",
+    "logs:DescribeDeliveryDestinations",
+    "logs:PutDeliveryDestinationPolicy",
+    "logs:GetDeliveryDestinationPolicy",
+    "logs:DeleteDeliveryDestinationPolicy",
+    "logs:CreateDelivery",
+    "logs:GetDelivery",
+    "logs:DeleteDelivery",
+    "logs:DescribeDeliveries",
+    "logs:UpdateDeliveryConfiguration",
+    "logs:TagResource",
+    "logs:UntagResource",
+    "logs:ListTagsForResource",
+  ],
+  resources: ["*"],
+});
+```
+
+`"*"` is what has been deployed, and it is wider than it has to be. CloudWatch Logs supports
+resource-level permissions on most of these actions, against `delivery-source`,
+`delivery-destination` and `delivery` ARNs. A `Put` names the resource it is about, and a wildcard
+such as `arn:aws:logs:us-east-1:<account>:delivery-source:*` therefore matches the call that creates
+one.
+
+Narrowing it is more work than that makes it sound. `DescribeDeliverySources` and
+`DescribeDeliveries` support no resource type and stay on `"*"`. `CreateDelivery` is authorised
+against all three resource types at once, and so are the tagging actions.
+Check each action in the [service authorization
+reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazoncloudwatchlogs.html)
+before scoping, and deploy the result before believing it. Nothing here has been run against a
+scoped version of this statement.
+
+### Creates alone leave the stack stuck
+
+The reads and the deletes are the half worth being deliberate about, and the half a hand-written
+policy drops. CloudFormation reads with `Get` before every call it makes. A policy carrying only the
+`Put` actions therefore fails before it has created anything.
+
+Rollback then calls `Delete`, fails there too, and leaves the stack in `ROLLBACK_FAILED`. Clearing
+that takes a hand `aws cloudformation delete-stack`. One missing verb family turns a failed deploy
+into a stuck stack.
+
+### The distribution has to allow it
+
+Creating an `AWS::Logs::DeliverySource` calls CloudWatch Logs, and CloudWatch Logs then checks the
+caller against CloudFront for the resource being logged. The denial therefore arrives from the
+CloudWatch Logs API naming a CloudFront action:
+
+```
+User: .../cdk-hnb659fds-cfn-exec-role-<account>-us-east-1/AWSCloudFormation is not
+authorized to perform: cloudfront:AllowVendedLogDeliveryForResource on resource:
+arn:aws:cloudfront::<account>:distribution/E1EXAMPLE1234
+(Service: CloudWatchLogs, Status Code: 400)
+```
+
+```typescript
+new PolicyStatement({
+  sid: "LogTheDistribution",
+  actions: ["cloudfront:AllowVendedLogDeliveryForResource"],
+  resources: [`arn:aws:cloudfront::${account}:distribution/E1EXAMPLE1234`],
+});
+```
+
+Scoped to the distribution. That is unusual for a `cloudfront:` action, and possible here because
+the distribution has been serving the site for as long as it takes to know its id. A CloudFront ARN
+carries no region.
+
+This one was reasoned about first and got wrong. The argument ran that v2 names the distribution by
+ARN and CloudWatch Logs checks ownership on its own side, leaving the caller with no reason to hold
+a `cloudfront:` action. A deploy said otherwise.
+
+The lesson generalises past this action. A permission that one service checks on another's behalf
+cannot be worked out from the API surface, because the API being called is the wrong place to look
+for it. Read the denial and grant what it names.
+
+### The bucket the delivery writes into needs its own permissions
+
+The third deploy failed on `s3:CreateBucket`. That is the permission a reader of this page is most
+likely to miss. Nothing above mentions S3, and a role assembled from this section alone gets as far
+as creating the bucket and stops.
+
+[`LogBucket`](../log-bucket/) is a separate construct in the same stack, and the deploying role
+needs the bucket verbs as well as the delivery ones. They are on the [log bucket](../log-bucket/)
+page, along with a warning about scoping them to a generated bucket name.
+
+### Widening the policy can be a deploy of its own
+
+Where the execution policy is itself managed by CDK, it usually lives in a different stack from the
+one it governs, and sometimes in a different region. Editing it and rerunning the deploy that needed
+it then changes nothing, because the policy stack has to go first.
+
+The failure that follows looks the same as the one just fixed. A reader who has added the missing
+action and redeployed can reasonably conclude the action was wrong, when the policy carrying it was
+never applied.
+
+### SSE-KMS is unverified
+
+Passing `encryptionKey` puts a customer-managed key in the stack, and the construct grants
+`delivery.logs.amazonaws.com` the use of it (see above). Whether the _deploying role_ needs `kms:`
+actions of its own for that has not been established either way. The only consumer so far encrypts
+with S3-managed keys and has no evidence about the path.
+
+The expectation, untested, is `kms:PutKeyPolicy` and `kms:GetKeyPolicy` on the key (CloudFormation
+applies the grant by updating the key's policy), plus `kms:CreateKey`, `kms:DescribeKey`,
+`kms:ScheduleKeyDeletion` and the tagging actions where the key is created in the same stack. Treat
+that as a starting point for reading a denial, and not as a working policy.
+
 <!-- card
 ```typescript
 new CloudFrontLogDelivery(this, "RainlyticsDelivery", {
