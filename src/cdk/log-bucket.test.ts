@@ -89,9 +89,9 @@ describe("the raw log bucket", () => {
       const bucketName = aBucketName();
 
       // When it is deployed.
-      const { simAws } = await deployStacks((app: App) => {
+      const { simAws } = await deployStacks((app: App, account: string) => {
         const stack = new Stack(app, "LogStack", {
-          env: { account: anAccount(), region: "eu-west-2" },
+          env: { account, region: "eu-west-2" },
         });
         new LogBucket(stack, "RainlyticsLogs", { bucketName });
       });
@@ -109,9 +109,9 @@ describe("the raw log bucket", () => {
     it("blocks every route to making an object public", async () => {
       // Given a deployed log bucket.
       const bucketName = aBucketName();
-      const { simAws } = await deployStacks((app: App) => {
+      const { simAws } = await deployStacks((app: App, account: string) => {
         const stack = new Stack(app, "LogStack", {
-          env: { account: anAccount(), region: "eu-west-2" },
+          env: { account, region: "eu-west-2" },
         });
         new LogBucket(stack, "RainlyticsLogs", { bucketName });
       });
@@ -136,9 +136,9 @@ describe("the raw log bucket", () => {
     it("expires raw logs after a year unless told otherwise", async () => {
       // Given a deployed log bucket taking the default retention.
       const bucketName = aBucketName();
-      const { simAws } = await deployStacks((app: App) => {
+      const { simAws } = await deployStacks((app: App, account: string) => {
         const stack = new Stack(app, "LogStack", {
-          env: { account: anAccount(), region: "eu-west-2" },
+          env: { account, region: "eu-west-2" },
         });
         new LogBucket(stack, "RainlyticsLogs", { bucketName });
       });
@@ -165,9 +165,9 @@ describe("the raw log bucket", () => {
       // Given a deployed log bucket with a log object in it.
       const bucketName = aBucketName();
       const key = `distributionid=E1EXAMPLE/year=2026/${faker.string.uuid()}`;
-      const { simAws } = await deployStacks((app: App) => {
+      const { simAws } = await deployStacks((app: App, account: string) => {
         const stack = new Stack(app, "LogStack", {
-          env: { account: anAccount(), region: "eu-west-2" },
+          env: { account, region: "eu-west-2" },
         });
         new LogBucket(stack, "RainlyticsLogs", { bucketName });
       });
@@ -193,9 +193,9 @@ describe("the raw log bucket", () => {
       // Given the same bucket and object.
       const bucketName = aBucketName();
       const key = `distributionid=E1EXAMPLE/year=2026/${faker.string.uuid()}`;
-      const { simAws } = await deployStacks((app: App) => {
+      const { simAws } = await deployStacks((app: App, account: string) => {
         const stack = new Stack(app, "LogStack", {
-          env: { account: anAccount(), region: "eu-west-2" },
+          env: { account, region: "eu-west-2" },
         });
         new LogBucket(stack, "RainlyticsLogs", { bucketName });
       });
@@ -219,9 +219,9 @@ describe("the raw log bucket", () => {
     it("keeps raw logs for as long as it is told to", async () => {
       // Given a site that wants two years rather than the default one.
       const bucketName = aBucketName();
-      const { simAws } = await deployStacks((app: App) => {
+      const { simAws } = await deployStacks((app: App, account: string) => {
         const stack = new Stack(app, "LogStack", {
-          env: { account: anAccount(), region: "eu-west-2" },
+          env: { account, region: "eu-west-2" },
         });
         new LogBucket(stack, "RainlyticsLogs", {
           bucketName,
@@ -244,9 +244,9 @@ describe("the raw log bucket", () => {
     it("aborts uploads that never finished", async () => {
       // Given a deployed log bucket.
       const bucketName = aBucketName();
-      const { simAws } = await deployStacks((app: App) => {
+      const { simAws } = await deployStacks((app: App, account: string) => {
         const stack = new Stack(app, "LogStack", {
-          env: { account: anAccount(), region: "eu-west-2" },
+          env: { account, region: "eu-west-2" },
         });
         new LogBucket(stack, "RainlyticsLogs", { bucketName });
       });
@@ -266,9 +266,9 @@ describe("the raw log bucket", () => {
 
     it("records the properties the simulation could not model", async () => {
       // Given a deployed log bucket.
-      const { stacks } = await deployStacks((app: App) => {
+      const { stacks } = await deployStacks((app: App, account: string) => {
         const stack = new Stack(app, "LogStack", {
-          env: { account: anAccount(), region: "eu-west-2" },
+          env: { account, region: "eu-west-2" },
         });
         new LogBucket(stack, "RainlyticsLogs", { bucketName: aBucketName() });
       });

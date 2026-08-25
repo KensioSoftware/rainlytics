@@ -81,19 +81,15 @@ describe("requiring a stack region", () => {
 });
 
 describe("deploying the two regions Rainlytics needs", () => {
-  const anAccount = (): string =>
-    faker.string.numeric({ length: 12, allowLeadingZeros: false });
-
   it("puts each stack in the region its own environment names", async () => {
     // Given the shape a consumer ends up with: their site and its log bucket
     // wherever they keep them, and a second stack in us-east-1, which is the
     // only region the log delivery API accepts these calls in.
-    const account = anAccount();
     const logBucketName = `rainlytics-logs-${faker.string.uuid()}`;
     const resultsBucketName = `rainlytics-results-${faker.string.uuid()}`;
 
     // When both stacks are deployed together, as one cloud assembly.
-    const { simAws, stacks } = await deployStacks((app) => {
+    const { simAws, stacks } = await deployStacks((app, account) => {
       const site = new Stack(app, "SiteStack", {
         env: { account, region: "eu-west-2" },
       });
@@ -138,10 +134,8 @@ describe("deploying the two regions Rainlytics needs", () => {
   it("refuses a delivery stack put in the site's region", async () => {
     // Given the delivery stack placed beside everything else, which is the
     // easy mistake, since that is where the rest of a consumer's app lives.
-    const account = anAccount();
-
     // When the app is synthesised.
-    const deploying = deployStacks((app) => {
+    const deploying = deployStacks((app, account) => {
       const delivery = new Stack(app, "DeliveryStack", {
         env: { account, region: "eu-west-2" },
       });
