@@ -80,7 +80,8 @@ pointed at it. The construct refuses such a name at synthesis instead.
 
 Skippable on an account whose CloudFormation execution role holds `AdministratorAccess`, which is
 what `cdk bootstrap` gives it by default. Where that role has been narrowed, it needs S3 permissions
-on this bucket.
+on this bucket. A role holding the delivery permissions from the
+[log delivery](../log-delivery/) page and nothing else fails on `s3:CreateBucket`.
 
 ```typescript
 import { PolicyStatement } from "aws-cdk-lib/aws-iam";
@@ -98,9 +99,30 @@ up. That is creating the bucket, its bucket policy, lifecycle rules, the public 
 encryption, object ownership controls and tagging. Six verb families before a single object is
 written.
 
+### Name the bucket if you are going to scope a policy to it
+
 A bucket left unnamed is named by CloudFormation after the stack and the logical id, plus a suffix
-that appears only once the bucket exists. Matching a prefix (`arn:aws:s3:::mystack-*`) covers that.
-The bucket is `RETAIN` by default, so a name written into a policy could only ever be wrong once.
+that appears only once the bucket exists. The obvious way to reach that from a policy is a prefix
+built from the stack name, and it has a trap in it.
+
+S3 caps a bucket name at 63 characters, and CloudFormation fits a generated name to that by
+truncating **both** the stack name and the logical id. A stack called
+`ChineseboostAnalyticsStack` produced a bucket beginning `chineseboostanalyticsstac`, one character
+short. So `arn:aws:s3:::chineseboostanalyticsstack-*` matched nothing, and the deploy failed on a
+bucket the policy looked like it covered.
+
+Passing `bucketName` avoids the whole question. The name is then yours, the policy can quote it, and
+the two cannot drift:
+
+```typescript
+const logs = new LogBucket(this, "RainlyticsLogs", {
+  bucketName: "example-com-rainlytics-logs",
+});
+```
+
+Where the name stays generated, match a prefix short enough to survive truncation and check it
+against the bucket that actually got created. The bucket is `RETAIN` by default, so its name
+outlives the stack that made it.
 
 The CloudWatch Logs and CloudFront permissions the delivery needs are on the
 [log delivery](../log-delivery/) page.

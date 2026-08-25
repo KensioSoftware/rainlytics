@@ -86,7 +86,9 @@ reading here. The rest of this section is for a role narrowed with `cdk bootstra
 
 Three `AWS::Logs::*` resources are created here (a delivery source naming the distribution, a
 delivery destination naming the bucket and prefix, and a delivery joining the two), and one
-CloudFront permission is checked on the caller.
+CloudFront permission is checked on the caller. Establishing that list took three failed deploys on
+the first site to run a narrowed role. The three headings below are the three failures, in the order
+they arrived.
 
 ### The CloudWatch Logs half
 
@@ -154,19 +156,27 @@ new PolicyStatement({
 });
 ```
 
-Scoped to the distribution, which is unusual for a `cloudfront:` action and possible here because
+Scoped to the distribution. That is unusual for a `cloudfront:` action, and possible here because
 the distribution has been serving the site for as long as it takes to know its id. A CloudFront ARN
 carries no region.
 
 This one was reasoned about first and got wrong. The argument ran that v2 names the distribution by
 ARN and CloudWatch Logs checks ownership on its own side, leaving the caller with no reason to hold
-a `cloudfront:` action. A deploy said otherwise. The lesson generalises past this action. A
-resource type can call more than one service, and the second service is the one a policy misses.
+a `cloudfront:` action. A deploy said otherwise.
 
-### The bucket half
+The lesson generalises past this action. A permission that one service checks on another's behalf
+cannot be worked out from the API surface, because the API being called is the wrong place to look
+for it. Read the denial and grant what it names.
 
-[`LogBucket`](../log-bucket/) needs S3 permissions of its own on the same role. Those are on the
-[log bucket](../log-bucket/) page.
+### The bucket the delivery writes into needs its own permissions
+
+The third deploy failed on `s3:CreateBucket`. That is the permission a reader of this page is most
+likely to miss. Nothing above mentions S3, and a role assembled from this section alone gets as far
+as creating the bucket and stops.
+
+[`LogBucket`](../log-bucket/) is a separate construct in the same stack, and the deploying role
+needs the bucket verbs as well as the delivery ones. They are on the [log bucket](../log-bucket/)
+page, along with a warning about scoping them to a generated bucket name.
 
 ### SSE-KMS is unverified
 
