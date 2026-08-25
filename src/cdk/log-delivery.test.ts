@@ -1,7 +1,9 @@
 import { faker } from "@faker-js/faker";
+import { Distribution } from "aws-cdk-lib/aws-cloudfront";
+import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { Key } from "aws-cdk-lib/aws-kms";
 import { Annotations, Match, Template } from "aws-cdk-lib/assertions";
-import { App, Stack } from "aws-cdk-lib/core";
+import { App, CfnOutput, Stack } from "aws-cdk-lib/core";
 import { describe, expect, it } from "vitest";
 
 import { deployStacks } from "#test/simulated-deployment.js";
@@ -59,28 +61,54 @@ describe("delivering CloudFront access logs", () => {
     `E${faker.string.alphanumeric({ length: 13, casing: "upper" })}`;
 
   /**
-   * The delivery deployed into a simulated account, with the log bucket
-   * beside it. Both go in one us-east-1 stack, which is where the delivery
-   * has to be, and a real consumer's distribution lives somewhere else.
+   * The delivery deployed into a simulated account, with a real distribution
+   * and the log bucket beside it.
+   *
+   * The distribution is deployed rather than invented. A delivery source
+   * names a distribution by ARN, and AWS refuses one naming a distribution
+   * that does not exist, so a fabricated id makes the whole delivery a thing
+   * production would have rejected. See KensioSoftware/yulin#993, which is
+   * about the simulation catching up to that.
+   *
+   * Everything goes in one us-east-1 stack. A real consumer keeps the
+   * distribution wherever their site is, and the cases about that split are
+   * in stack-region.test.ts, where they are the subject rather than scenery.
    */
   const deployDelivery = async (
     props: Partial<CloudFrontLogDeliveryProps> = {},
   ) => {
-    const distributionId = props.distributionId ?? aDistributionId();
     const account = anAccount();
-    const { simAws } = await deployStacks((app: App) => {
+    const { simAws, stacks } = await deployStacks((app: App) => {
       const stack = new Stack(app, "DeliveryStack", {
         env: { account, region: "us-east-1" },
       });
+
+      // An HTTP origin rather than a bucket. What the distribution serves is
+      // scenery here, and CDK's own `Bucket` is not assignable to `IBucket`
+      // under `exactOptionalPropertyTypes`, which is the same mismatch that
+      // shaped `LogDeliveryBucket`.
+      const distribution = new Distribution(stack, "SiteDistribution", {
+        defaultBehavior: { origin: new HttpOrigin("origin.example.com") },
+      });
+      // The id is a token until the stack goes up, so the test reads it back
+      // through an output rather than guessing what it resolved to.
+      new CfnOutput(stack, "DistributionId", {
+        value: distribution.distributionId,
+      });
+
       const logs = new LogBucket(stack, "RainlyticsLogs", {
         bucketName: `rainlytics-logs-${faker.string.uuid()}`,
       });
       new CloudFrontLogDelivery(stack, "Delivery", {
         ...props,
-        distributionId,
+        distributionId: props.distributionId ?? distribution.distributionId,
         logBucket: props.logBucket ?? logs.bucket,
       });
     });
+
+    const distributionId = stacks
+      .get("DeliveryStack")
+      ?.output("DistributionId");
     const logsApi = simAws
       .region("us-east-1")
       .account()
@@ -91,7 +119,7 @@ describe("delivering CloudFront access logs", () => {
   it("points a delivery at the distribution it was given", async () => {
     // Given a distribution whose logs should be collected.
     // When the delivery is deployed.
-    const { logsApi, distributionId, account } = await deployDelivery();
+    const { simAws, logsApi, distributionId, account } = await deployDelivery();
 
     // Then a delivery source names that distribution, by the ARN CloudFront
     // is identified with rather than by the bare id.
@@ -99,6 +127,17 @@ describe("delivering CloudFront access logs", () => {
     expect(sources.deliverySources?.[0]?.resourceArns).toContain(
       `arn:aws:cloudfront::${account}:distribution/${distributionId}`,
     );
+
+    // And the distribution it names is one that exists. AWS refuses a
+    // delivery source pointing at a distribution that is not there, so an
+    // invented id would make this whole delivery something production would
+    // have rejected.
+    const named = await simAws
+      .region("us-east-1")
+      .account()
+      .cloudFront()
+      .getDistribution({ input: { Id: distributionId } });
+    expect(named.Distribution?.Id).toBe(distributionId);
   });
 
   it("writes into the log bucket under a prefix of its own", async () => {
