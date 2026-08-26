@@ -62,6 +62,11 @@ export interface LogBucketProps {
    * `delivery.logs.amazonaws.com` the usual five actions, or delivery fails
    * silently from the bucket's point of view.
    *
+   * The key itself also costs about $1 a month to exist, whatever the
+   * traffic. That is a standing charge in a pipeline priced entirely by use,
+   * and it outweighs everything else this bucket bills. `docs/log-bucket/`
+   * has the measured figures.
+   *
    * @default S3-managed encryption, which costs nothing
    */
   readonly encryptionKey?: IKey | undefined;
