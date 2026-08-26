@@ -6,24 +6,16 @@ import {
 } from "aws-cdk-lib/aws-s3";
 import type { IKey } from "aws-cdk-lib/aws-kms";
 import { ServicePrincipal } from "aws-cdk-lib/aws-iam";
-import { ArnFormat, Duration, RemovalPolicy, Stack } from "aws-cdk-lib/core";
+import {
+  ArnFormat,
+  type Duration,
+  RemovalPolicy,
+  Stack,
+} from "aws-cdk-lib/core";
 import { Construct } from "constructs";
 
 import { logDeliveryRegion } from "./delivery-region.js";
-
-/**
- * How long raw logs are kept when nothing says otherwise.
- *
- * A year, which is long enough to recompute a full history and to compare a
- * month against the same month last year. Raw is the immutable record every
- * derived dataset is rebuilt from, so this expiry is also the hard limit on
- * what can ever be recomputed. Shortening it discards history that cannot be
- * recovered.
- *
- * Generous is cheap at the traffic Rainlytics is built for. A busy site
- * should set it deliberately.
- */
-export const defaultLogRetention = Duration.days(365);
+import { logLifecycleRules } from "./log-lifecycle.js";
 
 /**
  * The delivery service writes with `bucket-owner-full-control`, which
@@ -52,6 +44,18 @@ export interface LogBucketProps {
    * @default {@link defaultLogRetention}
    */
   readonly retention?: Duration | undefined;
+
+  /**
+   * How long a superseded version is kept before S3 removes it for good.
+   *
+   * The bucket is versioned, so a deleted object leaves a version behind and
+   * this is how long that version lasts. Shortening it shortens the window in
+   * which a deletion can be undone. Lengthening it costs a little more
+   * storage.
+   *
+   * @default {@link defaultRecoveryWindow}
+   */
+  readonly recoveryWindow?: Duration | undefined;
 
   /**
    * A KMS key to encrypt objects with, in place of S3-managed encryption.
@@ -101,9 +105,13 @@ export interface LogBucketProps {
  * several times the bytes and the transition costs more than it saves.
  * Expiry does the work instead.
  *
- * Versioning is off for the same reason it is off on most log stores. The
- * objects are written once by a service and never updated, so a version
- * history would hold one version each and be billed for it.
+ * Versioning is on, and it costs almost nothing here for the reason a log
+ * bucket usually leaves it off. The delivery service writes each object once
+ * and leaves it alone, so an object reaches its expiry with one version. What
+ * versioning adds is a delete marker over a deleted object and the version
+ * underneath, and `expire-superseded-logs` clears both. What it buys is that
+ * a deletion can be undone, and that AWS Backup will take the bucket at all
+ * (that service refuses an S3 bucket without versioning).
  */
 export class LogBucket extends Construct {
   /** The bucket itself, for the delivery to be pointed at. */
@@ -130,24 +138,12 @@ export class LogBucket extends Construct {
         ? {}
         : { encryptionKey: props.encryptionKey }),
       enforceSSL: true,
+      versioned: true,
       removalPolicy: props.removalPolicy ?? RemovalPolicy.RETAIN,
       ...(props.autoDeleteObjects === undefined
         ? {}
         : { autoDeleteObjects: props.autoDeleteObjects }),
-      lifecycleRules: [
-        {
-          id: "expire-raw-logs",
-          enabled: true,
-          expiration: props.retention ?? defaultLogRetention,
-        },
-        {
-          // Parts of an upload that never completed are invisible in the
-          // console and billed like anything else.
-          id: "abort-incomplete-uploads",
-          enabled: true,
-          abortIncompleteMultipartUploadAfter: Duration.days(7),
-        },
-      ],
+      lifecycleRules: logLifecycleRules(props),
     });
 
     this.allowLogDelivery();

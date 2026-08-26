@@ -18,9 +18,17 @@ import { LogBucket, type LogBucketProps } from "./log-bucket.js";
 interface LifecycleRule {
   readonly ID?: string | undefined;
   readonly Status?: string | undefined;
-  readonly Expiration?: { readonly Days?: number | undefined } | undefined;
+  readonly Expiration?:
+    | {
+        readonly Days?: number | undefined;
+        readonly ExpiredObjectDeleteMarker?: boolean | undefined;
+      }
+    | undefined;
   readonly AbortIncompleteMultipartUpload?:
     | { readonly DaysAfterInitiation?: number | undefined }
+    | undefined;
+  readonly NoncurrentVersionExpiration?:
+    | { readonly NoncurrentDays?: number | undefined }
     | undefined;
 }
 
@@ -241,6 +249,88 @@ describe("the raw log bucket", () => {
       );
     });
 
+    it("clears superseded versions after the recovery window", async () => {
+      // Given a deployed log bucket taking the default recovery window.
+      const bucketName = aBucketName();
+      const { simAws } = await deployStacks((app: App, account: string) => {
+        const stack = new Stack(app, "LogStack", {
+          env: { account, region: "eu-west-2" },
+        });
+        new LogBucket(stack, "RainlyticsLogs", { bucketName });
+      });
+
+      // When S3 is asked what lifecycle rules the bucket carries.
+      const lifecycle = await simAws
+        .region("eu-west-2")
+        .s3()
+        .getBucketLifecycleConfiguration({ input: { Bucket: bucketName } });
+
+      // Then a superseded version goes for good after thirty days, and the
+      // delete marker over it goes once it is the only thing left. This is
+      // the rule that makes versioning affordable. Without it the expiry
+      // above stops deleting anything the day versioning goes on, and the
+      // bucket grows by a year of logs a year and never shrinks.
+      //
+      // Thirty is written out. Reading it from `defaultRecoveryWindow` would
+      // take the expected value from the thing under test.
+      const superseded = ruleNamed(lifecycle, "expire-superseded-logs");
+      expect(superseded.Status).toBe("Enabled");
+      expect(superseded.NoncurrentVersionExpiration?.NoncurrentDays).toBe(30);
+      expect(superseded.Expiration?.ExpiredObjectDeleteMarker).toBe(true);
+    });
+
+    it("holds superseded versions for as long as it is told to", async () => {
+      // Given a site that wants a longer window to notice a deletion in.
+      const bucketName = aBucketName();
+      const { simAws } = await deployStacks((app: App, account: string) => {
+        const stack = new Stack(app, "LogStack", {
+          env: { account, region: "eu-west-2" },
+        });
+        new LogBucket(stack, "RainlyticsLogs", {
+          bucketName,
+          recoveryWindow: Duration.days(90),
+        });
+      });
+
+      // When S3 is asked what it will do.
+      const lifecycle = await simAws
+        .region("eu-west-2")
+        .s3()
+        .getBucketLifecycleConfiguration({ input: { Bucket: bucketName } });
+
+      // Then that is the rule it holds.
+      expect(
+        ruleNamed(lifecycle, "expire-superseded-logs")
+          .NoncurrentVersionExpiration?.NoncurrentDays,
+      ).toBe(90);
+    });
+
+    it("keeps the delete marker rule out of the expiry rule", async () => {
+      // Given a deployed log bucket.
+      const bucketName = aBucketName();
+      const { simAws } = await deployStacks((app: App, account: string) => {
+        const stack = new Stack(app, "LogStack", {
+          env: { account, region: "eu-west-2" },
+        });
+        new LogBucket(stack, "RainlyticsLogs", { bucketName });
+      });
+
+      // When S3 is asked what lifecycle rules the bucket carries.
+      const lifecycle = await simAws
+        .region("eu-west-2")
+        .s3()
+        .getBucketLifecycleConfiguration({ input: { Bucket: bucketName } });
+
+      // Then `expire-raw-logs` carries the expiry in days and says nothing
+      // about delete markers. S3 refuses a rule holding both, and CDK refuses
+      // it at synthesis, so folding the two together fails rather than
+      // misbehaves. This is here because the tidier-looking version of this
+      // construct is the one that does not deploy.
+      const expiry = ruleNamed(lifecycle, "expire-raw-logs");
+      expect(expiry.Expiration?.Days).toBe(365);
+      expect(expiry.Expiration?.ExpiredObjectDeleteMarker).toBeUndefined();
+    });
+
     it("aborts uploads that never finished", async () => {
       // Given a deployed log bucket.
       const bucketName = aBucketName();
@@ -273,18 +363,40 @@ describe("the raw log bucket", () => {
         new LogBucket(stack, "RainlyticsLogs", { bucketName: aBucketName() });
       });
 
-      // Then ownership is reported as unmodelled rather than quietly
-      // applied, which is what keeps the one remaining template assertion
-      // below honest. Lifecycle used to be on this list and was simulated in
-      // yulin 1.20.6, so those cases read the deployment now.
+      // Then ownership and versioning are reported as unmodelled rather than
+      // quietly applied, which is what keeps the template assertions below
+      // honest. Lifecycle used to be on this list and was simulated in yulin
+      // 1.20.6, so those cases read the deployment now.
+      //
+      // Versioning matters more here than ownership does, and the expiry
+      // cases above are why. Simulated S3 deletes an expired object outright.
+      // Real S3 on a versioned bucket writes a delete marker and keeps the
+      // version under it until `expire-superseded-logs` takes it a month
+      // later. So "actually deletes an object once its year is up" makes a
+      // weaker claim than it reads as, and this case is what says so.
       const ignored = stacks.get("LogStack")?.ignoredProperties ?? [];
       const unmodelled = ignored.map((property) => property.path).join(" ");
       expect(unmodelled).toContain("OwnershipControls");
+      expect(unmodelled).toContain("VersioningConfiguration");
       expect(unmodelled).not.toContain("LifecycleConfiguration");
     });
   });
 
   describe("read off the synthesised template", () => {
+    it("keeps every version of every object", () => {
+      // Given a log bucket.
+      // When the stack is synthesised.
+      const { template } = synthesiseLogBucket();
+
+      // Then versioning is on. A log object is written once by a service and
+      // never updated, so this adds no second version to anything. What it
+      // adds is that a deleted object can be got back, and that AWS Backup
+      // will take the bucket, which it refuses to do without this.
+      template.hasResourceProperties("AWS::S3::Bucket", {
+        VersioningConfiguration: { Status: "Enabled" },
+      });
+    });
+
     it("takes ownership of what the delivery service writes", () => {
       // Given a log bucket.
       // When the stack is synthesised.
