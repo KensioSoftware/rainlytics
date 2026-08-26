@@ -153,6 +153,10 @@ if ! head -n 1 "$packed_bin" | grep --quiet --fixed-strings '#!/usr/bin/env node
   exit 1
 fi
 
+# Through `node` rather than by executing the file, because the executable bit
+# in the tarball is not what decides this. tsc emits 0644 and npm chmods the
+# `bin` target to 0755 when it links it, so a check that ran the file directly
+# would fail on a package that installs and runs perfectly.
 if ! cli_help="$(cd "$tmp/package" && node "$bin_path" --help 2>&1)"; then
   echo "Running $bin_path out of the tarball failed:" >&2
   sed 's/^/  /' <<<"$cli_help" >&2

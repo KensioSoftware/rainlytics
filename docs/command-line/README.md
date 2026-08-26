@@ -13,6 +13,10 @@ dependencies of this package, and an install that only wants the command line sk
 `--help` on the root command and on every subcommand is the documentation. A reader should find
 everything there, and this page repeats it for people reading the site.
 
+No commands have landed yet. This release is the command line itself, and the rest of this page
+describes what every command does once there are some. See
+[what it can do today](#what-it-can-do-today).
+
 ## Why a command line
 
 Authentication, mostly. A dashboard needs an identity story, a session model and a way to revoke

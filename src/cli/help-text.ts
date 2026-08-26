@@ -7,10 +7,14 @@
 /** What `rainlytics --help` says above the lists. */
 export const overview: readonly string[] = [
   "Rainlytics keeps a site's analytics in the site's own AWS account." +
-    " CloudFront delivers the access logs to S3 and this command reads them" +
-    " back. Nothing is sent anywhere else, and no analytics JavaScript is" +
+    " CloudFront delivers the access logs to S3 and this command is what" +
+    " reads them back. Nothing is sent anywhere else, and no analytics JavaScript is" +
     " served to the pages being measured.",
-  "Authentication is the AWS setup you already have. Rainlytics uses the AWS" +
+  "No commands have landed yet. This release is the command line itself," +
+    " being the argument parsing, the output formats, the help and the exit" +
+    " codes. What follows describes what every command does once there are" +
+    " some.",
+  "Authentication is the AWS setup you already have. Commands use the AWS" +
     " SDK's default credential chain, the same one the AWS CLI uses. An SSO" +
     " session, a profile named in AWS_PROFILE, an assumed role or the" +
     " credentials of the machine it runs on all work with nothing configured" +
@@ -28,9 +32,7 @@ export const overview: readonly string[] = [
 
 /** What stands in for the command list until there are commands. */
 export const noCommandsYet =
-  "None yet. This release is the command line itself, being the argument" +
-  " parsing, the output formats, the help and the exit codes. Reading the" +
-  " data back arrives with the next one.";
+  "None yet. Reading the data back arrives with the next release.";
 
 /** How to read one command on its own. */
 export const readingOneCommand =
