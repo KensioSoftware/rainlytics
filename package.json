@@ -7,6 +7,9 @@
   "bugs": "https://github.com/KensioSoftware/rainlytics/issues",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "rainlytics": "./dist/cli/bin.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

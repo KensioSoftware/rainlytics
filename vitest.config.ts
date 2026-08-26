@@ -28,6 +28,16 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts"],
+      /*
+       * The CLI's entry point is process wiring and nothing else. Covering it
+       * here would mean a test that replaces `process.argv`, `process.stdout`
+       * and `process.exitCode`, and what it would then prove is that the
+       * replacements were wired up. `scripts/sh/pack-check.sh` runs the real
+       * file out of the packed tarball instead, which also proves the parts
+       * a unit test cannot reach: the shebang, the `bin` entry, and that it
+       * runs with no dependencies installed beside it.
+       */
+      exclude: ["src/cli/bin.ts"],
       reporter: ["text", "lcov", "json-summary"],
       reportsDirectory: "./test/.coverage",
       thresholds: {

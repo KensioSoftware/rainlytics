@@ -11,3 +11,7 @@ runs on every `pnpm check`.
 
 - [Log bucket](log-bucket/), where CloudFront delivers raw access logs.
 - [Log delivery](log-delivery/), which points a distribution at that bucket.
+
+## Reading the data back
+
+- [Command line](command-line/), the `rainlytics` command and what it writes.

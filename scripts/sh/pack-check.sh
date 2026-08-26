@@ -20,6 +20,9 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../.."
 
+# Where `bin` points, read from package.json so the two cannot disagree.
+bin_path="$(node -e 'process.stdout.write(require("./package.json").bin.rainlytics)')"
+
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
@@ -34,10 +37,11 @@ expected=(
   package/package.json
   package/README.md
   package/LICENSE
-  # The construct pages. README.md ships and links to these with relative
-  # paths, and unpacked those links are dead in node_modules. That is where
-  # an agent working in a consumer's repository reads them, and the docs are
-  # 17KB against a tarball already carrying dist/ and src/.
+  # The pages README.md links to with relative paths. Unpacked, those links
+  # are dead in node_modules. That is where an agent working in a consumer's
+  # repository reads them, and the docs are a few tens of KB against a
+  # tarball already carrying dist/ and src/.
+  package/docs/command-line/README.md
   package/docs/log-bucket/README.md
   package/docs/log-delivery/README.md
   package/src/index.ts
@@ -46,6 +50,11 @@ expected=(
   package/dist/index.d.ts
   package/dist/cdk/index.js
   package/dist/cdk/index.d.ts
+  # The CLI's entry point. `bin` in package.json is a third list that has to
+  # agree with `files` and with `exports`, and npm links it onto a consumer's
+  # PATH without ever checking the target is there. A missing one shows up as
+  # "rainlytics: command not found" after an install that reported success.
+  "package/${bin_path#./}"
 )
 
 missing=()
@@ -124,6 +133,42 @@ if [[ -n "$forbidden" ]]; then
   echo "Checked: ${browser_reachable[*]#"$tmp/package/"}" >&2
   echo "This ships inside a site's own bundle. Keep it to what a browser has." >&2
   echo "CDK imports belong under src/cdk, behind the ./cdk export." >&2
+  exit 1
+fi
+
+# The CLI, run out of the tarball.
+#
+# Running it proves more than that the file was packed. The extracted tarball
+# has no node_modules anywhere above it, so this runs with nothing installed
+# but Node itself. `aws-cdk-lib` and `constructs` are optional peer
+# dependencies and a CLI-only install has neither, and
+# `npx @kensio/rainlytics --help` is expected to work anyway.
+
+packed_bin="$tmp/package/${bin_path#./}"
+
+if ! head -n 1 "$packed_bin" | grep --quiet --fixed-strings '#!/usr/bin/env node'; then
+  echo "The bin entry point starts with no node shebang:" >&2
+  head -n 1 "$packed_bin" >&2
+  echo "npx and a PATH link both run this file directly, and need one." >&2
+  exit 1
+fi
+
+# Through `node` rather than by executing the file, because the executable bit
+# in the tarball is not what decides this. tsc emits 0644 and npm chmods the
+# `bin` target to 0755 when it links it, so a check that ran the file directly
+# would fail on a package that installs and runs perfectly.
+if ! cli_help="$(cd "$tmp/package" && node "$bin_path" --help 2>&1)"; then
+  echo "Running $bin_path out of the tarball failed:" >&2
+  sed 's/^/  /' <<<"$cli_help" >&2
+  echo >&2
+  echo "It runs with no dependencies beside it, so anything it imports" >&2
+  echo "outside node: and its own relative paths breaks a CLI-only install." >&2
+  exit 1
+fi
+
+if ! grep --quiet --fixed-strings 'rainlytics <command> [options]' <<<"$cli_help"; then
+  echo "$bin_path --help printed nothing that looks like the help:" >&2
+  sed 's/^/  /' <<<"$cli_help" >&2
   exit 1
 fi
 
