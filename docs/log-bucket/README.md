@@ -29,7 +29,7 @@ aborted after seven days (those parts are invisible in the console and billed li
 The bucket policy lets `delivery.logs.amazonaws.com` put objects, scoped to your account and to
 delivery sources in us-east-1.
 
-AWS adds that statement itself when logging is enabled, which makes carrying it here look redundant.
+AWS adds that statement itself when logging is enabled. Carrying it here therefore looks redundant.
 Requiring TLS puts CloudFormation in charge of this bucket policy, and CloudFormation writes
 whatever the template says on every update. A statement added outside the template therefore lasts
 until the next stack update touches the policy and then goes, taking log delivery with it and
@@ -78,10 +78,10 @@ pointed at it. The construct refuses such a name at synthesis instead.
 
 ## Permissions for a scoped deploy role
 
-Skippable on an account whose CloudFormation execution role holds `AdministratorAccess`, which is
+Skippable on an account whose CloudFormation execution role holds `AdministratorAccess`. That is
 what `cdk bootstrap` gives it by default. Where that role has been narrowed, it needs S3 permissions
-on this bucket. A role holding the delivery permissions from the
-[log delivery](../log-delivery/) page and nothing else fails on `s3:CreateBucket`.
+on this bucket. A role holding the delivery permissions from the [log delivery](../log-delivery/)
+page and nothing else fails on `s3:CreateBucket`.
 
 ```typescript
 import { PolicyStatement } from "aws-cdk-lib/aws-iam";
@@ -116,10 +116,10 @@ that appears only once the bucket exists. The obvious way to reach that from a p
 built from the stack name, and it has a trap in it.
 
 S3 caps a bucket name at 63 characters, and CloudFormation fits a generated name to that by
-truncating **both** the stack name and the logical id. A stack called
-`ChineseboostAnalyticsStack` produced a bucket beginning `chineseboostanalyticsstac`, one character
-short. So `arn:aws:s3:::chineseboostanalyticsstack-*` matched nothing, and the deploy failed on a
-bucket the policy looked like it covered.
+truncating **both** the stack name and the logical id. A stack called `ChineseboostAnalyticsStack`
+produced a bucket beginning `chineseboostanalyticsstac`, one character short. So
+`arn:aws:s3:::chineseboostanalyticsstack-*` matched nothing, and the deploy failed on a bucket the
+policy looked like it covered.
 
 Passing `bucketName` avoids the whole question. The name is then yours, the policy can quote it, and
 the two cannot drift:
@@ -134,8 +134,45 @@ Where the name stays generated, match a prefix short enough to survive truncatio
 against the bucket that actually got created. The bucket is `RETAIN` by default, so its name
 outlives the stack that made it.
 
-The CloudWatch Logs and CloudFront permissions the delivery needs are on the
-[log delivery](../log-delivery/) page.
+The CloudWatch Logs and CloudFront permissions the delivery needs are on the [log
+delivery](../log-delivery/) page.
+
+## When a deploy rolls back
+
+The bucket outlives a failed deploy, and that is worth knowing before it happens.
+
+CloudFormation undoes a failed deploy by deleting what it created. A resource marked to be retained
+is kept instead, and this bucket is marked that way, so a rollback leaves it behind. It belongs to
+no stack afterwards, so every later `cdk deploy` and `cdk destroy` leaves it where it is. The next
+deploy makes a fresh bucket with a fresh generated name, and the account ends up holding two buckets
+whose names differ only in the random suffix CloudFormation appends.
+
+The stack knows which one is live:
+
+```bash
+aws cloudformation describe-stack-resources \
+  --stack-name YourAnalyticsStack \
+  --query "StackResources[?ResourceType=='AWS::S3::Bucket'].[LogicalResourceId,PhysicalResourceId]" \
+  --output table
+```
+
+A Rainlytics bucket the command leaves out is an orphan, and two tells confirm it. The orphan is
+empty, where the rollback happened before any logs arrived. It also carries no bucket policy,
+because the policy is a separate resource that CloudFormation deletes rather than retains.
+
+An empty bucket costs nothing, so leaving it alone is a reasonable answer. Deleting it needs
+`s3:DeleteBucket`. An organisation's service control policy can refuse that whatever your IAM
+grants, and the deletion is then somebody else's to do.
+
+**This is why the bucket has no name by default.** Giving it one through `bucketName` turns a
+rollback into a stuck stack. The retained bucket keeps that name, and the next deploy fails trying
+to create a bucket that already exists. Recovering means deleting the retained bucket first, which
+is the step an SCP may not let you take. A generated name sidesteps the whole problem, at the price
+of the orphan described above.
+
+Retaining the bucket is still the right default. A rollback that destroyed a year of raw logs would
+be far worse than an empty bucket nobody deletes, and raw logs are what every derived dataset is
+rebuilt from.
 
 ## Removal
 
