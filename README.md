@@ -39,7 +39,17 @@ That stack has to be in us-east-1, which is the only region CloudFront log
 delivery can be configured from. See the [log bucket](docs/log-bucket/) and [log
 delivery](docs/log-delivery/) pages.
 
-Querying and rollups come next. Nothing reads the data back yet.
+A `rainlytics` command ships beside them, and runs with nothing else
+installed:
+
+```bash
+npx @kensio/rainlytics --help
+```
+
+It authenticates through the AWS SDK's default credential chain and writes
+JSON, CSV or a table, defaulting to the table at a terminal and to JSON when
+it is piped. So far it explains itself and little else, and querying arrives
+next. See the [command line](docs/command-line/) page.
 
 ## Status
 
