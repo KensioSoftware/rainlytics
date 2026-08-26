@@ -21,8 +21,11 @@ S3-managed keys. Object ownership is `BucketOwnerEnforced`. That turns ACLs off 
 permitting the `bucket-owner-full-control` the delivery service writes with, and delivered objects
 then belong to your account.
 
-Two lifecycle rules run. Objects expire after a year, and multipart uploads that never completed are
-aborted after seven days (those parts are invisible in the console and billed like anything else).
+Versioning is on. A deleted object leaves a version behind and can be got back.
+
+Three lifecycle rules run. Objects expire after a year. Superseded versions and the delete markers
+over them go thirty days after that. Multipart uploads that never completed are aborted after seven
+days (those parts are invisible in the console and billed like anything else).
 
 ## The delivery grant
 
@@ -54,15 +57,53 @@ new LogBucket(this, "RainlyticsLogs", {
 
 Shortening it discards history that cannot be recovered afterwards.
 
+## Versioning, and the window it opens
+
+The bucket is versioned. A deletion writes a delete marker over the object and keeps the version
+underneath. Removing the marker brings the object back. Every derived dataset is rebuilt from this
+store, so it is the one place where a deletion has to be reversible.
+
+Versioning is also a prerequisite for AWS Backup. That service refuses an S3 bucket without it. An
+immutable off-bucket copy starts here.
+
+A log bucket usually leaves versioning off, on the grounds that a version history doubles the store.
+That argument applies to a store somebody writes to twice. The delivery service writes each object
+once and leaves it alone. An object here reaches its expiry with one version. Only two things ever
+become superseded, the version an expiry leaves behind and the version a deletion leaves behind, and
+`expire-superseded-logs` clears both.
+
+```typescript
+new LogBucket(this, "RainlyticsLogs", {
+  recoveryWindow: Duration.days(90),
+});
+```
+
+Thirty days by default. It is the window in which a deletion can be undone, and it is added to the
+retention above rather than taken out of it. An object expires at 365 days, becomes superseded, and
+goes for good at 395.
+
+The raw store is read by the rollups, and the rollups are read by a person. That puts weeks between
+something deleting an object and somebody noticing. Thirty days covers those weeks at a storage cost
+of a month of logs against a year of them. Lengthen it on a site whose raw store is looked at less
+often.
+
+### The rule cannot be folded into the expiry
+
+S3 refuses a lifecycle rule that carries both an expiry in days and `ExpiredObjectDeleteMarker`, and
+CDK refuses the combination at synthesis. So `expire-raw-logs` holds the expiry and
+`expire-superseded-logs` holds the clean-up, and the two cannot be one rule however much they look
+like one.
+
+Dropping the delete marker clean-up is the failure worth naming, and it happens quietly. Every
+expired object then leaves a marker behind for good. A marker costs little and it costs something,
+and a `ListObjectVersions` over a million of them is slow.
+
 ## Deliberate omissions
 
 **No transition to Infrequent Access or Glacier.** This is the usual reflex for a log bucket and it
 costs money here. S3 Standard-IA bills a minimum of 128KB per object, and CloudFront log objects on
 a quiet site are frequently smaller than that. The cheaper per-GB rate then applies to several times
 the bytes actually stored. Expiry does the work instead.
-
-**No versioning.** Objects are written once by a service and never updated. A version history would
-hold one version of everything and charge for it.
 
 **No SSE-KMS by default.** Pass `encryptionKey` to opt in. KMS charges per request. A log bucket is
 written to constantly and read by every query, which puts that charge at both ends and grows it with
@@ -196,6 +237,7 @@ new LogBucket(this, "RainlyticsLogs", {
 new LogBucket(this, "RainlyticsLogs", {
   bucketName: "example-com-rainlytics-logs",
   retention: Duration.days(365),
+  recoveryWindow: Duration.days(30),
 });
 ```
 -->
