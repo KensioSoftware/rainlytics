@@ -111,6 +111,15 @@ use. The key policy also has to grant `delivery.logs.amazonaws.com` the `Encrypt
 `ReEncrypt*`, `GenerateDataKey*` and `DescribeKey` actions, or delivery fails in a way the bucket
 gives no sign of.
 
+A customer-managed key also costs money for existing. AWS charges about $1 a month per key (a flat
+charge, billed a day at a time) whatever the traffic, from the moment the key is created. In the
+account the cost spike ran in, `us-east-1-KMS-Keys` bills between $0.028 and $0.032 a day for keys
+that have nothing to do with Rainlytics. Everything else on this page is priced by use. Twenty hours
+of real delivery from a site serving around 156,000 requests a day put this bucket's PUT requests
+and storage together under a tenth of a dollar a month, and one key costs more than ten times that.
+Passing `encryptionKey` is the one way to put a standing monthly charge into a pipeline built to
+have none.
+
 ## Bucket names
 
 A CloudFront delivery destination accepts a bucket name of lowercase letters, digits and hyphens. S3
