@@ -139,7 +139,7 @@ describe("the rollups saved in Athena", () => {
 
     // When the stack is deployed.
     const search = await named("searches", {
-      requests: { searches: { path: searchPage, param } },
+      requests: { searches: { paths: [searchPage], param } },
     });
 
     // Then the saved SQL holds both. Without them it counts every query
@@ -155,7 +155,7 @@ describe("the rollups saved in Athena", () => {
 
     // When the stack is deployed.
     const views = await named("pageviews", {
-      requests: { searches: { path: searchPage } },
+      requests: { searches: { paths: [searchPage] } },
     });
 
     // Then `pageviews` still counts the whole site. One set of options
@@ -178,7 +178,7 @@ describe("the rollups saved in Athena", () => {
 
     // When the stack is deployed.
     const search = await named("searches", {
-      requests: { searches: { host, path: searchPage, param } },
+      requests: { searches: { host, paths: [searchPage], param } },
     });
 
     // Then the description says so. A reader in the console sees which
@@ -188,6 +188,24 @@ describe("the rollups saved in Athena", () => {
         ` Over the current month, on ${host}, under ${searchPage},` +
         ` reading the "${param}" parameter.`,
     );
+  });
+
+  it("says every section a saved copy was narrowed to", async () => {
+    // Given a site whose search boxes sit under two paths.
+    const words = `/${faker.string.alpha(8)}/`;
+    const sentences = `/${faker.string.alpha(8)}/`;
+
+    // When the stack is deployed.
+    const search = await named("searches", {
+      requests: { searches: { paths: [words, sentences] } },
+    });
+
+    // Then the description names both, joined the way the SQL joins them. A
+    // copy counting two sections under a line naming one would be the same
+    // silence the narrowing was written to end.
+    expect(search?.description).toContain(`under ${words} or ${sentences}`);
+    expect(search?.queryString).toContain(quoted(words));
+    expect(search?.queryString).toContain(quoted(sentences));
   });
 
   it("names the parameter a search reads even where nobody chose one", async () => {
@@ -219,7 +237,7 @@ describe("the rollups saved in Athena", () => {
     // Then synthesis fails and names it. A key matching nothing narrows
     // nothing, which is the silence this prop was added to end.
     await expect(
-      deployRollups({ requests: { searche: { path: "/find/" } } }),
+      deployRollups({ requests: { searche: { paths: ["/find/"] } } }),
     ).rejects.toThrow(/"searche"/u);
   });
 
@@ -261,7 +279,7 @@ describe("the rollups saved in Athena", () => {
     // When the stack is deployed.
     const own = await named("countries", {
       rollups: [countries],
-      requests: { countries: { path: section } },
+      requests: { countries: { paths: [section] } },
     });
 
     // Then it takes narrowing the way the built-in ones do. A site writing

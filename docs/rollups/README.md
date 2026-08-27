@@ -183,7 +183,7 @@ new RollupQueries(this, "RainlyticsRollups", {
   table,
   workgroup,
   requests: {
-    searches: { path: "/search/", param: "term" },
+    searches: { paths: ["/search/"], param: "term" },
   },
 });
 ```
@@ -204,9 +204,12 @@ month for the reason above, and the database comes from the table:
 ```typescript
 requests: {
   "status-codes": { includeBots: true },
-  searches: { host: "docs.example.com", path: "/search/", param: "term" },
+  searches: { host: "docs.example.com", paths: ["/search/"], param: "term" },
 }
 ```
+
+`paths` is the list `--path` collects when a command is given it more than once. A site with a
+search box under two sections names both, and the saved copy counts them together.
 
 A fact that belongs to every question, such as the host of one site on a distribution serving
 several, is a variable spread into each entry. Every key has to name a rollup being saved, and a

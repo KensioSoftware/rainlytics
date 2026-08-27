@@ -66,7 +66,7 @@ export interface RollupQueriesProps {
    *   workgroup,
    *   requests: {
    *     pageviews: site,
-   *     searches: { ...site, path: "/search/", param: "term" },
+   *     searches: { ...site, paths: ["/search/"], param: "term" },
    *   },
    * });
    * ```
