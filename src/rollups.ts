@@ -79,8 +79,8 @@ export interface RollupRequest {
 /**
  * One question, and the SQL that answers it.
  *
- * The four Rainlytics ships are `rollup-questions.ts`, and a site can write
- * its own. A rollup writes what it selects and groups by, and calls
+ * The four Rainlytics ships are in `rollup-questions.ts`, and a site can
+ * write its own. A rollup writes what it selects and groups by, and calls
  * {@link rowsFor} for the rows underneath. That is where the partition
  * predicate, the bot filter and the host and path a caller narrowed to are
  * written, and a question filtering its own way would answer a different
@@ -113,7 +113,8 @@ export interface Rollup {
    * What it is called, as in `rainlytics pageviews`.
    *
    * Lowercase words joined by hyphens. It names a subcommand, and a saved
-   * copy of the query takes it too, so it has to survive both.
+   * copy of the query in the Athena console takes it too. It has to survive
+   * both.
    */
   readonly name: string;
 
@@ -156,9 +157,10 @@ export function rollupSql(rollup: Rollup, request: RollupRequest): string {
 /**
  * The names a rollup can take.
  *
- * Lowercase words joined by hyphens, which is what a subcommand and a CDK
- * logical id both read. `status-codes` passes. `Status Codes` deploys as a
- * name CDK has to mangle and reads as a subcommand nobody can type.
+ * Lowercase words joined by hyphens. A subcommand and a CDK logical id both
+ * read that, and neither reads anything else. `status-codes` passes.
+ * `Status Codes` deploys under a name CDK has to mangle, and reads as a
+ * subcommand nobody can type.
  *
  * @throws {Error} for a name outside that set.
  */
