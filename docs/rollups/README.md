@@ -6,7 +6,7 @@ Four questions the command line answers without anybody writing SQL.
 rainlytics pageviews --last 7d
 ```
 
-```
+```text
 path         views
 -----------  -----
 /              412
@@ -47,7 +47,7 @@ number that says more about crawlers than about anybody who reads the site.
 
 The filter matches four substrings against a lowercased `cs(User-Agent)`:
 
-```
+```text
 bot|crawl|spider|slurp
 ```
 

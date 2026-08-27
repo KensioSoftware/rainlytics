@@ -63,7 +63,7 @@ ask most without any SQL:
 npx @kensio/rainlytics pageviews --last 7d
 ```
 
-```
+```text
 path         views
 -----------  -----
 /              412

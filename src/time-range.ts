@@ -71,11 +71,22 @@ export interface PartitionValues {
  * fourteen partitions. Whatever reads them narrows the rows afterwards, and
  * fourteen partitions against a year of them is still the difference the
  * layout exists to make.
+ *
+ * @throws {RangeError} for a range that ends before it starts, which would
+ *   otherwise come back as a key taking no values at all and build a
+ *   predicate reading `IN ()`.
  */
 export function partitionValuesCovering(
   range: TimeRange,
   granularity: PartitionGranularity = defaultPartitionGranularity,
 ): readonly PartitionValues[] {
+  if (range.to.getTime() < range.from.getTime()) {
+    throw new RangeError(
+      `A range cannot end before it starts. Got ${range.from.toISOString()}` +
+        ` to ${range.to.toISOString()}.`,
+    );
+  }
+
   // The day, whatever the granularity. An hourly table holds four keys and
   // this pins three of them, which is as fine as a cross product can go
   // without asking for every hour of every day in the range.

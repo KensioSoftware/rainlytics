@@ -60,7 +60,7 @@ describe("the partitions a span touches", () => {
     });
   });
 
-  it("names the hour partition for no span at all", () => {
+  it("leaves the hour key out, however short the span", () => {
     // Given the hourly layout, whose fourth key this deliberately leaves
     // alone.
     const values = covering("2026-08-21T10:00:00Z", "2026-08-21T11:00:00Z");
@@ -69,6 +69,18 @@ describe("the partitions a span touches", () => {
     // over every hour of every day in the range, which asks for partitions
     // that hold nothing in every combination but one.
     expect(values["hour"]).toBeUndefined();
+  });
+
+  it("refuses a range that ends before it starts", () => {
+    // Given two instants the wrong way round.
+    const backwards = (): unknown =>
+      covering("2026-08-23T00:00:00Z", "2026-08-21T00:00:00Z");
+
+    // Then it says so. Left alone, every key comes back taking no values and
+    // the predicate built from them reads `year IN ()`, which fails at
+    // Athena as a syntax error a long way from the mistake.
+    expect(backwards).toThrow(RangeError);
+    expect(backwards).toThrow(/cannot end before it starts/u);
   });
 
   it("crosses a month and a year without losing a day", () => {

@@ -21,7 +21,7 @@ dataset, succeeds, and shows up as a line on next month's bill without saying wh
 
 `BytesScannedCutoffPerQuery` turns that into a failure at the moment the query runs:
 
-```
+```text
 Bytes scanned limit was exceeded. The query scanned 10000001 bytes, and
 workgroup rainlytics allows 10000000 per query.
 ```

@@ -69,7 +69,7 @@ prefix later splits the dataset, because what was already written stays where it
 
 Objects arrive under the partition keys CloudFront derives from that layout:
 
-```
+```text
 s3://your-log-bucket/rainlytics/distributionid=E1EXAMPLE1234/year=2026/month=08/day=25/hour=14/
 ```
 
@@ -163,7 +163,7 @@ Creating an `AWS::Logs::DeliverySource` calls CloudWatch Logs, and CloudWatch Lo
 caller against CloudFront for the resource being logged. The denial therefore arrives from the
 CloudWatch Logs API naming a CloudFront action:
 
-```
+```text
 User: .../cdk-hnb659fds-cfn-exec-role-<account>-us-east-1/AWSCloudFormation is not
 authorized to perform: cloudfront:AllowVendedLogDeliveryForResource on resource:
 arn:aws:cloudfront::<account>:distribution/E1EXAMPLE1234
