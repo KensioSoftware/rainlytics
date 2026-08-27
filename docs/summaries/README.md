@@ -219,10 +219,12 @@ be reached. #74 decides where the salt lives.
 ## What is still to come
 
 [#55](https://github.com/KensioSoftware/rainlytics/issues/55) is the construct that computes these on
-a schedule, on a lag that covers the [six minutes CloudFront takes to
-deliver](../log-delivery/). [#56](https://github.com/KensioSoftware/rainlytics/issues/56) makes
-`rainlytics pageviews --last 7d` read them, and says what a command does with a range no stored window
-covers.
+a schedule, on a lag long enough for CloudFront to have delivered the hour. Delivery took under six
+minutes across 200,074 records in
+[#9](https://github.com/KensioSoftware/rainlytics/issues/9), and a run that treated an hour as closed
+the moment it ended would drop the tail of every one of them.
+[#56](https://github.com/KensioSoftware/rainlytics/issues/56) makes `rainlytics pageviews --last 7d`
+read a summary, and says what a command does with a range no stored window covers.
 
 Until both land, the [rollup commands](../rollups/) query Athena and report what that cost.
 
