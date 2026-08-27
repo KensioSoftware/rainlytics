@@ -223,23 +223,23 @@ describe("the rollups saved in Athena", () => {
     ).rejects.toThrow(/"searche"/u);
   });
 
-  it("saves a rollup a site wrote for itself", async () => {
-    // Given a question Rainlytics does not ship, written with the exported
-    // builder and passed alongside the four.
-    const countries: Rollup = {
-      name: "countries",
-      summary: "Count views by country.",
-      description: "Counts where readers were, most read from first.",
-      isRanked: true,
-      body: (request) =>
-        [
-          "SELECT c_country AS country, count(*) AS views",
-          `  FROM ${qualifiedTableName(request.dataset)}`,
-          rowsFor(request, ["sc_content_type LIKE 'text/html%'"]),
-          "  GROUP BY 1",
-        ].join("\n"),
-    };
+  /** A question Rainlytics does not ship, built from the exported parts. */
+  const countries: Rollup = {
+    name: "countries",
+    summary: "Count views by country.",
+    description: "Counts where readers were, most read from first.",
+    isRanked: true,
+    body: (request) =>
+      [
+        "SELECT c_country AS country, count(*) AS views",
+        `  FROM ${qualifiedTableName(request.dataset)}`,
+        rowsFor(request, ["sc_content_type LIKE 'text/html%'"]),
+        "  GROUP BY 1",
+      ].join("\n"),
+  };
 
+  it("saves a rollup a site wrote for itself", async () => {
+    // Given that question, passed alongside the five.
     // When the stack is deployed.
     const saved = await deployRollups({ rollups: [...rollups, countries] });
 
@@ -254,22 +254,9 @@ describe("the rollups saved in Athena", () => {
   });
 
   it("narrows a rollup a site wrote for itself", async () => {
-    // Given a question of a site's own, and the section of the site it is
-    // asked about.
+    // Given that same question, and the section of the site it is asked
+    // about.
     const section = `/${faker.string.alpha(8)}/`;
-    const countries: Rollup = {
-      name: "countries",
-      summary: "Count views by country.",
-      description: "Counts where readers were, most read from first.",
-      isRanked: true,
-      body: (request) =>
-        [
-          "SELECT c_country AS country, count(*) AS views",
-          `  FROM ${qualifiedTableName(request.dataset)}`,
-          rowsFor(request),
-          "  GROUP BY 1",
-        ].join("\n"),
-    };
 
     // When the stack is deployed.
     const own = await named("countries", {
