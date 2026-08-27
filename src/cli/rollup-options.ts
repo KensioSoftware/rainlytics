@@ -11,7 +11,7 @@ import type { TimeRange } from "../time-range.js";
 import { lastRange } from "../time-range.js";
 import type { CommandContext } from "./command.js";
 import { UsageError } from "./failure.js";
-import { defaultLast, defaultLimit } from "./rollup-help.js";
+import { defaultLast, defaultLimit, defaultParam } from "./rollup-help.js";
 
 /** The text of an option, where one was given. */
 function chosen(value: string | boolean | undefined): string | undefined {
@@ -102,6 +102,7 @@ export function requestFrom(
         defaultLimit,
         rollup.name,
       ),
+      param: chosen(context.options["param"]) ?? defaultParam,
       path: chosen(context.options["path"]),
       host: chosen(context.options["host"]),
       dataset: {

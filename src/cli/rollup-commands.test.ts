@@ -204,6 +204,99 @@ describe("the named questions", () => {
     ]);
   });
 
+  it("counts what people typed into a search box", async () => {
+    // Given an hour of searching. 家 was searched three times, twice
+    // answered with a redirect to the page for it and once with a list.
+    // CloudFront records the term percent-encoded twice.
+    const deployed = await deployAnalytics();
+    const search = { "cs-uri-stem": "/search/" };
+
+    await putDelivered(deployed, rightNow, [
+      aRecord(rightNow, {
+        ...search,
+        "cs-uri-query": "q=%25E5%25AE%25B6",
+        "sc-status": "302",
+      }),
+      aRecord(rightNow, {
+        ...search,
+        "cs-uri-query": "q=%25E5%25AE%25B6",
+        "sc-status": "302",
+      }),
+      aRecord(rightNow, { ...search, "cs-uri-query": "q=%25E5%25AE%25B6" }),
+      aRecord(rightNow, { ...search, "cs-uri-query": "q=talent" }),
+      // Somebody who opened the search page without searching.
+      aRecord(rightNow, search),
+      // A query string somewhere else on the site, which is a different
+      // question asked of the same log.
+      aRecord(rightNow, {
+        "cs-uri-stem": "/tools/convert/",
+        "cs-uri-query": "hanzi=%25E5%25AE%25B6",
+      }),
+    ]);
+
+    // When the searches under the search page are counted.
+    const run = await cli(["searches", "--last", "24h", "--path", "/search/"]);
+
+    // Then the terms read as somebody typed them, the redirects are counted
+    // beside them, and the tool's own parameter is left out.
+    expect(run.code).toBe(0);
+    expect(run.rows).toStrictEqual([
+      { term: "家", searches: "3", redirected: "2" },
+      { term: "talent", searches: "1", redirected: "0" },
+    ]);
+  });
+
+  it("counts two spellings of one search as one term", async () => {
+    // Given the same search submitted from a form and from a hand-written
+    // link. One sends `+` for the space and the other `%20`, which reaches
+    // the log as `%2520`.
+    const deployed = await deployAnalytics();
+    const search = { "cs-uri-stem": "/search/" };
+
+    await putDelivered(deployed, rightNow, [
+      aRecord(rightNow, { ...search, "cs-uri-query": "q=old+man" }),
+      aRecord(rightNow, { ...search, "cs-uri-query": "q=old%2520man" }),
+    ]);
+
+    // When the searches are counted.
+    const run = await cli(["searches", "--last", "24h", "--path", "/search/"]);
+
+    // Then they are one row. Two rows would split one question in half and
+    // rank both below a term nobody had trouble spelling.
+    expect(run.rows).toStrictEqual([
+      { term: "old man", searches: "2", redirected: "0" },
+    ]);
+  });
+
+  it("reads a search from the parameter it is told to", async () => {
+    // Given a legacy tool taking a parameter of its own name.
+    const deployed = await deployAnalytics();
+
+    await putDelivered(deployed, rightNow, [
+      aRecord(rightNow, {
+        "cs-uri-stem": "/tools/convert/",
+        "cs-uri-query": "hanzi=%25E5%25AE%25B6",
+      }),
+    ]);
+
+    // When that parameter is named.
+    const run = await cli([
+      "searches",
+      "--last",
+      "24h",
+      "--path",
+      "/tools/",
+      "--param",
+      "hanzi",
+    ]);
+
+    // Then it is read the same way `q` would have been. One site can hold
+    // several of these, and each is its own question.
+    expect(run.rows).toStrictEqual([
+      { term: "家", searches: "1", redirected: "0" },
+    ]);
+  });
+
   it("counts one section of the site when given a path", async () => {
     // Given traffic across two sections and a page above both of them.
     const deployed = await deployAnalytics();

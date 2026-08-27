@@ -23,9 +23,9 @@ export interface RollupQueriesProps {
   readonly workgroup: QueryWorkgroup;
 
   /**
-   * The questions to save, which default to the four Rainlytics ships.
+   * The questions to save, which default to the ones Rainlytics ships.
    *
-   * A site with a rollup of its own passes `[...rollups, searches]` to save
+   * A site with a rollup of its own passes `[...rollups, countries]` to save
    * that beside them. Passing a list of its own alone saves that alone.
    */
   readonly rollups?: readonly Rollup[] | undefined;
@@ -56,7 +56,7 @@ export interface RollupQueriesProps {
  * new RollupQueries(this, "RainlyticsRollups", {
  *   table,
  *   workgroup,
- *   rollups: [...rollups, searches],
+ *   rollups: [...rollups, countries],
  * });
  * ```
  *

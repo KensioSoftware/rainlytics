@@ -1,4 +1,4 @@
-// The four questions, written out.
+// The five questions, written out.
 //
 // Each is a `SELECT` over the same filtered rows, so what differs between
 // them is the thing being counted. The filters are in `rollups.ts`, because
@@ -7,9 +7,9 @@
 // its neighbours without saying so.
 
 import { qualifiedTableName } from "./dataset.js";
-import { decodedColumn } from "./log-encoding.js";
+import { decodedColumn, decodedParameter } from "./log-encoding.js";
 import type { Rollup, RollupRequest } from "./rollups.js";
-import { rowsFor } from "./rollups.js";
+import { quoted, rowsFor } from "./rollups.js";
 
 /** The `text/html` responses a person actually looked at. */
 const aPageView = [
@@ -154,10 +154,53 @@ One row, so \`--limit\` does nothing here.`,
     ].join("\n"),
 };
 
+/** The term one record carries, for the parameter a request named. */
+const searchTerm = (request: RollupRequest): string =>
+  decodedParameter("cs_uri_stem", "cs_uri_query", quoted(request.param));
+
+/** What people typed into a search box, most typed first. */
+export const searches: Rollup = {
+  name: "searches",
+  summary: "Count searches by the term somebody typed.",
+  isRanked: true,
+  namesAParameter: true,
+  description: `\
+Counts what people typed into a search box, most typed first.
+
+The terms are already in the access log. CloudFront records \`cs-uri-query\`
+whatever the cache key and origin forwarding are set to, so a search answered
+from the edge is counted alongside one that reached the origin. No other
+source covers both.
+
+Name the search page with \`--path\`, since a site's other query strings are
+in the same log. \`--param\` names the parameter carrying the term, and
+defaults to \`q\`.
+
+\`redirected\` counts the searches that answered 3xx. A site that sends an
+exact match straight to its page can read that as the searches that found
+one, against the searches that only produced a list.`,
+  body: (request) =>
+    [
+      `SELECT ${searchTerm(request)} AS term,`,
+      "  count(*) AS searches,",
+      `  ${counted("sc_status LIKE '3%'")} AS redirected`,
+      `  FROM ${qualifiedTableName(request.dataset)}`,
+      rowsFor(request, [
+        "cs_method = 'GET'",
+        `cs_uri_query <> ${empty}`,
+        `${searchTerm(request)} <> ''`,
+      ]),
+      "  GROUP BY 1",
+      rankedOrder,
+      limitOf(request),
+    ].join("\n"),
+};
+
 /** Every question the command line answers without any SQL. */
 export const rollups: readonly Rollup[] = [
   pageviews,
   referrers,
   statusCodes,
   cacheHitRatio,
+  searches,
 ];

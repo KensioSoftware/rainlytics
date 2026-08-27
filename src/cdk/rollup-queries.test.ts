@@ -55,7 +55,7 @@ describe("the rollups saved in Athena", () => {
   };
 
   it("saves one query for every question the command line answers", async () => {
-    // Given the four rollups.
+    // Given the rollups.
     // When the stack is deployed.
     const saved = await deployRollups();
 
@@ -67,6 +67,7 @@ describe("the rollups saved in Athena", () => {
       "rainlytics-referrers",
       "rainlytics-status-codes",
       "rainlytics-cache-hit-ratio",
+      "rainlytics-searches",
     ]);
   });
 
@@ -113,30 +114,30 @@ describe("the rollups saved in Athena", () => {
   it("saves a rollup a site wrote for itself", async () => {
     // Given a question Rainlytics does not ship, written with the exported
     // builder and passed alongside the four.
-    const searches: Rollup = {
-      name: "searches",
-      summary: "Count what readers searched for.",
-      description: "Counts the queries readers typed, most typed first.",
+    const countries: Rollup = {
+      name: "countries",
+      summary: "Count views by country.",
+      description: "Counts where readers were, most read from first.",
       isRanked: true,
       body: (request) =>
         [
-          "SELECT cs_uri_query AS query, count(*) AS searches",
+          "SELECT c_country AS country, count(*) AS views",
           `  FROM ${qualifiedTableName(request.dataset)}`,
-          rowsFor(request, ["cs_uri_stem = '/search/'"]),
+          rowsFor(request, ["sc_content_type LIKE 'text/html%'"]),
           "  GROUP BY 1",
         ].join("\n"),
     };
 
     // When the stack is deployed.
-    const saved = await deployRollups([...rollups, searches]);
+    const saved = await deployRollups([...rollups, countries]);
 
     // Then it is in the console beside them, reading the current month the
     // way they do. A site with a question of its own gets the console copy
     // as well as the SQL.
-    const own = saved.find((query) => query.name === "rainlytics-searches");
+    const own = saved.find((query) => query.name === "rainlytics-countries");
 
     expect(own?.queryString).toContain("year = date_format(current_date");
-    expect(own?.queryString).toContain("cs_uri_stem = '/search/'");
+    expect(own?.queryString).toContain("sc_content_type LIKE 'text/html%'");
     expect(saved).toHaveLength(rollups.length + 1);
   });
 
@@ -214,7 +215,7 @@ describe("the rollups saved in Athena", () => {
   it("refuses a summary that would overrun the description", async () => {
     // Given a summary long enough that the description built from it passes
     // 1,024 characters.
-    const wordy = sized("searches", "Counts what readers typed. ".repeat(40));
+    const wordy = sized("countries", "Counts where readers were. ".repeat(40));
 
     // Then synthesis fails, and says which field to shorten.
     await expect(deployRollups([wordy])).rejects.toThrow(
