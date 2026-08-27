@@ -1,6 +1,6 @@
 {
   "name": "@kensio/rainlytics",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Self-hosted web analytics for AWS sites, built on CloudFront logs",
   "repository": "https://github.com/KensioSoftware/rainlytics",
   "homepage": "https://rainlytics.com",
