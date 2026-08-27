@@ -4,7 +4,9 @@ import type { CliIo } from "./io.js";
 import type { OptionValues } from "./command-line.js";
 import type { CliOption } from "./option.js";
 import type { CommandResult } from "./output/result.js";
+import { rollups } from "../rollup-questions.js";
 import { queryCommand } from "./query-command.js";
+import { rollupCommand } from "./rollup-commands.js";
 
 /** What a command is handed when it runs. */
 export interface CommandContext {
@@ -54,9 +56,12 @@ export interface Command {
 /**
  * The commands `rainlytics` ships with.
  *
- * One so far. `query` takes SQL and runs it, which is the whole of reading
- * the data back by hand. The named questions people actually ask, which
- * answer without anybody writing SQL, are
- * https://github.com/KensioSoftware/rainlytics/issues/24.
+ * The four named questions first, then `query` for anything they do not
+ * cover. That order is the one a reader wants: somebody arriving at
+ * `rainlytics --help` is far more likely to want a pageview count than to
+ * want to write SQL.
  */
-export const rainlyticsCommands: readonly Command[] = [queryCommand];
+export const rainlyticsCommands: readonly Command[] = [
+  ...rollups.map((rollup) => rollupCommand(rollup)),
+  queryCommand,
+];

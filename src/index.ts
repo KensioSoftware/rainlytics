@@ -8,6 +8,28 @@
 // the built output.
 
 export {
+  cacheHitRatio,
+  pageviews,
+  referrers,
+  rollups,
+  statusCodes,
+} from "./rollup-questions.js";
+export {
+  botUserAgentPattern,
+  currentMonth,
+  type Rollup,
+  type RollupRange,
+  type RollupRequest,
+  rollupRequest,
+  rollupSql,
+} from "./rollups.js";
+export {
+  lastRange,
+  type PartitionValues,
+  partitionValuesCovering,
+  type TimeRange,
+} from "./time-range.js";
+export {
   bytesBilledFor,
   bytesBilledMinimum,
   dollarsPerTerabyteScanned,
