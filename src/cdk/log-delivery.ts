@@ -34,6 +34,16 @@ export interface LogDeliveryBucket {
   /** The bucket's ARN, which the delivery destination is built from. */
   readonly bucketArn: string;
 
+  /**
+   * The bucket's name, which an Athena table's `s3://` location is built
+   * from.
+   *
+   * Read here rather than pulled out of the ARN with `Fn::Select` over a
+   * `Fn::Split`, because the location has to be legible in the template
+   * somebody reads when a query comes back empty.
+   */
+  readonly bucketName: string;
+
   /** The key encrypting it, where it is encrypted with one. */
   readonly encryptionKey?: IKey | undefined;
 }
@@ -130,6 +140,24 @@ export class CloudFrontLogDelivery extends Construct {
   /** What joins the two. */
   readonly delivery: CfnDelivery;
 
+  /** The distribution whose logs these are. */
+  readonly distributionId: string;
+
+  /** The bucket they land in. */
+  readonly logBucket: LogDeliveryBucket;
+
+  /** The prefix inside it that the partitions start under. */
+  readonly prefix: string;
+
+  /** The format the objects are written in. */
+  readonly outputFormat: LogOutputFormat;
+
+  /** How finely they are partitioned by time. */
+  readonly granularity: PartitionGranularity;
+
+  /** The fields each record carries, in the order they are delivered. */
+  readonly fields: readonly string[];
+
   constructor(scope: Construct, id: string, props: CloudFrontLogDeliveryProps) {
     super(scope, id);
 
@@ -138,6 +166,13 @@ export class CloudFrontLogDelivery extends Construct {
     const stack = Stack.of(this);
     const name = props.deliveryName ?? `rainlytics-${props.distributionId}`;
     const prefix = props.prefix ?? "rainlytics";
+
+    this.distributionId = props.distributionId;
+    this.logBucket = props.logBucket;
+    this.prefix = prefix;
+    this.outputFormat = props.outputFormat ?? "json";
+    this.granularity = props.granularity ?? defaultPartitionGranularity;
+    this.fields = props.fields ?? deliveredLogFieldNames;
 
     this.source = new CfnDeliverySource(this, "Source", {
       name,
@@ -153,17 +188,15 @@ export class CloudFrontLogDelivery extends Construct {
     this.destination = new CfnDeliveryDestination(this, "Destination", {
       name,
       destinationResourceArn: `${props.logBucket.bucketArn}/${prefix}`,
-      outputFormat: props.outputFormat ?? "json",
+      outputFormat: this.outputFormat,
     });
 
     this.delivery = new CfnDelivery(this, "Delivery", {
       deliverySourceName: this.source.name,
       deliveryDestinationArn: this.destination.attrArn,
       s3EnableHiveCompatiblePath: true,
-      s3SuffixPath: deliverySuffixPath(
-        props.granularity ?? defaultPartitionGranularity,
-      ),
-      recordFields: [...(props.fields ?? deliveredLogFieldNames)],
+      s3SuffixPath: deliverySuffixPath(this.granularity),
+      recordFields: [...this.fields],
     });
     this.delivery.addResourceDependency(this.source);
     this.delivery.addResourceDependency(this.destination);

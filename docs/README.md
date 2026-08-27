@@ -11,6 +11,7 @@ runs on every `pnpm check`.
 
 - [Log bucket](log-bucket/), where CloudFront delivers raw access logs.
 - [Log delivery](log-delivery/), which points a distribution at that bucket.
+- [Log table](log-table/), the Glue table Athena reads what landed there.
 
 ## Reading the data back
 

@@ -27,6 +27,21 @@ export type PartitionGranularity = "hourly" | "daily";
  */
 export const defaultPartitionGranularity: PartitionGranularity = "hourly";
 
+/**
+ * What a projection needs to know about the dataset it covers.
+ *
+ * Two of the five keys take values that no rule can work out. The
+ * distributions are whichever ones deliver into the bucket, and the first
+ * year is whenever the first of them started.
+ */
+export interface PartitionProjectionScope {
+  /** The earliest year the dataset holds. */
+  readonly firstYear: number;
+
+  /** Every distribution delivering into it. */
+  readonly distributionIds: readonly string[];
+}
+
 /** A partition key, as the write side of the layout names it. */
 export interface PartitionKey {
   /**
@@ -40,6 +55,19 @@ export interface PartitionKey {
 
   /** The variable CloudFront substitutes when it writes the path. */
   readonly cloudFrontVariable: string;
+
+  /**
+   * How Athena projects this key's values, as the parameters a Glue table
+   * carries under `projection.<name>.`.
+   *
+   * Declared with the key so that the write side and the read side of one
+   * partition column stay in one place. A key added here arrives with the
+   * projection that reads it, and a granularity that drops a key drops its
+   * projection with it.
+   */
+  readonly projectionOf: (
+    scope: PartitionProjectionScope,
+  ) => Readonly<Record<string, string>>;
 }
 
 /** A partition key whose value a reader can work out from an instant. */
@@ -66,7 +94,26 @@ function padded(value: number, width: number): string {
 export const distributionKey: PartitionKey = {
   name: "distributionid",
   cloudFrontVariable: "{distributionid}",
+  projectionOf: ({ distributionIds }) => ({
+    type: "enum",
+    values: distributionIds.join(","),
+  }),
 };
+
+/**
+ * The earliest year a projection covers where nobody says otherwise.
+ *
+ * The first Rainlytics delivery wrote its first object in 2026, so no dataset
+ * this describes holds anything older.
+ *
+ * Deliberately a constant and not the current year. A synthesised template
+ * that read the clock would change on 1 January, and the range it wrote would
+ * start at the year of the most recent deploy. Every partition before that
+ * would fall outside the projection, and Athena would answer from the
+ * remainder without saying it had stopped reading the rest. A site whose logs
+ * start later can shorten the range and save the planning work.
+ */
+export const defaultFirstPartitionYear = 2026;
 
 /**
  * The time keys, coarsest first.
@@ -81,21 +128,31 @@ const timeKeys: readonly TimePartitionKey[] = [
     name: "year",
     cloudFrontVariable: "{yyyy}",
     valueAt: (instant) => padded(instant.getUTCFullYear(), 4),
+    projectionOf: ({ firstYear }) => ({
+      type: "date",
+      range: `${String(firstYear)},NOW`,
+      format: "yyyy",
+      interval: "1",
+      "interval.unit": "YEARS",
+    }),
   },
   {
     name: "month",
     cloudFrontVariable: "{MM}",
     valueAt: (instant) => padded(instant.getUTCMonth() + 1, 2),
+    projectionOf: () => ({ type: "integer", range: "1,12", digits: "2" }),
   },
   {
     name: "day",
     cloudFrontVariable: "{dd}",
     valueAt: (instant) => padded(instant.getUTCDate(), 2),
+    projectionOf: () => ({ type: "integer", range: "1,31", digits: "2" }),
   },
   {
     name: "hour",
     cloudFrontVariable: "{HH}",
     valueAt: (instant) => padded(instant.getUTCHours(), 2),
+    projectionOf: () => ({ type: "integer", range: "0,23", digits: "2" }),
   },
 ];
 

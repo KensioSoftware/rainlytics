@@ -14,5 +14,7 @@ export {
   type LogOutputFormat,
 } from "./log-delivery.js";
 export { LogBucket, type LogBucketProps } from "./log-bucket.js";
+export { LogTable, type LogTableProps } from "./log-table.js";
+export { type LogTableFormat, logTableFormat } from "./log-table-format.js";
 export { defaultLogRetention, defaultRecoveryWindow } from "./log-lifecycle.js";
 export { requireStackRegion } from "./stack-region.js";

@@ -22,22 +22,32 @@ on, and a low-traffic site should cost cents a month.
 
 CDK constructs for the collection half of the pipeline. A distribution's access
 logs land in an S3 bucket, partitioned and carrying the field set the rollups
-will read.
+will read, and a Glue table describes them for Athena.
 
 ```typescript
-import { CloudFrontLogDelivery, LogBucket } from "@kensio/rainlytics/cdk";
+import {
+  CloudFrontLogDelivery,
+  LogBucket,
+  LogTable,
+} from "@kensio/rainlytics/cdk";
 
 const logs = new LogBucket(this, "RainlyticsLogs");
 
-new CloudFrontLogDelivery(this, "RainlyticsDelivery", {
+const delivery = new CloudFrontLogDelivery(this, "RainlyticsDelivery", {
   distributionId: "E1EXAMPLE1234",
   logBucket: logs.bucket,
 });
+
+new LogTable(this, "RainlyticsTable", { deliveries: [delivery] });
 ```
 
+The table projects its partitions, so a query naming a day reads that day and
+is billed for those bytes. No crawler runs over the bucket and no partition is
+ever registered.
+
 That stack has to be in us-east-1, which is the only region CloudFront log
-delivery can be configured from. See the [log bucket](docs/log-bucket/) and [log
-delivery](docs/log-delivery/) pages.
+delivery can be configured from. See the [log bucket](docs/log-bucket/), [log
+delivery](docs/log-delivery/) and [log table](docs/log-table/) pages.
 
 A `rainlytics` command ships beside them, and runs with nothing else
 installed:
