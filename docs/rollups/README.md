@@ -163,6 +163,73 @@ WHERE year = date_format(current_date, '%Y')
   AND month = date_format(current_date, '%m')
 ```
 
+## Writing a rollup of your own
+
+The four are assembled from parts the package exports, and a site with a question of its own
+assembles a fifth the same way. A rollup is a name, some help text and a function that writes the
+SQL for one request:
+
+```typescript
+import {
+  lastRange,
+  qualifiedTableName,
+  type Rollup,
+  rollupRequest,
+  rollupSql,
+  rowsFor,
+} from "@kensio/rainlytics";
+
+const searches: Rollup = {
+  name: "searches",
+  summary: "Count what readers searched for.",
+  description: "Counts the queries readers typed, most typed first.",
+  isRanked: true,
+  body: (request) =>
+    [
+      "SELECT cs_uri_query AS query, count(*) AS searches",
+      `  FROM ${qualifiedTableName(request.dataset)}`,
+      rowsFor(request, ["cs_uri_stem = '/search/'"]),
+      "  GROUP BY 1",
+      "  ORDER BY 2 DESC, 1",
+      `  LIMIT ${String(request.limit)}`,
+    ].join("\n"),
+};
+
+const sql = rollupSql(
+  searches,
+  rollupRequest({ range: lastRange("7d", new Date()) }),
+);
+```
+
+`rowsFor` writes the whole `WHERE` clause. The partition predicate, the timestamp bounds, the
+crawler filter and the `host` and `path` the request narrowed to all come out of it, and its second
+argument carries the conditions this one question adds. Writing that by hand puts a second copy of
+[what a range costs](#--last-decides-what-the-question-costs) and of [the crawler
+filter](#crawlers-are-most-of-the-traffic) in the site's own repository, and the copy is the one
+that goes stale.
+
+`rollupSql` hands back the text. Running it is the site's own Athena client. The `rainlytics`
+command reads the four it ships and has no way to load a question from outside the package.
+
+The construct saves a site's rollup in the console beside the built-in four:
+
+```typescript
+import { rollups } from "@kensio/rainlytics";
+import { RollupQueries } from "@kensio/rainlytics/cdk";
+
+new RollupQueries(this, "RainlyticsRollups", {
+  table,
+  workgroup,
+  rollups: [...rollups, searches],
+});
+```
+
+The saved copy covers the current month, as the four do. Its description says what it counts and
+stops there, since there is no `rainlytics searches` to point a reader at.
+
+A name is lowercase words joined by hyphens (`cache-hit-ratio`). It becomes a CDK logical id and an
+Athena query name, and `assertRollupName` refuses anything else at synthesis.
+
 ## Output, and what happens next
 
 `--output json`, `csv` or `table`, defaulting to a table at a terminal and to JSON when piped. Every

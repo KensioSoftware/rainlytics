@@ -4,7 +4,13 @@ import { Construct } from "constructs";
 import type { LogDataset } from "../dataset.js";
 import { rollups } from "../rollup-questions.js";
 import type { Rollup } from "../rollups.js";
-import { currentMonth, rollupRequest, rollupSql } from "../rollups.js";
+import {
+  assertRollupName,
+  currentMonth,
+  rollupRequest,
+  rollupSql,
+} from "../rollups.js";
+import { assertAthenaLength, describing } from "./named-query-text.js";
 import type { LogTable } from "./log-table.js";
 import type { QueryWorkgroup } from "./query-workgroup.js";
 
@@ -15,6 +21,14 @@ export interface RollupQueriesProps {
 
   /** The workgroup they are saved in and would run under. */
   readonly workgroup: QueryWorkgroup;
+
+  /**
+   * The questions to save, which default to the four Rainlytics ships.
+   *
+   * A site with a rollup of its own passes `[...rollups, searches]` to save
+   * that beside them. Passing a list of its own alone saves that alone.
+   */
+  readonly rollups?: readonly Rollup[] | undefined;
 }
 
 /**
@@ -31,10 +45,24 @@ export interface RollupQueriesProps {
  *
  * The saved copies cover the current month rather than the span a command was
  * given. A command computes explicit partition values for the range it was
- * asked for, and there is no range to compute here: dates baked in at deploy
+ * asked for, and there is no range to compute here. Dates baked in at deploy
  * time would be the dates of whoever last deployed, and would change the
  * template on every deploy. `date_format(current_date, '%Y')` prunes to the
  * month somebody runs it in and needs nothing kept up to date.
+ *
+ * A site writing a rollup of its own saves it here too:
+ *
+ * ```typescript
+ * new RollupQueries(this, "RainlyticsRollups", {
+ *   table,
+ *   workgroup,
+ *   rollups: [...rollups, searches],
+ * });
+ * ```
+ *
+ * Every saved query is named `rainlytics-<name>`. Athena lists named queries
+ * flat within a workgroup, and the prefix is what gathers a deployment's own
+ * into one place among whatever else somebody has saved there.
  */
 export class RollupQueries extends Construct {
   /** The saved queries, in the order the rollups are declared. */
@@ -43,19 +71,27 @@ export class RollupQueries extends Construct {
   constructor(scope: Construct, id: string, props: RollupQueriesProps) {
     super(scope, id);
 
-    this.queries = rollups.map((rollup) => this.save(rollup, props));
+    this.queries = (props.rollups ?? rollups).map((rollup) =>
+      this.save(rollup, props),
+    );
   }
 
   private save(rollup: Rollup, props: RollupQueriesProps): CfnNamedQuery {
     const dataset: LogDataset = props.table.dataset;
 
+    assertRollupName(rollup.name);
+
+    const name = `rainlytics-${rollup.name}`;
+    const description = describing(rollup);
+
+    assertAthenaLength("name", name);
+    assertAthenaLength("description", description);
+
     const query = new CfnNamedQuery(this, queryId(rollup.name), {
-      name: `rainlytics-${rollup.name}`,
+      name,
       database: dataset.databaseName,
       workGroup: props.workgroup.workgroupName,
-      description:
-        `${rollup.summary} What "rainlytics ${rollup.name}" runs, over the` +
-        ` current month.`,
+      description,
       queryString: rollupSql(
         rollup,
         rollupRequest({ range: currentMonth, dataset }),

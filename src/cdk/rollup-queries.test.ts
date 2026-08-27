@@ -6,9 +6,14 @@ import { describe, expect, it } from "vitest";
 
 import { deployStacks } from "#test/simulated-deployment.js";
 
-import { defaultLogDataset, defaultWorkgroupName } from "../dataset.js";
+import {
+  defaultLogDataset,
+  defaultWorkgroupName,
+  qualifiedTableName,
+} from "../dataset.js";
 import { rollups } from "../rollup-questions.js";
-import { currentMonth, rollupRequest, rollupSql } from "../rollups.js";
+import type { Rollup } from "../rollups.js";
+import { currentMonth, rollupRequest, rollupSql, rowsFor } from "../rollups.js";
 import { CloudFrontLogDelivery } from "./log-delivery.js";
 import { LogBucket } from "./log-bucket.js";
 import { LogTable } from "./log-table.js";
@@ -17,7 +22,7 @@ import { RollupQueries } from "./rollup-queries.js";
 
 describe("the rollups saved in Athena", () => {
   /** The whole pipeline deployed, with the saved queries on top of it. */
-  const deployRollups = async () => {
+  const deployRollups = async (saving?: readonly Rollup[]) => {
     const { simAws } = await deployStacks((app: App, account: string) => {
       const stack = new Stack(app, "AnalyticsStack", {
         env: { account, region: "us-east-1" },
@@ -39,7 +44,11 @@ describe("the rollups saved in Athena", () => {
         resultsBucketName: `rainlytics-results-${faker.string.uuid()}`,
       });
 
-      new RollupQueries(stack, "RainlyticsRollups", { table, workgroup });
+      new RollupQueries(stack, "RainlyticsRollups", {
+        table,
+        workgroup,
+        rollups: saving,
+      });
     });
 
     return simAws.region("us-east-1").account().athena().namedQueries();
@@ -99,5 +108,117 @@ describe("the rollups saved in Athena", () => {
     // provenance is a console nobody trusts to edit.
     expect(saved[0]?.description).toContain('"rainlytics pageviews" runs');
     expect(saved[0]?.description).toContain("current month");
+  });
+
+  it("saves a rollup a site wrote for itself", async () => {
+    // Given a question Rainlytics does not ship, written with the exported
+    // builder and passed alongside the four.
+    const searches: Rollup = {
+      name: "searches",
+      summary: "Count what readers searched for.",
+      description: "Counts the queries readers typed, most typed first.",
+      isRanked: true,
+      body: (request) =>
+        [
+          "SELECT cs_uri_query AS query, count(*) AS searches",
+          `  FROM ${qualifiedTableName(request.dataset)}`,
+          rowsFor(request, ["cs_uri_stem = '/search/'"]),
+          "  GROUP BY 1",
+        ].join("\n"),
+    };
+
+    // When the stack is deployed.
+    const saved = await deployRollups([...rollups, searches]);
+
+    // Then it is in the console beside them, reading the current month the
+    // way they do. A site with a question of its own gets the console copy
+    // as well as the SQL.
+    const own = saved.find((query) => query.name === "rainlytics-searches");
+
+    expect(own?.queryString).toContain("year = date_format(current_date");
+    expect(own?.queryString).toContain("cs_uri_stem = '/search/'");
+    expect(saved).toHaveLength(rollups.length + 1);
+  });
+
+  it("claims a command only where there is one", async () => {
+    // Given a rollup the command line has no subcommand for.
+    const nowhere: Rollup = {
+      name: "elsewhere",
+      summary: "Count something else.",
+      description: "Counts something the command line never asks about.",
+      isRanked: false,
+      body: (request) =>
+        ["SELECT count(*) AS rows", rowsFor(request)].join("\n"),
+    };
+
+    // When it is saved.
+    const saved = await deployRollups([nowhere]);
+
+    // Then its description says what it covers and stops. Naming
+    // `rainlytics elsewhere` would send whoever reads it to a command that
+    // does not exist.
+    expect(saved[0]?.description).toBe(
+      "Count something else. Over the current month.",
+    );
+  });
+
+  it("refuses a name the console and the command line cannot share", async () => {
+    // Given a rollup named the way a heading is written.
+    const shouting: Rollup = {
+      name: "Reader Searches",
+      summary: "Count what readers searched for.",
+      description: "Counts the queries readers typed.",
+      isRanked: true,
+      body: (request) => ["SELECT 1", rowsFor(request)].join("\n"),
+    };
+
+    // Then synthesis fails, rather than a deploy landing a query under a
+    // name CDK had to mangle to make a logical id out of.
+    await expect(deployRollups([shouting])).rejects.toThrow(/Reader Searches/u);
+  });
+
+  /** A question of a site's own, named and summarised to order. */
+  const sized = (name: string, summary: string): Rollup => ({
+    name,
+    summary,
+    description: "Counts something.",
+    isRanked: false,
+    body: (request) => ["SELECT count(*) AS rows", rowsFor(request)].join("\n"),
+  });
+
+  /** A rollup name of a given length, in the shape the rule allows. */
+  const nameOf = (length: number): string => "a".repeat(length);
+
+  it("saves a name that fills what Athena holds", async () => {
+    // Given a name that is exactly the 128 characters Athena takes, once
+    // the `rainlytics-` prefix is on it.
+    const longest = sized(nameOf(128 - "rainlytics-".length), "Counts.");
+
+    // When the stack is deployed.
+    const saved = await deployRollups([longest]);
+
+    // Then it is saved. The check has to admit the longest usable name, or
+    // it is refusing something Athena would have taken.
+    expect(saved[0]?.name).toHaveLength(128);
+  });
+
+  it("refuses a name longer than Athena would hold", async () => {
+    // Given one character more than that.
+    const overlong = sized(nameOf(129 - "rainlytics-".length), "Counts.");
+
+    // Then synthesis fails. A deploy would run for a while and come back
+    // with a validation message naming a field rather than a rollup.
+    await expect(deployRollups([overlong])).rejects.toThrow(/129 characters/u);
+  });
+
+  it("refuses a summary that would overrun the description", async () => {
+    // Given a summary long enough that the description built from it passes
+    // 1,024 characters.
+    const wordy = sized("searches", "Counts what readers typed. ".repeat(40));
+
+    // Then synthesis fails, and says which field to shorten.
+    await expect(deployRollups([wordy])).rejects.toThrow(
+      /Shorten the rollup's summary/u,
+    );
   });
 });

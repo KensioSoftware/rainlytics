@@ -4,8 +4,12 @@
 // the same automated traffic over the same partitions. A rollup that filtered
 // differently would answer a different question from its neighbours without
 // saying so.
+//
+// The same argument reaches past the four. A site with a question of its own
+// wants the partition predicate and the bot filter written the way Rainlytics
+// writes them, and a hand-written copy is a second statement of both rules.
+// `rowsFor` is exported from the package root for that.
 
-import type { LogDataset } from "./dataset.js";
 import { decodedColumn } from "./log-encoding.js";
 import { botUserAgentPattern, currentMonth } from "./rollups.js";
 import type { RollupRequest } from "./rollups.js";
@@ -16,6 +20,16 @@ import { partitionValuesCovering } from "./time-range.js";
  *
  * The partition predicate comes first and is the only part that changes what
  * is read. Everything after it narrows rows that have already been paid for.
+ *
+ * `extra` holds whatever else one question needs, joined on after the
+ * partitions, the bot filter and the host and path a caller narrowed to. The
+ * pageview rollup passes the three conditions that separate a page from the
+ * assets beside it in the log.
+ *
+ * ```typescript
+ * `SELECT count(*) FROM ${qualifiedTableName(request.dataset)}\n` +
+ *   rowsFor(request, ["cs_uri_query <> '-'"]);
+ * ```
  */
 export function rowsFor(
   request: RollupRequest,
@@ -104,9 +118,4 @@ function partitionsOf(request: RollupRequest): readonly string[] {
 /** One value as SQL writes it, with any quote in it doubled. */
 function quoted(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
-}
-
-/** The table a rollup reads, qualified so a session database cannot change it. */
-export function tableIn(dataset: LogDataset): string {
-  return `"${dataset.databaseName}"."${dataset.tableName}"`;
 }

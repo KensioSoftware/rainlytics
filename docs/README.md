@@ -18,5 +18,5 @@ runs on every `pnpm check`.
 ## Reading the data back
 
 - [Command line](command-line/), the `rainlytics` command and what it writes.
-- [Rollups](rollups/), the four named questions and what each one counts.
+- [Rollups](rollups/), the four named questions, what each counts, and how to write one of your own.
 - [Query](query/), running SQL against the log table with `rainlytics query`.
