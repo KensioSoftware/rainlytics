@@ -66,13 +66,19 @@ export interface RollupRequest {
   readonly param: string;
 
   /**
-   * The section of the site counted, as a path every counted request starts
-   * with. Absent counts the whole distribution.
+   * The sections of the site counted, as paths a counted request starts with.
+   * A request counts when it starts with any of them, and an empty list
+   * counts the whole distribution.
    *
-   * Matched against the decoded path, so it names the address a reader sees
+   * A set because a section of a site is not always one prefix. Search boxes
+   * at `/words/search/` and `/sentences/search/` have no value covering both,
+   * and counting them one at a time leaves the addition to whoever reads the
+   * two answers.
+   *
+   * Matched against the decoded path, so they name the address a reader sees
    * rather than the escapes the record holds.
    */
-  readonly path?: string | undefined;
+  readonly paths?: readonly string[] | undefined;
 
   /**
    * The site counted, where one distribution serves several. Absent counts
@@ -90,7 +96,7 @@ export interface RollupRequest {
  * The ones Rainlytics ships are in `rollup-questions.ts`, and a site can
  * write its own. A rollup writes what it selects and groups by, and calls
  * {@link rowsFor} for the rows underneath. That is where the partition
- * predicate, the bot filter and the host and path a caller narrowed to are
+ * predicate, the bot filter and the host and paths a caller narrowed to are
  * written, and a question filtering its own way would answer a different
  * question from its neighbours without saying so.
  *

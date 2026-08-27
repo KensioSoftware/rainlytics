@@ -22,7 +22,7 @@ import { partitionValuesCovering } from "./time-range.js";
  * is read. Everything after it narrows rows that have already been paid for.
  *
  * `extra` holds whatever else one question needs, joined on after the
- * partitions, the bot filter and the host and path a caller narrowed to. The
+ * partitions, the bot filter and the host and paths a caller narrowed to. The
  * pageview rollup passes the three conditions that separate a page from the
  * assets beside it in the log.
  *
@@ -56,7 +56,7 @@ function conditions(
 }
 
 /**
- * The host and the section a request was narrowed to, where it named either.
+ * The host and the sections a request was narrowed to, where it named either.
  *
  * Both sit here with the bot filter rather than beside a question, because
  * every rollup takes them and one that narrowed differently would answer a
@@ -64,24 +64,42 @@ function conditions(
  *
  * Neither changes what a query reads. The partition predicate has already
  * decided that, and these narrow rows that are paid for either way.
- *
- * The path is a prefix, written with `strpos` rather than `LIKE`. A path
- * carrying `_` is ordinary and `LIKE` reads it as a wildcard, so matching
- * that way would need an `ESCAPE` clause and every metacharacter in the
- * caller's text escaped before it went in. `strpos(haystack, needle) = 1`
- * takes the text literally and has nothing to escape.
  */
 function narrowedTo(request: RollupRequest): readonly string[] {
   return [
     ...(request.host === undefined
       ? []
       : [`x_host_header = ${quoted(request.host)}`]),
-    ...(request.path === undefined
-      ? []
-      : [
-          `strpos(${decodedColumn("cs_uri_stem")}, ${quoted(request.path)}) = 1`,
-        ]),
+    ...startingWithAny(request.paths ?? []),
   ];
+}
+
+/**
+ * A row starting with any one of the paths, where the request named some.
+ *
+ * Each path is a prefix, written with `strpos` rather than `LIKE`. A path
+ * carrying `_` is ordinary and `LIKE` reads it as a wildcard, so matching
+ * that way would need an `ESCAPE` clause and every metacharacter in the
+ * caller's text escaped before it went in. `strpos(haystack, needle) = 1`
+ * takes the text literally and has nothing to escape.
+ *
+ * Several paths are that same test once each, joined by `OR`. A set of them
+ * keeps every property one path has. The bracket around them keeps the `AND`
+ * above from swallowing the first branch. A single path is written without
+ * one, and naming one section writes what it always wrote.
+ */
+function startingWithAny(paths: readonly string[]): readonly string[] {
+  if (paths.length === 0) {
+    return [];
+  }
+
+  const anyOf = paths
+    .map(
+      (path) => `strpos(${decodedColumn("cs_uri_stem")}, ${quoted(path)}) = 1`,
+    )
+    .join(" OR ");
+
+  return [paths.length === 1 ? anyOf : `(${anyOf})`];
 }
 
 /**

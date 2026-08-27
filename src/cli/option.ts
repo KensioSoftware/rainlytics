@@ -19,6 +19,15 @@ export interface CliOption {
   /** Whether the option takes a value. */
   readonly type: "string" | "boolean";
 
+  /**
+   * Whether giving the option again adds to what it holds.
+   *
+   * An option without this keeps the last value it was given. Somebody
+   * correcting a line they are still typing expects that. One with it keeps
+   * every value, for a question that can be asked of several things at once.
+   */
+  readonly multiple?: boolean | undefined;
+
   /** What to call the value in help, for an option that takes one. */
   readonly valueName?: string | undefined;
 

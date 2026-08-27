@@ -47,12 +47,15 @@ export const pathOption: CliOption = {
   name: "path",
   short: "p",
   type: "string",
+  multiple: true,
   valueName: "prefix",
   description:
     "Count only requests for paths starting with this, so --path /guides/" +
-    " covers everything below it. Matched against the address a reader" +
-    " sees, with CloudFront's encoding already taken off. It narrows the" +
-    " rows counted and leaves the bytes scanned where they were.",
+    " covers everything below it. Give it again for each section that" +
+    " belongs in one answer, and a request counts when it starts with any" +
+    " of them. Matched against the address a reader sees, with" +
+    " CloudFront's encoding already taken off. It narrows the rows counted" +
+    " and leaves the bytes scanned where they were.",
 };
 
 export const paramOption: CliOption = {

@@ -50,6 +50,74 @@ describe("reading a command line", () => {
     expect(values[option.name]).toBe(value);
   });
 
+  it("collects an option that was told to gather its repeats", () => {
+    // Given an option that collects, given twice.
+    const option: CliOption = { ...aStringOption(), multiple: true };
+    const first = faker.word.noun();
+    const second = faker.word.noun();
+
+    // When both are on the line.
+    const { values } = parseCommandLine(
+      [`--${option.name}`, first, `--${option.name}`, second],
+      [option],
+    );
+
+    // Then both arrive, in the order they were typed. An ordinary option
+    // keeps the last value, and the case below covers that.
+    expect(values[option.name]).toStrictEqual([first, second]);
+  });
+
+  it("gathers one value into a list too", () => {
+    // Given the same option, given once.
+    const option: CliOption = { ...aStringOption(), multiple: true };
+    const only = faker.word.noun();
+
+    // When it is read.
+    const { values } = parseCommandLine([`--${option.name}`, only], [option]);
+
+    // Then it is still a list. Every reader downstream sees the same shape
+    // whether the option was given once or twice. A shape that changed with
+    // the count would put a branch in each of them.
+    expect(values[option.name]).toStrictEqual([only]);
+  });
+
+  it("keeps the last value of an option that does not collect", () => {
+    // Given an ordinary option, given twice.
+    const option = aStringOption();
+    const corrected = faker.word.noun();
+
+    // When the line names it again.
+    const { values } = parseCommandLine(
+      [`--${option.name}`, faker.word.noun(), `--${option.name}`, corrected],
+      [option],
+    );
+
+    // Then the last one wins. Somebody correcting a line they are still
+    // typing expects that.
+    expect(values[option.name]).toBe(corrected);
+  });
+
+  it("holds every value of a collecting option to its choices", () => {
+    // Given an option that collects one of a fixed set.
+    const option: CliOption = {
+      ...aStringOption(),
+      multiple: true,
+      choices: ["json", "csv"],
+    };
+
+    // When the second one is outside the set.
+    const reading = (): unknown =>
+      parseCommandLine(
+        [`--${option.name}`, "json", `--${option.name}`, "yaml"],
+        [option],
+      );
+
+    // Then it is refused and named. Checking only the first would let a
+    // typo through on every occurrence after it.
+    expect(reading).toThrow(UsageError);
+    expect(reading).toThrow("yaml");
+  });
+
   it("keeps everything that was not an option", () => {
     // Given a flag and two arguments of the kind a query takes.
     const flag = aFlag();

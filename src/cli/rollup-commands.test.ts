@@ -321,6 +321,52 @@ describe("the named questions", () => {
     ]);
   });
 
+  it("counts several sections that share no prefix", async () => {
+    // Given a site with two search boxes and no path covering both. A third
+    // tool alongside them takes the same parameter and is a different
+    // question.
+    const deployed = await deployAnalytics();
+
+    await putDelivered(deployed, rightNow, [
+      aRecord(rightNow, {
+        "cs-uri-stem": "/words/search/",
+        "cs-uri-query": "q=talent",
+      }),
+      aRecord(rightNow, {
+        "cs-uri-stem": "/sentences/search/",
+        "cs-uri-query": "q=talent",
+      }),
+      aRecord(rightNow, {
+        "cs-uri-stem": "/sentences/search/",
+        "cs-uri-query": "q=weather",
+      }),
+      aRecord(rightNow, {
+        "cs-uri-stem": "/tools/convert/",
+        "cs-uri-query": "q=talent",
+      }),
+    ]);
+
+    // When both search pages are named.
+    const run = await cli([
+      "searches",
+      "--last",
+      "24h",
+      "--path",
+      "/words/search/",
+      "--path",
+      "/sentences/search/",
+    ]);
+
+    // Then a row under either is counted and one under neither is left out.
+    // The two searches for the same term are one row. Two separate runs
+    // would have left that addition to whoever read them.
+    expect(run.code).toBe(0);
+    expect(run.rows).toStrictEqual([
+      { term: "talent", searches: "2", redirected: "0" },
+      { term: "weather", searches: "1", redirected: "0" },
+    ]);
+  });
+
   it("matches a path holding an underscore literally", async () => {
     // Given two pages whose addresses differ only where LIKE would read a
     // wildcard.

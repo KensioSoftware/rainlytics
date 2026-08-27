@@ -40,7 +40,7 @@ function sqlFrom(args: readonly string[]): string {
 }
 
 /** The text of an option, where one was given. */
-function chosen(value: string | boolean | undefined): string | undefined {
+function chosen(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
