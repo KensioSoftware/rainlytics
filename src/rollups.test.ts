@@ -112,13 +112,34 @@ describe("the SQL a rollup runs", () => {
     "narrows %s to one section of the site",
     (name) => {
       // Given a rollup asked for one path.
-      const sql = sqlFor(name, { path: "/guides/" });
+      const sql = sqlFor(name, { paths: ["/guides/"] });
 
       // Then it matches a prefix of the decoded path, so the option names
       // the address a reader sees. `strpos` takes the text literally, where
       // LIKE would read a path holding `_` as a wildcard.
       expect(sql).toContain(
         "strpos(url_decode(url_decode(cs_uri_stem)), '/guides/') = 1",
+      );
+
+      // And nothing is bracketed or joined by OR. One section asked for
+      // writes what it has always written, since a set of one is a set.
+      expect(sql).not.toContain(" OR ");
+    },
+  );
+
+  it.each(rollups.map((rollup) => rollup.name))(
+    "narrows %s to several sections at once",
+    (name) => {
+      // Given a rollup asked for two sections that share no prefix.
+      const sql = sqlFor(name, { paths: ["/guides/", "/tutorials/"] });
+
+      // Then a row counts when it starts with either, and the branches are
+      // bracketed. Without the bracket the `AND` above would take the first
+      // one and the rest of the WHERE clause would answer a different
+      // question.
+      expect(sql).toContain(
+        "(strpos(url_decode(url_decode(cs_uri_stem)), '/guides/') = 1" +
+          " OR strpos(url_decode(url_decode(cs_uri_stem)), '/tutorials/') = 1)",
       );
     },
   );
@@ -138,13 +159,15 @@ describe("the SQL a rollup runs", () => {
   it.each(rollups.map((rollup) => rollup.name))(
     "leaves %s over the whole distribution by default",
     (name) => {
-      // Given a rollup nobody narrowed.
-      const sql = sqlFor(name);
-
-      // Then neither filter is written at all, rather than written as a
-      // condition matching everything.
-      expect(sql).not.toContain("x_host_header =");
-      expect(sql).not.toContain("strpos(");
+      // Given a rollup nobody narrowed, and one narrowed to no paths at all.
+      // The command line hands over an empty list when `--path` was never
+      // given, so the two arrive here as the same question.
+      for (const sql of [sqlFor(name), sqlFor(name, { paths: [] })]) {
+        // Then neither filter is written at all, rather than written as a
+        // condition matching everything.
+        expect(sql).not.toContain("x_host_header =");
+        expect(sql).not.toContain("strpos(");
+      }
     },
   );
 
@@ -152,7 +175,7 @@ describe("the SQL a rollup runs", () => {
     // Given a path carrying the one character SQL string syntax cares about.
     // Then it is doubled, so the statement still parses and still means the
     // path that was asked for.
-    expect(sqlFor("pageviews", { path: "/it's/" })).toContain("'/it''s/'");
+    expect(sqlFor("pageviews", { paths: ["/it's/"] })).toContain("'/it''s/'");
   });
 
   it("reads CloudFront's encoding back off the path", () => {
@@ -302,7 +325,7 @@ describe("a rollup a site wrote for itself", () => {
 
   it("takes the host and the path a caller narrowed to", () => {
     // Given a question narrowed the way every rollup can be narrowed.
-    const sql = sqlFor({ host: "example.com", path: "/words/" });
+    const sql = sqlFor({ host: "example.com", paths: ["/words/"] });
 
     // Then it narrows without the question having said how. A site asking
     // for `--host` would otherwise write the column name itself.

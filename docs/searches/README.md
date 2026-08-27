@@ -32,6 +32,16 @@ rainlytics searches --path /search/ --last 30d
 rainlytics searches --path /tools/convert/ --param hanzi --last 30d
 ```
 
+A site with two search boxes gives `--path` once for each, and the terms from both are counted
+together:
+
+```bash
+rainlytics searches --path /words/search/ --path /sentences/search/ --last 30d
+```
+
+Two runs would answer two questions, and adding those answers up by hand is the arithmetic the
+command was there to do.
+
 `--param` names the parameter carrying the term and defaults to `q`. One site can hold several, and
 each is its own question. Everything else the rollups take works here too, `--host`, `--limit` and
 `--include-bots` among them. See [rollups](../rollups/).

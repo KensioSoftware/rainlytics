@@ -38,7 +38,7 @@ export function render(result: CommandResult, format: OutputFormat): string {
 
 /** The format `--output` asked for, or the one the streams imply. */
 export function chosenFormat(
-  asked: string | boolean | undefined,
+  asked: unknown,
   outIsTerminal: boolean,
 ): OutputFormat {
   return (

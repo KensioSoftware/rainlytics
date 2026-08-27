@@ -95,6 +95,17 @@ It matches the address a reader sees. The record holds it percent-encoded twice,
 decodes before comparing, so `--path /词典/` finds the pages `pageviews` prints under that name. The
 text is taken literally. A path holding `_` or `%` matches itself.
 
+Give `--path` again for each section that belongs in one answer. A request counts when its address
+starts with any of them:
+
+```bash
+rainlytics pageviews --path /guides/ --path /tutorials/ --last 7d
+```
+
+Guides and tutorials are one section of a site to whoever writes them, and a site with search boxes
+at `/words/search/` and `/sentences/search/` has no prefix covering both. Each path becomes its own
+prefix test and the tests are joined by `OR`. One `--path` writes what it always wrote.
+
 `--host` counts one of the sites a single distribution serves:
 
 ```bash
@@ -252,7 +263,7 @@ const sql = rollupSql(
 ```
 
 `rowsFor` writes the whole `WHERE` clause. The partition predicate, the timestamp bounds, the
-crawler filter and the `host` and `path` the request narrowed to all come out of it, and its second
+crawler filter and the `host` and `paths` the request narrowed to all come out of it, and its second
 argument carries the conditions this one question adds. Writing that by hand puts a second copy of
 [what a range costs](#--last-decides-what-the-question-costs) and of [the crawler
 filter](#crawlers-are-most-of-the-traffic) in the site's own repository, and the copy is the one

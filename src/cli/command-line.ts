@@ -10,10 +10,32 @@ import { UsageError } from "./failure.js";
 import type { CliOption } from "./option.js";
 import { listOf } from "./text-layout.js";
 
-/** What an option was set to. A boolean option is absent or `true`. */
-export type OptionValues = Readonly<
-  Record<string, string | boolean | undefined>
->;
+/**
+ * What one option was set to.
+ *
+ * A boolean option is absent or `true`. An option that collects its repeats
+ * is absent or a list, however many times it was given. Every reader
+ * downstream sees the same shape whether it arrived once or twice.
+ */
+export type OptionValue =
+  | string
+  | boolean
+  | readonly (string | boolean)[]
+  | undefined;
+
+/** What every option was set to, by long name. */
+export type OptionValues = Readonly<Record<string, OptionValue>>;
+
+/** Everything an option was given, whether it collects its repeats or not. */
+export function valuesOf(value: OptionValue): readonly (string | boolean)[] {
+  if (value === undefined) {
+    return [];
+  }
+
+  return typeof value === "string" || typeof value === "boolean"
+    ? [value]
+    : value;
+}
 
 /** One command line, taken apart. */
 export interface CommandLine {
@@ -53,14 +75,17 @@ function parse(
   options: readonly CliOption[],
   helpFor: string | undefined,
 ): CommandLine {
-  const config: Record<string, { type: "string" | "boolean"; short?: string }> =
-    {};
+  const config: Record<
+    string,
+    { type: "string" | "boolean"; short?: string; multiple?: boolean }
+  > = {};
 
   for (const option of options) {
-    config[option.name] =
-      option.short === undefined
-        ? { type: option.type }
-        : { type: option.type, short: option.short };
+    config[option.name] = {
+      type: option.type,
+      ...(option.short === undefined ? {} : { short: option.short }),
+      ...(option.multiple === true ? { multiple: true } : {}),
+    };
   }
 
   try {
@@ -98,17 +123,20 @@ function firstSentence(message: string): string {
  */
 function checkChoices(
   option: CliOption,
-  value: string | boolean | undefined,
+  value: OptionValue,
   helpFor: string | undefined,
 ): void {
-  if (option.choices === undefined || value === undefined) {
+  if (option.choices === undefined) {
     return;
   }
 
-  if (typeof value !== "string" || !option.choices.includes(value)) {
-    throw new UsageError(
-      `--${option.name} accepts ${listOf(option.choices)}. Got "${String(value)}".`,
-      helpFor,
-    );
+  for (const given of valuesOf(value)) {
+    if (typeof given !== "string" || !option.choices.includes(given)) {
+      throw new UsageError(
+        `--${option.name} accepts ${listOf(option.choices)}.` +
+          ` Got "${String(given)}".`,
+        helpFor,
+      );
+    }
   }
 }

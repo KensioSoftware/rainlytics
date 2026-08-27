@@ -9,13 +9,22 @@ import type { Rollup, RollupRequest } from "../rollups.js";
 import { rollupRequest } from "../rollups.js";
 import type { TimeRange } from "../time-range.js";
 import { lastRange } from "../time-range.js";
+import type { OptionValue } from "./command-line.js";
+import { valuesOf } from "./command-line.js";
 import type { CommandContext } from "./command.js";
 import { UsageError } from "./failure.js";
 import { defaultLast, defaultLimit, defaultParam } from "./rollup-help.js";
 
 /** The text of an option, where one was given. */
-function chosen(value: string | boolean | undefined): string | undefined {
+function chosen(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+/** Every text an option collected, in the order it was given them. */
+function eachChosen(value: OptionValue): readonly string[] {
+  return valuesOf(value).filter(
+    (given): given is string => typeof given === "string",
+  );
 }
 
 /**
@@ -24,7 +33,7 @@ function chosen(value: string | boolean | undefined): string | undefined {
  * @throws {UsageError} for anything that is not one.
  */
 function counted(
-  value: string | boolean | undefined,
+  value: unknown,
   option: string,
   fallback: number,
   command: string,
@@ -103,7 +112,7 @@ export function requestFrom(
         rollup.name,
       ),
       param: chosen(context.options["param"]) ?? defaultParam,
-      path: chosen(context.options["path"]),
+      paths: eachChosen(context.options["path"]),
       host: chosen(context.options["host"]),
       dataset: {
         databaseName: database,
