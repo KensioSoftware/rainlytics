@@ -15,8 +15,8 @@ path         views
 ```
 
 `referrers`, `status-codes` and `cache-hit-ratio` are the other three. Each takes the same
-`--last`, the same output formats and the same bot filter, and each reports what it scanned and
-what that cost on standard error.
+`--last`, the same `--path` and `--host`, the same output formats and the same bot filter, and each
+reports what it scanned and what that cost on standard error.
 
 ## What each one counts
 
@@ -82,6 +82,32 @@ rainlytics pageviews --last 7d --include-bots
 
 `status-codes` is the one where `--include-bots` is usually what you want. Bots find the broken
 links first and in numbers.
+
+## `--path` and `--host` narrow the question
+
+`--path` counts one section of a site, as a prefix of the address:
+
+```bash
+rainlytics pageviews --path /guides/ --last 30d
+```
+
+It matches the address a reader sees. The record holds it percent-encoded twice, and the filter
+decodes before comparing, so `--path /词典/` finds the pages `pageviews` prints under that name. The
+text is taken literally. A path holding `_` or `%` matches itself.
+
+`--host` counts one of the sites a single distribution serves:
+
+```bash
+rainlytics status-codes --host docs.example.com --last 7d
+```
+
+That one matches in full. A site and its `www` name are two hosts, and folding them together is a
+decision for whoever runs them rather than a default. `x-host-header` is in the delivered field set
+for exactly this, and nothing else in a record says which site was asked for.
+
+Neither option changes what a query costs. `--last` has already decided which partitions are read,
+and these two narrow rows that are paid for either way. Narrowing to one section of a busy site
+gives a shorter answer for the same money.
 
 ## `--last` decides what the question costs
 

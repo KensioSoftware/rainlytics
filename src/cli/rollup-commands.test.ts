@@ -204,6 +204,71 @@ describe("the named questions", () => {
     ]);
   });
 
+  it("counts one section of the site when given a path", async () => {
+    // Given traffic across two sections and a page above both of them.
+    const deployed = await deployAnalytics();
+
+    await putDelivered(deployed, rightNow, [
+      aRecord(rightNow, { "cs-uri-stem": "/guides/one/" }),
+      aRecord(rightNow, { "cs-uri-stem": "/guides/two/" }),
+      aRecord(rightNow, { "cs-uri-stem": "/blog/one/" }),
+      aRecord(rightNow, { "cs-uri-stem": "/" }),
+    ]);
+
+    // When the pageviews are counted under one of them.
+    const run = await cli(["pageviews", "--last", "24h", "--path", "/guides/"]);
+
+    // Then the other section and the page above both are left out. The
+    // home page is a prefix of nothing here, which is what separates a
+    // prefix match from a substring one.
+    expect(run.code).toBe(0);
+    expect(run.rows).toStrictEqual([
+      { path: "/guides/one/", views: "1" },
+      { path: "/guides/two/", views: "1" },
+    ]);
+  });
+
+  it("matches a path holding an underscore literally", async () => {
+    // Given two pages whose addresses differ only where LIKE would read a
+    // wildcard.
+    const deployed = await deployAnalytics();
+
+    await putDelivered(deployed, rightNow, [
+      aRecord(rightNow, { "cs-uri-stem": "/a_b/" }),
+      aRecord(rightNow, { "cs-uri-stem": "/axb/" }),
+    ]);
+
+    // When one of them is asked for.
+    const run = await cli(["pageviews", "--last", "24h", "--path", "/a_b/"]);
+
+    // Then only that one is counted. An unescaped LIKE would have counted
+    // both, and the count would have looked right.
+    expect(run.rows).toStrictEqual([{ path: "/a_b/", views: "1" }]);
+  });
+
+  it("counts one of the hosts a distribution serves", async () => {
+    // Given one distribution serving two sites.
+    const deployed = await deployAnalytics();
+
+    await putDelivered(deployed, rightNow, [
+      aRecord(rightNow, { "x-host-header": "docs.example.com" }),
+      aRecord(rightNow, { "x-host-header": "docs.example.com" }),
+      aRecord(rightNow, { "x-host-header": "www.example.com" }),
+    ]);
+
+    // When one host is asked for.
+    const run = await cli([
+      "status-codes",
+      "--last",
+      "24h",
+      "--host",
+      "docs.example.com",
+    ]);
+
+    // Then the other site's requests are left out.
+    expect(run.rows).toStrictEqual([{ status: "200", responses: "2" }]);
+  });
+
   it("reads a path back out of CloudFront's encoding", async () => {
     // Given two views of a page whose address holds characters outside
     // ASCII, delivered the way CloudFront delivers one. The browser encodes

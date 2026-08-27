@@ -6,6 +6,7 @@
 // saying so.
 
 import type { LogDataset } from "./dataset.js";
+import { decodedColumn } from "./log-encoding.js";
 import { botUserAgentPattern, currentMonth } from "./rollups.js";
 import type { RollupRequest } from "./rollups.js";
 import { partitionValuesCovering } from "./time-range.js";
@@ -35,7 +36,37 @@ function conditions(
           `NOT regexp_like(lower(cs_user_agent),` +
             ` ${quoted(botUserAgentPattern)})`,
         ]),
+    ...narrowedTo(request),
     ...extra,
+  ];
+}
+
+/**
+ * The host and the section a request was narrowed to, where it named either.
+ *
+ * Both sit here with the bot filter rather than beside a question, because
+ * every rollup takes them and one that narrowed differently would answer a
+ * different question from its neighbours without saying so.
+ *
+ * Neither changes what a query reads. The partition predicate has already
+ * decided that, and these narrow rows that are paid for either way.
+ *
+ * The path is a prefix, written with `strpos` rather than `LIKE`. A path
+ * carrying `_` is ordinary and `LIKE` reads it as a wildcard, so matching
+ * that way would need an `ESCAPE` clause and every metacharacter in the
+ * caller's text escaped before it went in. `strpos(haystack, needle) = 1`
+ * takes the text literally and has nothing to escape.
+ */
+function narrowedTo(request: RollupRequest): readonly string[] {
+  return [
+    ...(request.host === undefined
+      ? []
+      : [`x_host_header = ${quoted(request.host)}`]),
+    ...(request.path === undefined
+      ? []
+      : [
+          `strpos(${decodedColumn("cs_uri_stem")}, ${quoted(request.path)}) = 1`,
+        ]),
   ];
 }
 
