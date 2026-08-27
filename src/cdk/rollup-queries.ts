@@ -3,7 +3,7 @@ import { Construct } from "constructs";
 
 import type { LogDataset } from "../dataset.js";
 import { rollups } from "../rollup-questions.js";
-import type { Rollup } from "../rollups.js";
+import type { Rollup, RollupRequest } from "../rollups.js";
 import {
   assertRollupName,
   currentMonth,
@@ -13,6 +13,18 @@ import {
 import { assertAthenaLength, describing } from "./named-query-text.js";
 import type { LogTable } from "./log-table.js";
 import type { QueryWorkgroup } from "./query-workgroup.js";
+
+/**
+ * What one saved query is narrowed to.
+ *
+ * A rollup request without the two parts the construct settles for itself.
+ * The range is always the current month, and the dataset comes from the
+ * table. Everything a rollup command can be told is here, and a field added
+ * to {@link RollupRequest} arrives here with no edit.
+ */
+export type SavedRollupRequest = Partial<
+  Omit<RollupRequest, "range" | "dataset">
+>;
 
 /** What the saved copies of the rollups need telling. */
 export interface RollupQueriesProps {
@@ -29,6 +41,37 @@ export interface RollupQueriesProps {
    * that beside them. Passing a list of its own alone saves that alone.
    */
   readonly rollups?: readonly Rollup[] | undefined;
+
+  /**
+   * What each saved query covers, by the name of its rollup.
+   *
+   * Per rollup and not one set across all of them. `/search/` is the search
+   * page to `searches` and one directory of a site to `pageviews`. A shared
+   * set would save `rainlytics-pageviews` as a query counting the search page
+   * under a name promising the whole site. That is the same fault the other
+   * way round. A shared set would also carry `param`, which reaches the one
+   * rollup that reads a parameter.
+   *
+   * A rollup named here takes what it is given. One left out takes the
+   * defaults `rollupRequest` fills in, which a command starts from too.
+   *
+   * A fact that does belong to every question, such as the host of one site
+   * on a distribution serving several, is a variable spread into each entry.
+   *
+   * ```typescript
+   * const site = { host: "docs.example.com" };
+   *
+   * new RollupQueries(this, "RainlyticsRollups", {
+   *   table,
+   *   workgroup,
+   *   requests: {
+   *     pageviews: site,
+   *     searches: { ...site, path: "/search/", param: "term" },
+   *   },
+   * });
+   * ```
+   */
+  readonly requests?: Readonly<Record<string, SavedRollupRequest>> | undefined;
 }
 
 /**
@@ -49,6 +92,13 @@ export interface RollupQueriesProps {
  * time would be the dates of whoever last deployed, and would change the
  * template on every deploy. `date_format(current_date, '%Y')` prunes to the
  * month somebody runs it in and needs nothing kept up to date.
+ *
+ * Everything else a command takes is settled per rollup, through
+ * {@link RollupQueriesProps.requests}. `searches` is why. It reads one
+ * query-string parameter on one page, and a copy left to the defaults counts
+ * every query string on the distribution while its description tells the
+ * reader to name the search page. Each saved description says what its own
+ * copy covers.
  *
  * A site writing a rollup of its own saves it here too:
  *
@@ -71,9 +121,11 @@ export class RollupQueries extends Construct {
   constructor(scope: Construct, id: string, props: RollupQueriesProps) {
     super(scope, id);
 
-    this.queries = (props.rollups ?? rollups).map((rollup) =>
-      this.save(rollup, props),
-    );
+    const saving = props.rollups ?? rollups;
+
+    assertRequestedNames(saving, props.requests);
+
+    this.queries = saving.map((rollup) => this.save(rollup, props));
   }
 
   private save(rollup: Rollup, props: RollupQueriesProps): CfnNamedQuery {
@@ -81,8 +133,17 @@ export class RollupQueries extends Construct {
 
     assertRollupName(rollup.name);
 
+    // The range and the dataset come last. A caller reaching past the type
+    // then cannot bake a date into the template or point a saved query at a
+    // table this deployment never created.
+    const request = rollupRequest({
+      ...props.requests?.[rollup.name],
+      range: currentMonth,
+      dataset,
+    });
+
     const name = `rainlytics-${rollup.name}`;
-    const description = describing(rollup);
+    const description = describing(rollup, request);
 
     assertAthenaLength("name", name);
     assertAthenaLength("description", description);
@@ -92,10 +153,7 @@ export class RollupQueries extends Construct {
       database: dataset.databaseName,
       workGroup: props.workgroup.workgroupName,
       description,
-      queryString: rollupSql(
-        rollup,
-        rollupRequest({ range: currentMonth, dataset }),
-      ),
+      queryString: rollupSql(rollup, request),
     });
 
     // A named query names its workgroup and its database as strings, so
@@ -105,6 +163,38 @@ export class RollupQueries extends Construct {
 
     return query;
   }
+}
+
+/**
+ * Refuses a request naming a rollup nothing here is saving.
+ *
+ * A key is a rollup name typed by hand. `searche` reaches no rollup, and the
+ * saved query it was meant for goes on counting every query string on the
+ * distribution. That is the failure this prop was added to end. It is caught
+ * at synthesis, where somebody can still read the message.
+ *
+ * @throws {Error} naming the key and the rollups being saved.
+ */
+function assertRequestedNames(
+  saving: readonly Rollup[],
+  requests: Readonly<Record<string, SavedRollupRequest>> | undefined,
+): void {
+  const saved = saving.map((rollup) => rollup.name);
+  const unknown = Object.keys(requests ?? {}).filter(
+    (name) => !saved.includes(name),
+  );
+
+  if (unknown.length > 0) {
+    throw new Error(
+      `No rollup being saved is called ${listed(unknown)}. The saved` +
+        ` queries here are for ${listed(saved)}.`,
+    );
+  }
+}
+
+/** Some names as a message quotes them. */
+function listed(names: readonly string[]): string {
+  return names.map((name) => `"${name}"`).join(", ");
 }
 
 /** A logical id for one saved query, in the case CDK expects. */

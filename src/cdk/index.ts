@@ -22,7 +22,11 @@ export {
   smallestBytesScannedCutoff,
 } from "./query-cost.js";
 export { QueryWorkgroup, type QueryWorkgroupProps } from "./query-workgroup.js";
-export { RollupQueries, type RollupQueriesProps } from "./rollup-queries.js";
+export {
+  RollupQueries,
+  type RollupQueriesProps,
+  type SavedRollupRequest,
+} from "./rollup-queries.js";
 export { type LogTableFormat, logTableFormat } from "./log-table-format.js";
 export { defaultLogRetention, defaultRecoveryWindow } from "./log-lifecycle.js";
 export { requireStackRegion } from "./stack-region.js";
