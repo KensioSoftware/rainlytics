@@ -50,9 +50,10 @@ Every command that reaches Athena takes `--region`, alongside `--database` and `
 rainlytics pageviews --last 30d --region us-east-1
 ```
 
-Left off, the region comes from the same chain the credentials do. It reads `AWS_REGION` first and
-then the region set on the profile. That is the right answer on a machine set up for one account in
-one region, and the wrong one on a profile pointing where the analytics stack never went.
+Left off, the region comes from the same chain the credentials do. It reads `AWS_REGION`, then the
+region set on the profile, then the instance metadata on EC2. That is the right answer on a machine
+set up for one account in one region, and the wrong one on a profile pointing where the analytics
+stack never went.
 
 The region decides more than a default suggests. A workgroup, a Glue table and an S3 bucket each
 exist in one region, and a query asked in another is answered `WorkGroup rainlytics is not found.`

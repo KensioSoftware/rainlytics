@@ -51,7 +51,6 @@ export async function runAthenaQuery(
   const client = new athena.AthenaClient(
     query.region === undefined ? {} : { region: query.region },
   );
-  const region = await resolvedRegion(client);
 
   try {
     const started = await client.send(
@@ -76,10 +75,10 @@ export async function runAthenaQuery(
       execution?.Status?.State === "SUCCEEDED"
         ? await allResults(client, athena, queryExecutionId)
         : { columns: [], rows: [] },
-      region,
+      await resolvedRegion(client),
     );
   } catch (error) {
-    throw refusalIn(error, region);
+    throw refusalIn(error, await resolvedRegion(client));
   } finally {
     client.destroy();
   }
@@ -92,9 +91,16 @@ export async function runAthenaQuery(
  * region still has to know where it went, and the client is what knows what
  * the chain answered.
  *
- * The chain reads `AWS_REGION`, the profile, or the instance the command runs
- * on. A chain answering none of those leaves this undefined, and that case
- * reports itself, since a client with no region refuses to send.
+ * Asked after the send rather than before it, which is what keeps it free.
+ * The SDK memoizes a region it resolved, so a client that has already sent
+ * answers from memory. It memoizes a resolution that threw, and the chain
+ * ends in an instance metadata lookup, so asking first would pay that
+ * lookup's timeout twice on a machine configured with no region at all.
+ *
+ * The chain reads `AWS_REGION`, then the profile, then the instance the
+ * command runs on. A chain answering none of those leaves this undefined,
+ * and that case reports itself, since a client with no region refuses to
+ * send.
  */
 async function resolvedRegion(
   client: AthenaClient,
