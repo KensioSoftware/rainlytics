@@ -209,6 +209,11 @@ describe("delivering CloudFront access logs", () => {
     const delivery = described.deliveries?.[0];
     expect(delivery?.recordFields).toStrictEqual([...deliveredLogFieldNames]);
     expect(delivery?.recordFields).toContain("cs-uri-query");
+
+    // And the viewer's address among them. A visitor count is hashed from
+    // it downstream, and a field the delivery leaves out is one no later
+    // job can put back into records already written.
+    expect(delivery?.recordFields).toContain("c-ip");
   });
 
   it("delivers only the fields it is given", async () => {

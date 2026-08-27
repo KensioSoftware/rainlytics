@@ -63,9 +63,10 @@ new CloudFrontLogDelivery(this, "RainlyticsDelivery", {
 The output format can only be set when the delivery destination is created. Changing it later
 replaces the destination rather than updating it.
 
-Fields default to the Rainlytics set, which is the minimum the rollups need. Partitions are hourly
-by default, Hive-compatible, and land under a `rainlytics` prefix inside the bucket. Changing the
-prefix later splits the dataset, because what was already written stays where it was written.
+Fields default to the Rainlytics set, which is twelve fields and the minimum the rollups need.
+Partitions are hourly by default, Hive-compatible, and land under a `rainlytics` prefix inside the
+bucket. Changing the prefix later splits the dataset, because what was already written stays where
+it was written.
 
 Objects arrive under the partition keys CloudFront derives from that layout:
 
@@ -77,6 +78,44 @@ Rainlytics sends the suffix path as bare variables (`{distributionid}/{yyyy}/{MM
 CloudFront supplies the `year=` half of each segment itself, because the delivery carries the
 Hive-compatible option. A suffix path that has already added those key names is refused outright,
 with `Provided suffixPath is invalid`.
+
+## The field set holds the viewer's address
+
+`c-ip` is one of the twelve. Rainlytics counts unique visitors as a hash of the viewer's address and
+their user agent, under a salt that rotates every day, and a scheduled rollup computes that hash
+from the address the log already holds. The reasoning is on
+[#53](https://github.com/KensioSoftware/rainlytics/issues/53), in the comments.
+
+The raw store is therefore a record of people as well as of requests. Hashing downstream leaves the
+addresses where they landed. CloudFront writes an object once and leaves it alone, and the addresses
+last exactly as long as the log objects do. On the defaults that is 365 days, plus the 30 days a
+superseded version survives, and the [log bucket](../log-bucket/) page has both numbers and how to
+change them.
+
+A site that would rather not keep addresses can deliver everything else:
+
+```typescript
+import { deliveredLogFieldNames } from "@kensio/rainlytics";
+
+new CloudFrontLogDelivery(this, "RainlyticsDelivery", {
+  distributionId: "E1EXAMPLE1234",
+  logBucket: logs.bucket,
+  fields: deliveredLogFieldNames.filter((field) => field !== "c-ip"),
+});
+```
+
+Pageviews, referrers, devices, status codes and geography all carry on. The visitor count is the one
+thing that stops being computable, and no later job can recover it for the days the field was
+absent. Geography survives because CloudFront resolves `c-country` at the edge from an address the
+log then never records.
+
+## The first visitor counts cover part of a day
+
+A logging change takes up to twelve hours to apply, and it covers what CloudFront writes from then
+on. The objects already in the bucket keep the shape they were written with, and the address is
+absent from every record in them. A visitor count over a day that spans the change covers only the
+part of the day with addresses in it. It reads low, and the answer looks like any other. Give it a
+full day of delivered records before reading one day against another.
 
 ## Encrypted buckets
 

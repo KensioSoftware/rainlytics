@@ -170,8 +170,9 @@ export class LogTable extends Construct {
             name: logColumnName(field),
             /*
              * Every column is a string, in both formats. CloudFront's Parquet
-             * writer goes through Avro and types all eleven fields
-             * `["null","string"]`, and its JSON writer quotes every value,
+             * writer goes through Avro and typed all eleven fields it then
+             * delivered `["null","string"]`, and its JSON writer quotes
+             * every value,
              * `timestamp(ms)` and `sc-status` included. Both were read back
              * off S3 in KensioSoftware/rainlytics#9.
              *

@@ -62,14 +62,41 @@ describe("the delivered log field set", () => {
     expect(new Set(deliveredLogFieldNames)).toContain("cs-uri-query");
   });
 
-  it("leaves out the fields that would make this personal data", () => {
-    // Given a log set meant to be a record of requests.
-    // Then neither the viewer's address nor their cookies are delivered.
-    // Including either turns the raw store into a record of people, and the
-    // raw store is the immutable half that everything else is rebuilt from.
-    const delivered = new Set(deliveredLogFieldNames);
-    expect(delivered).not.toContain("c-ip");
-    expect(delivered).not.toContain("cs(Cookie)");
+  it("carries the address a visitor count is computed from", () => {
+    // Given the decision in KensioSoftware/rainlytics#53 to count unique
+    // visitors with a hash of the viewer's address under a daily salt.
+    // Then the address is delivered. Nothing downstream can hash a field the
+    // delivery never asked for, and the records already written keep
+    // whatever was delivered into them.
+    expect(new Set(deliveredLogFieldNames)).toContain("c-ip");
+  });
+
+  it("keeps the address last in the delivered order", () => {
+    // Given a dataset that already holds records written without it.
+    // Then it is appended rather than placed where CloudFront lists it. A
+    // delivery change rewrites nothing already in the bucket, and appending
+    // a column leaves every earlier record readable in the order the table
+    // declares.
+    expect(deliveredLogFieldNames.at(-1)).toBe("c-ip");
+  });
+
+  it("still leaves out the cookies", () => {
+    // Given that the visitor identifier is derived from the address.
+    // Then the cookie header is not delivered as well. It would be a second
+    // way to recognise the same person, and no rollup asks for one.
+    expect(new Set(deliveredLogFieldNames)).not.toContain("cs(Cookie)");
+  });
+
+  it("asks for far fewer fields than a delivery will carry", () => {
+    // Given that neither the CloudFront quotas page nor the CloudWatch Logs
+    // one publishes a limit on `recordFields`, and that AWS documents a
+    // `CreateDelivery` returning every standard field at once.
+    // Then the ceiling on this set is the list of fields that exist, and
+    // Rainlytics is nowhere near it. What keeps the set small is the storage
+    // each field costs and the bytes every query then scans over it.
+    expect(deliveredLogFieldNames.length).toBeLessThan(
+      availableLogFields.length,
+    );
   });
 });
 

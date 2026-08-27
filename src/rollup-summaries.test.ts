@@ -2,6 +2,7 @@ import { faker } from "@faker-js/faker";
 import { describe, expect, it } from "vitest";
 
 import { rollups } from "./rollup-questions.js";
+import { defaultRedirectStatuses } from "./rollups.js";
 import {
   neverComputed,
   type RollupSummary,
@@ -23,6 +24,7 @@ describe("where a rollup summary lives", () => {
     includeBots: faker.datatype.boolean(),
     limit: faker.number.int({ min: 1, max: 100 }),
     param: faker.word.noun(),
+    redirectStatuses: defaultRedirectStatuses,
     ...over,
   });
 
@@ -201,6 +203,7 @@ describe("what a rollup summary holds", () => {
       includeBots: false,
       limit: 20,
       param: "q",
+      redirectStatuses: defaultRedirectStatuses,
     },
     window: summarySpan({ granularity: "daily", at: faker.date.past() }),
     computedAt: faker.date.recent().toISOString(),

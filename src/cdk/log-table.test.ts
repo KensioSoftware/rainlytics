@@ -274,6 +274,7 @@ describe("the Glue table over delivered logs", () => {
         "cs(Referer)": "-",
         "cs(User-Agent)": "Mozilla/5.0",
         "c-country": "GB",
+        "c-ip": "203.0.113.7",
       },
     ]);
     await enableQueryEngine(deployed);
@@ -281,7 +282,7 @@ describe("the Glue table over delivered logs", () => {
     // When a query selects those columns by the names the table declares.
     const answered = await queryRows(
       deployed,
-      `SELECT cs_uri_stem, cs_referer, cs_user_agent, c_country, hour` +
+      `SELECT cs_uri_stem, cs_referer, cs_user_agent, c_country, c_ip, hour` +
         ` FROM ${table()} WHERE year = '2026' AND month = '08'` +
         ` AND day = '23' AND hour = '09'`,
     );
@@ -290,9 +291,10 @@ describe("the Glue table over delivered logs", () => {
     // at once: the SerDe reads a gzipped object, `mapping.cs_referer` finds
     // `cs(Referer)` in the record, and the projection supplies the partition
     // column from the prefix rather than from the data, since no delivered
-    // record carries the hour.
+    // record carries the hour. `c_ip` comes back as the address it was
+    // delivered as, which is what a visitor count is hashed from.
     expect(answered.rows).toStrictEqual([
-      ["/liju/", "-", "Mozilla/5.0", "GB", "09"],
+      ["/liju/", "-", "Mozilla/5.0", "GB", "203.0.113.7", "09"],
     ]);
 
     // And the query engine answered rather than a declaration this test
