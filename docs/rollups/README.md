@@ -201,10 +201,10 @@ const sql = rollupSql(
 );
 ```
 
-`rowsFor` writes everything under the `SELECT`. The partition predicate, the timestamp bounds, the
-crawler filter and whatever `--path` and `--host` narrowed to all come out of it, and its second
+`rowsFor` writes the whole `WHERE` clause. The partition predicate, the timestamp bounds, the
+crawler filter and the `host` and `path` the request narrowed to all come out of it, and its second
 argument carries the conditions this one question adds. Writing that by hand puts a second copy of
-[what `--last` costs](#--last-decides-what-the-question-costs) and of [the crawler
+[what a range costs](#--last-decides-what-the-question-costs) and of [the crawler
 filter](#crawlers-are-most-of-the-traffic) in the site's own repository, and the copy is the one
 that goes stale.
 
