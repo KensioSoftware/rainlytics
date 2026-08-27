@@ -1,10 +1,11 @@
-// What the log dataset is called in the Glue Data Catalog.
+// What the parts of a Rainlytics deployment are called.
 //
 // Two halves have to agree about these names and they are deployed a long way
-// apart. The CDK construct creates a database and a table under them, and the
-// command line writes them into SQL. A disagreement is the quiet kind: a
-// query naming a table nobody created fails at the moment somebody asks a
-// question, which can be months after the deploy that got the name wrong.
+// apart. The CDK constructs create a database, a table and a workgroup under
+// them, and the command line names all three when it runs a query. A
+// disagreement is the quiet kind: a query naming a table nobody created fails
+// at the moment somebody asks a question, which can be months after the
+// deploy that got the name wrong.
 //
 // So both halves read this, the way both halves of the partition layout read
 // `partition-keys.ts`.
@@ -52,6 +53,21 @@ export function qualifiedTableName(
 
   return `"${dataset.databaseName}"."${dataset.tableName}"`;
 }
+
+/**
+ * The Athena workgroup a Rainlytics query runs in, where nobody chooses
+ * otherwise.
+ *
+ * The same word as the database, in a namespace of its own. A workgroup
+ * carries the bytes-scanned cutoff and the results location, so a query run
+ * outside this one is a query run without the cost guardrail. That is why
+ * the name is here rather than left to each caller.
+ *
+ * Unchecked, unlike the catalog names above. Athena takes letters, digits,
+ * dots, dashes and underscores in a workgroup name and refuses anything else
+ * at deploy time, saying so. Nothing about a bad one is silent.
+ */
+export const defaultWorkgroupName = "rainlytics";
 
 /** The names Athena reads back without any quoting or escaping. */
 const queryableName = /^[a-z][a-z0-9_]*$/u;

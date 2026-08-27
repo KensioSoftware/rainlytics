@@ -46,12 +46,14 @@
   ],
 
   "rules": {
-    // Off because it contradicts `vitest/prefer-strict-boolean-matchers`,
-    // which is also on. That rule rewrites `toBeTruthy()` to `toBe(true)`
-    // and this one rewrites it back, so no spelling satisfies both and
-    // `oxlint --fix` alternates between them. Strictness wins the tie: a
-    // boolean assertion should fail on a truthy non-boolean rather than pass.
+    // Both off because they contradict `vitest/prefer-strict-boolean-matchers`,
+    // which is also on. That rule rewrites `toBeTruthy()` to `toBe(true)` and
+    // `toBeFalsy()` to `toBe(false)`, and these two rewrite them back, so no
+    // spelling satisfies both and `oxlint --fix` alternates between them.
+    // Strictness wins the tie: a boolean assertion should fail on a truthy
+    // non-boolean rather than pass.
     "vitest/prefer-to-be-truthy": "off",
+    "vitest/prefer-to-be-falsy": "off",
 
     // A CDK stack is built by constructing constructs. `new Bucket(this, ...)`
     // registers itself with the scope it is given, and there is nothing to
