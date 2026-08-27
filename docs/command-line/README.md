@@ -13,8 +13,9 @@ dependencies of this package, and an install that only wants the command line sk
 `--help` on the root command and on every subcommand is the documentation. A reader should find
 everything there, and this page repeats it for people reading the site.
 
-Five commands. Four of them answer a named question, and [`query`](../query/) takes SQL for
-everything else. The rest of this page is what all of them share.
+Seven commands. Five of them answer a named question, [`saved-query`](#running-a-query-saved-in-the-workgroup)
+runs a question a site saved for itself, and [`query`](../query/) takes SQL for everything else. The
+rest of this page is what all of them share.
 
 ## Why a command line
 
@@ -113,6 +114,33 @@ convention `getopt` set and Python's `argparse` kept.
 Standard output stays empty on both. Nothing that failed writes a partial result that a later step
 could mistake for a whole one.
 
+## Running a query saved in the workgroup
+
+`rainlytics saved-query` runs a query Athena already holds, by name:
+
+```bash
+rainlytics saved-query countries
+```
+
+The [`RollupQueries`](../rollups/#the-same-sql-saved-in-the-console) construct saves one named query
+per rollup, and a site that [wrote a rollup of its own](../rollups/#writing-a-rollup-of-your-own)
+saves that beside them. That is how a question this package never shipped gets a command line, with
+the `--output` formats, the cost report and the exit codes every other command has.
+
+The name is the one Athena lists, with or without the `rainlytics-` prefix the construct adds.
+`countries` and `rainlytics-countries` reach the same saved query. A name matching nothing is
+answered with the names that are saved in the workgroup. A guess is one way to find out what is
+there.
+
+What a saved query covers was settled when it was saved. `--last`, `--limit`, `--include-bots`,
+`--path`, `--host` and `--param` are absent here, and each is refused rather than accepted and
+ignored. The SQL Athena holds carries a range and a row count already, and a saved rollup covers the
+month you run it in. `requests` on the construct is where the rest of it is decided.
+
+The database comes from the saved query too. Athena records the one a query was written against, and
+this runs it against that one. `--workgroup` and `--region` say where to look, and the query runs
+where it was found.
+
 ## A command comes before its options
 
 ```bash
@@ -124,11 +152,12 @@ rainlytics --output csv <command>     # refused, with that sentence
 
 ## What it can do today
 
-Answer four named questions, with [`rainlytics pageviews`, `referrers`, `status-codes` and
-`cache-hit-ratio`](../rollups/), and run SQL for anything else with
+Answer five named questions, with [`rainlytics pageviews`, `referrers`, `status-codes`,
+`cache-hit-ratio` and `searches`](../rollups/). Run a question a site saved for itself with
+[`rainlytics saved-query`](#running-a-query-saved-in-the-workgroup). Run SQL for anything else with
 [`rainlytics query`](../query/).
 
-Every one of them reads Athena today. When the scheduled rollups land, the four named ones read a
+Every one of them reads Athena today. When the scheduled rollups land, the five named ones read a
 precomputed summary off S3 instead and each answer costs a GET. The commands and their options stay
 where they are, so that swap is invisible from out here.
 

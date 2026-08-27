@@ -1,7 +1,6 @@
 // `rainlytics query`, which is the whole of reading the data back by hand.
 
 import { defaultLogDataset, defaultWorkgroupName } from "../dataset.js";
-import { runAthenaQuery } from "./athena-query.js";
 import type { Command, CommandContext } from "./command.js";
 import { UsageError } from "./failure.js";
 import type { CommandResult } from "./output/result.js";
@@ -11,7 +10,7 @@ import {
   regionOption,
   workgroupOption,
 } from "./query-help.js";
-import { scanReport, whereItRan } from "./query-report.js";
+import { queryRows } from "./query-run.js";
 
 /**
  * The SQL to run, as one argument.
@@ -45,66 +44,18 @@ function chosen(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-/**
- * Explains a query Athena would not finish.
- *
- * The cutoff is the failure worth saying more about. It is the one this
- * pipeline sets deliberately, and the one whose reason reads as a wall rather
- * than as a limit somebody chose and can move.
- *
- * Matched on the reason text, which is the only signal Athena gives. A cutoff
- * refusal that stops matching reports the reason on its own, which is the
- * behaviour every other failure already gets.
- */
-export function queryFailure(
-  reason: string | undefined,
-  workgroup: string,
-): UsageError | Error {
-  const said = reason ?? "Athena gave no reason.";
-
-  if (!/bytes scanned limit/iu.test(said)) {
-    return new Error(said);
-  }
-
-  return new Error(
-    `${said}\n` +
-      `That ceiling is the workgroup's, and it is there so one query cannot` +
-      ` run up a bill nobody chose. Narrow the query by naming` +
-      ` distributionid, year, month, day or hour, or raise` +
-      ` bytesScannedCutoff on the ${workgroup} workgroup if the query really` +
-      ` needs to read that much.`,
-  );
-}
-
 /** Runs the query and answers with its rows. */
 async function run(context: CommandContext): Promise<CommandResult> {
-  const workgroup =
-    chosen(context.options["workgroup"]) ?? defaultWorkgroupName;
-  const outcome = await runAthenaQuery({
-    sql: sqlFrom(context.args),
-    database:
-      chosen(context.options["database"]) ?? defaultLogDataset.databaseName,
-    workgroup,
-    region: chosen(context.options["region"]),
-  });
-
-  context.io.error(whereItRan(outcome, workgroup));
-  context.io.error(
-    scanReport(
-      outcome.bytesScanned,
-      outcome.milliseconds,
-      outcome.state !== "FAILED",
-    ),
+  return queryRows(
+    {
+      sql: sqlFrom(context.args),
+      database:
+        chosen(context.options["database"]) ?? defaultLogDataset.databaseName,
+      workgroup: chosen(context.options["workgroup"]) ?? defaultWorkgroupName,
+      region: chosen(context.options["region"]),
+    },
+    context.io,
   );
-
-  if (outcome.state !== "SUCCEEDED") {
-    throw queryFailure(outcome.stateChangeReason, workgroup);
-  }
-
-  return {
-    columns: outcome.columns.map((column) => column.name),
-    rows: outcome.rows,
-  };
 }
 
 /** `rainlytics query`, for asking the log table a question of your own. */

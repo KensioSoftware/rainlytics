@@ -7,6 +7,7 @@ import type { CommandResult } from "./output/result.js";
 import { rollups } from "../rollup-questions.js";
 import { queryCommand } from "./query-command.js";
 import { rollupCommand } from "./rollup-commands.js";
+import { savedQueryCommand } from "./saved-query-command.js";
 
 /** What a command is handed when it runs. */
 export interface CommandContext {
@@ -56,12 +57,17 @@ export interface Command {
 /**
  * The commands `rainlytics` ships with.
  *
- * The four named questions first, then `query` for anything they do not
- * cover. That order is the one a reader wants: somebody arriving at
+ * The named questions first, then the two that take a question of somebody
+ * else's. That order is the one a reader wants. Somebody arriving at
  * `rainlytics --help` is far more likely to want a pageview count than to
  * want to write SQL.
+ *
+ * `saved-query` is what a site's own rollup runs through. The list here is
+ * the questions this package ships, and a question deployed from somewhere
+ * else reaches the command line by name.
  */
 export const rainlyticsCommands: readonly Command[] = [
   ...rollups.map((rollup) => rollupCommand(rollup)),
+  savedQueryCommand,
   queryCommand,
 ];

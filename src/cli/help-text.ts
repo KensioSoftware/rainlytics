@@ -10,10 +10,11 @@ export const overview: readonly string[] = [
     " CloudFront delivers the access logs to S3 and this command is what" +
     " reads them back. Nothing is sent anywhere else, and no analytics JavaScript is" +
     " served to the pages being measured.",
-  "Four of the commands below answer a question that gets asked often" +
+  "Most of the commands below answer a question that gets asked often" +
     " enough to have a name, and each leaves automated traffic out unless" +
-    " told otherwise. `query` takes SQL, for the questions nobody has" +
-    " written a subcommand for.",
+    " told otherwise. `saved-query` runs a question a site saved in its own" +
+    " Athena workgroup, which is how a rollup this package never shipped" +
+    " gets a command line. `query` takes SQL, for the rest.",
   "Every one of them reads Athena, which costs a fraction of a penny a" +
     " question and reports what it cost on standard error. The named ones" +
     " will read a precomputed summary instead once those exist, and the" +

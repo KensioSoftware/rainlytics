@@ -46,6 +46,7 @@ export {
   defaultWorkgroupName,
   type LogDataset,
   qualifiedTableName,
+  savedQueryPrefix,
 } from "./dataset.js";
 export {
   availableLogFields,

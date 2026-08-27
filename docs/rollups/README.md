@@ -276,8 +276,8 @@ argument carries the conditions this one question adds. Writing that by hand put
 filter](#crawlers-are-most-of-the-traffic) in the site's own repository, and the copy is the one
 that goes stale.
 
-`rollupSql` hands back the text. Running it is the site's own Athena client. The `rainlytics`
-command reads the ones it ships and has no way to load a question from outside the package.
+`rollupSql` hands back the text, and running it is the site's own Athena client. [Saving it in the
+workgroup](#running-a-rollup-of-your-own) is the other way round, and the way that needs no client.
 
 ### Reading a query-string parameter
 
@@ -398,6 +398,25 @@ stops there, since there is no `rainlytics countries` to point a reader at. It t
 A name is lowercase words joined by hyphens (`cache-hit-ratio`). It becomes a CDK logical id and an
 Athena query name, and `assertRollupName` refuses anything else at synthesis.
 
+### Running a rollup of your own
+
+The saved copy is what gives a site's own question a command line:
+
+```bash
+rainlytics saved-query countries
+```
+
+`rainlytics saved-query` reads the queries saved in the workgroup and runs the one that matches, so
+nothing on this side loads the site's code or asks for a build step. The name is the one Athena
+lists, with or without the `rainlytics-` prefix, and a name matching nothing is answered with the
+names that are saved there.
+
+It takes `--output`, `--workgroup` and `--region`, and reports what the query scanned and what that
+cost the way the built-in commands do. It takes no `--last` and no `--limit`. The SQL Athena holds
+settled both when it was saved, which is why the range is the current month and the row count is the
+one `requests` was given. The [command
+line](../command-line/#running-a-query-saved-in-the-workgroup) page has the rest of it.
+
 ### Replacing one of the built-in questions
 
 A site whose searches answer differently from the shipped `searches` writes its own version and
@@ -417,10 +436,9 @@ new RollupQueries(this, "RainlyticsRollups", {
 });
 ```
 
-`rainlytics-searches` in the console is then the site's own question. The `rainlytics searches`
-command still runs the shipped one, since it reads the questions the package ships and has no way to
-load one from outside it. Replacing a saved copy leaves the console and the terminal answering
-differently.
+`rainlytics-searches` in the console is then the site's own question, and `rainlytics saved-query
+searches` runs it. The `rainlytics searches` command still runs the shipped one, since its command
+list is the questions the package ships. Two ways of asking, and the saved one is the site's.
 
 Passing both is refused at synthesis, since one saved query cannot answer two questions:
 
