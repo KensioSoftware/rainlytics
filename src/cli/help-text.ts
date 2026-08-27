@@ -10,10 +10,11 @@ export const overview: readonly string[] = [
     " CloudFront delivers the access logs to S3 and this command is what" +
     " reads them back. Nothing is sent anywhere else, and no analytics JavaScript is" +
     " served to the pages being measured.",
-  "No commands have landed yet. This release is the command line itself," +
-    " being the argument parsing, the output formats, the help and the exit" +
-    " codes. What follows describes what every command does once there are" +
-    " some.",
+  "One command so far. `query` takes SQL and runs it against the log table," +
+    " which is how a question nobody has written a subcommand for gets" +
+    " answered. The named questions people actually ask arrive next, and" +
+    " each of them becomes a read of a precomputed summary rather than a" +
+    " query.",
   "Authentication is the AWS setup you already have. Commands use the AWS" +
     " SDK's default credential chain, the same one the AWS CLI uses. An SSO" +
     " session, a profile named in AWS_PROFILE, an assumed role or the" +

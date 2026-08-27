@@ -39,6 +39,33 @@ export function paragraph(text: string): string {
   return wrapLines(text, helpWidth).join("\n");
 }
 
+/**
+ * Several paragraphs of help, wrapped.
+ *
+ * Blank lines separate paragraphs and survive. A block whose first line is
+ * indented is left exactly as it was written, which is what lets a command's
+ * description carry an example somebody can copy. Wrapping one would join its
+ * lines into a statement that no longer runs.
+ */
+export function prose(text: string): string {
+  return text
+    .split(/\n\s*\n/u)
+    .map((block) =>
+      /^\s/u.test(block) ? trimTrailing(block) : paragraph(block),
+    )
+    .filter((block) => block !== "")
+    .join("\n\n");
+}
+
+/** A block with the whitespace at the end of each line taken off. */
+function trimTrailing(block: string): string {
+  return block
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n")
+    .replaceAll(/^\n+|\n+$/gu, "");
+}
+
 /** One entry in a two-column list. */
 export interface LabelledEntry {
   /** The left column, being a command name or an option's spelling. */

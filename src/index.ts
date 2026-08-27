@@ -8,6 +8,12 @@
 // the built output.
 
 export {
+  bytesBilledFor,
+  bytesBilledMinimum,
+  dollarsPerTerabyteScanned,
+  queryChargeInDollars,
+} from "./athena-pricing.js";
+export {
   assertQueryableName,
   defaultLogDataset,
   defaultWorkgroupName,

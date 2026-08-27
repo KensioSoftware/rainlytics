@@ -13,9 +13,8 @@ dependencies of this package, and an install that only wants the command line sk
 `--help` on the root command and on every subcommand is the documentation. A reader should find
 everything there, and this page repeats it for people reading the site.
 
-No commands have landed yet. This release is the command line itself, and the rest of this page
-describes what every command does once there are some. See
-[what it can do today](#what-it-can-do-today).
+One command so far. [`query`](../query/) takes SQL and runs it against the log table. The rest of
+this page is what every command shares.
 
 ## Why a command line
 
@@ -106,10 +105,12 @@ rainlytics --output csv <command>     # refused, with that sentence
 
 ## What it can do today
 
-Explain itself. This release is the command line itself, being the argument
-parsing, the output formats, the help and the exit codes. Reading data back arrives with
-[#23](https://github.com/KensioSoftware/rainlytics/issues/23), and the named questions with
-[#24](https://github.com/KensioSoftware/rainlytics/issues/24).
+Run SQL, with [`rainlytics query`](../query/). That is the whole of reading the data back by hand,
+and it is enough to answer any question the log table holds.
+
+The named questions people actually ask, which answer without anybody writing SQL, arrive with
+[#24](https://github.com/KensioSoftware/rainlytics/issues/24). Each of those reads a precomputed
+summary off S3 rather than querying, so the answer costs a GET.
 
 Rainlytics is experimental and pre-1.0. The command surface will change without a major version
 behind it.

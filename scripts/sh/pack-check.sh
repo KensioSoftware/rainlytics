@@ -44,6 +44,9 @@ expected=(
   package/docs/command-line/README.md
   package/docs/log-bucket/README.md
   package/docs/log-delivery/README.md
+  package/docs/log-table/README.md
+  package/docs/query/README.md
+  package/docs/query-workgroup/README.md
   package/src/index.ts
   package/src/cdk/index.ts
   package/dist/index.js

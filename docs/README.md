@@ -17,3 +17,4 @@ runs on every `pnpm check`.
 ## Reading the data back
 
 - [Command line](command-line/), the `rainlytics` command and what it writes.
+- [Query](query/), running SQL against the log table with `rainlytics query`.
