@@ -103,6 +103,53 @@ describe("the SQL a rollup runs", () => {
     expect(sql).toContain("sc_status IN ('200', '304')");
   });
 
+  it.each(rollups.map((rollup) => rollup.name))(
+    "narrows %s to one section of the site",
+    (name) => {
+      // Given a rollup asked for one path.
+      const sql = sqlFor(name, { path: "/guides/" });
+
+      // Then it matches a prefix of the decoded path, so the option names
+      // the address a reader sees. `strpos` takes the text literally, where
+      // LIKE would read a path holding `_` as a wildcard.
+      expect(sql).toContain(
+        "strpos(url_decode(url_decode(cs_uri_stem)), '/guides/') = 1",
+      );
+    },
+  );
+
+  it.each(rollups.map((rollup) => rollup.name))(
+    "narrows %s to one of the hosts a distribution serves",
+    (name) => {
+      // Given a rollup asked for one host.
+      // Then it matches in full. A site and its www name are two hosts, and
+      // a suffix match would quietly fold them together.
+      expect(sqlFor(name, { host: "docs.example.com" })).toContain(
+        "x_host_header = 'docs.example.com'",
+      );
+    },
+  );
+
+  it.each(rollups.map((rollup) => rollup.name))(
+    "leaves %s over the whole distribution by default",
+    (name) => {
+      // Given a rollup nobody narrowed.
+      const sql = sqlFor(name);
+
+      // Then neither filter is written at all, rather than written as a
+      // condition matching everything.
+      expect(sql).not.toContain("x_host_header =");
+      expect(sql).not.toContain("strpos(");
+    },
+  );
+
+  it("takes a path holding a quote without breaking the statement", () => {
+    // Given a path carrying the one character SQL string syntax cares about.
+    // Then it is doubled, so the statement still parses and still means the
+    // path that was asked for.
+    expect(sqlFor("pageviews", { path: "/it's/" })).toContain("'/it''s/'");
+  });
+
   it("reads CloudFront's encoding back off the path", () => {
     // Given the pageviews rollup.
     const sql = sqlFor("pageviews");

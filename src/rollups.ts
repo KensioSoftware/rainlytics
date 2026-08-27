@@ -57,6 +57,21 @@ export interface RollupRequest {
   /** How many rows a ranked rollup answers with. */
   readonly limit: number;
 
+  /**
+   * The section of the site counted, as a path every counted request starts
+   * with. Absent counts the whole distribution.
+   *
+   * Matched against the decoded path, so it names the address a reader sees
+   * rather than the escapes the record holds.
+   */
+  readonly path?: string | undefined;
+
+  /**
+   * The site counted, where one distribution serves several. Absent counts
+   * every host delivering into the table.
+   */
+  readonly host?: string | undefined;
+
   /** Where the table is, which is one definition for every reader. */
   readonly dataset: LogDataset;
 }

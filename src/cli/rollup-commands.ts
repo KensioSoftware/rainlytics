@@ -15,8 +15,7 @@ import { rollupSql } from "../rollups.js";
 import { runAthenaQuery } from "./athena-query.js";
 import type { Command, CommandContext } from "./command.js";
 import type { CommandResult } from "./output/result.js";
-import { databaseOption, workgroupOption } from "./query-help.js";
-import { includeBotsOption, lastOption, limitOption } from "./rollup-help.js";
+import { rollupOptions } from "./rollup-help.js";
 import { requestFrom } from "./rollup-options.js";
 import { queryFailure } from "./query-command.js";
 import { scanReport } from "./query-report.js";
@@ -61,13 +60,7 @@ export function rollupCommand(rollup: Rollup): Command {
     name: rollup.name,
     summary: rollup.summary,
     description: rollup.description,
-    options: [
-      lastOption,
-      includeBotsOption,
-      ...(rollup.isRanked ? [limitOption] : []),
-      databaseOption,
-      workgroupOption,
-    ],
+    options: rollupOptions(rollup.isRanked),
     run: async (context) => runRollup(rollup, context),
   };
 }

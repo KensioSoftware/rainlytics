@@ -102,6 +102,8 @@ export function requestFrom(
         defaultLimit,
         rollup.name,
       ),
+      path: chosen(context.options["path"]),
+      host: chosen(context.options["host"]),
       dataset: {
         databaseName: database,
         tableName: defaultLogDataset.tableName,
