@@ -208,12 +208,26 @@ month for the reason above, and the database comes from the table:
 ```typescript
 requests: {
   "status-codes": { includeBots: true },
-  searches: { host: "docs.example.com", paths: ["/search/"], param: "term" },
+  searches: {
+    host: "docs.example.com",
+    paths: ["/search/"],
+    param: "term",
+    redirectStatuses: ["301", "302"],
+  },
 }
 ```
 
 `paths` is the list `--path` collects when a command is given it more than once. A site with a
 search box under two sections names both, and the saved copy counts them together.
+
+`redirectStatuses` is `--redirect-status`, and it is where a site says what its own search page
+answers with. The three a search counts by default are 302, 303 and 307, and
+[searches](../searches/#which-statuses-count) covers why 301 and 308 are left out. A site whose
+exact match answers 301 puts it here, and the saved query reads a `redirected` column that is right
+for it.
+
+An entry takes whatever `RollupRequest` carries, minus the range and the dataset. A field added to
+the request arrives here on its own.
 
 A fact that belongs to every question, such as the host of one site on a distribution serving
 several, is a variable spread into each entry. Every key has to name a rollup being saved, and a
@@ -225,8 +239,13 @@ who has read no SQL:
 
 ```text
 Count searches by the term somebody typed. What "rainlytics searches" runs.
-Over the current month, on docs.example.com, under /search/, reading the "term" parameter.
+Over the current month, on docs.example.com, under /search/, reading the "term"
+parameter, counting 301 or 302 as redirected.
 ```
+
+The statuses are named there only where a deployment chose its own. The three a search counts by
+default are in the rollup's own description already, and a line repeating them on every copy says
+nothing about that copy.
 
 `--limit` is the one option left out of that line. A row count decides how much of the answer is
 printed and leaves what was counted where it was. It sits on the last line of the SQL below.

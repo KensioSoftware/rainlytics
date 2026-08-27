@@ -149,6 +149,44 @@ describe("the rollups saved in Athena", () => {
     expect(search?.queryString).toContain(quoted(param));
   });
 
+  it("saves a query counting the statuses one site's search answers with", async () => {
+    // Given a site whose exact match answers 301, which the default leaves
+    // out because a permanent redirect is usually address tidying.
+    // When the stack is deployed.
+    const search = await named("searches", {
+      requests: { searches: { redirectStatuses: ["301", "302"] } },
+    });
+
+    // Then the saved SQL counts what that site answers with, and the console
+    // description says so. `SavedRollupRequest` is the rollup request minus
+    // the two parts the construct settles, so a field added to the request
+    // reaches `requests` with no edit here.
+    expect(search?.queryString).toContain("sc_status IN ('301', '302')");
+    expect(search?.description).toContain("counting 301 or 302 as redirected");
+  });
+
+  it("says so where a saved copy counts no search as redirected", async () => {
+    // Given a site that sends nobody anywhere from its search page.
+    const search = await named("searches", {
+      requests: { searches: { redirectStatuses: [] } },
+    });
+
+    // Then the console says what the column of zeros means. `IN ()` is not
+    // something Athena parses, so the SQL counts nothing instead.
+    expect(search?.description).toContain("counting no search as redirected");
+    expect(search?.queryString).toContain("WHEN false THEN");
+  });
+
+  it("leaves the default statuses out of a description that kept them", async () => {
+    // Given a saved copy nobody named statuses for.
+    const search = await named("searches");
+
+    // Then its description says nothing about them. The three a search
+    // counts by default are in the rollup's own description, and a line
+    // repeating them on every copy says nothing about that copy.
+    expect(search?.description).not.toContain("redirected");
+  });
+
   it("leaves the questions it was told nothing about alone", async () => {
     // Given a search page named for `searches` and for nothing else.
     const searchPage = `/${faker.string.alpha(8)}/`;

@@ -54,8 +54,9 @@ One `--path` leaves the column out, since every row would carry the same value. 
 both boxes for one query's money, where two runs would be two questions and two bills.
 
 `--param` names the parameter carrying the term and defaults to `q`. One site can hold several, and
-each is its own question. Everything else the rollups take works here too, `--host`, `--limit` and
-`--include-bots` among them. See [rollups](../rollups/).
+each is its own question. `--redirect-status` names what counts as a search sent to its answer, and
+[the section below](#which-statuses-count) covers it. Everything else the rollups take works here
+too, `--host`, `--limit` and `--include-bots` among them. See [rollups](../rollups/).
 
 ## `redirected` is how many found a page
 
@@ -71,6 +72,28 @@ happy           12           0
 
 `好` is a word the site publishes, and nearly every search for it goes straight there. Nobody
 searching `happy` was sent anywhere, so those twelve readers got a list.
+
+### Which statuses count
+
+302, 303 and 307. Those are what a site answers when it sends a reader to the thing they searched
+for.
+
+301 and 308 are left out, because a permanent redirect is address tidying. A reader gets one
+whatever they typed. A site answering `/search?q=happy` with a 308 to `/search/?q=happy` carries the
+term on the redirect and again on the request behind it, and counting the 308 reports one reader as
+two searches and puts `happy` on the same line as a term the site publishes a page for. A
+canonical-host 301 does it again.
+
+A site whose exact match answers 301 names its own:
+
+```bash
+rainlytics searches --path /search/ --redirect-status 301,302 --last 30d
+```
+
+One value carrying commas, where `--path` is given again for each path. A path is long and arrives
+one at a time, often out of a shell variable. Three status codes are read and typed as one thing.
+
+### An empty result reads as a list
 
 What the access log cannot tell you is whether that list had anything in it. The record carries the
 status, the path and the query, and a ranked list and an empty result are both 200. Separating them

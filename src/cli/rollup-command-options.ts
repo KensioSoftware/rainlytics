@@ -14,15 +14,17 @@ import {
   limitOption,
   paramOption,
   pathOption,
+  redirectStatusOption,
 } from "./rollup-help.js";
 
 /**
  * Every option one rollup command accepts, in the order help prints them.
  *
  * Assembled here beside the descriptions rather than next to the command, so
- * that adding an option is one edit in one file. Two of them vary. The
- * rollup answering a single row has nothing to limit, and only a question
- * about what somebody typed has a parameter to be told about.
+ * that adding an option is one edit in one file. Three of them vary. The
+ * rollup answering a single row has nothing to limit, only a question about
+ * what somebody typed has a parameter to be told about, and only the one
+ * counting redirects has statuses to be told about.
  */
 export function rollupOptions(rollup: Rollup): readonly CliOption[] {
   return [
@@ -30,6 +32,7 @@ export function rollupOptions(rollup: Rollup): readonly CliOption[] {
     pathOption,
     hostOption,
     ...(rollup.namesAParameter === true ? [paramOption] : []),
+    ...(rollup.countsRedirects === true ? [redirectStatusOption] : []),
     includeBotsOption,
     ...(rollup.isRanked ? [limitOption] : []),
     databaseOption,

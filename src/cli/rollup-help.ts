@@ -4,6 +4,7 @@
 // Apart from the commands for the reason `help-text.ts` is apart from
 // `help.ts`. These are documentation, meant to be edited as prose.
 
+import { defaultRedirectStatuses } from "../rollups.js";
 import type { CliOption } from "./option.js";
 
 /** How far back a rollup looks when nobody says. */
@@ -66,6 +67,20 @@ export const paramOption: CliOption = {
     `Which query-string parameter carries the term, as in ?q=hello.` +
     ` Defaults to ${defaultParam}. A site with a search box and a legacy tool` +
     ` beside it has two, and they are two questions.`,
+};
+
+export const redirectStatusOption: CliOption = {
+  name: "redirect-status",
+  type: "string",
+  valueName: "codes",
+  description:
+    `Which statuses count as a search sent to what it asked for, separated` +
+    ` by commas. Defaults to ${defaultRedirectStatuses.join(",")}. 301 and` +
+    ` 308 are left out, because a permanent redirect is address tidying and` +
+    ` a reader gets one whatever they typed. One value carrying commas,` +
+    ` where --path is given again for each path. A path is long and arrives` +
+    ` one at a time, often out of a shell variable, and three status codes` +
+    ` are read and typed as one thing.`,
 };
 
 export const hostOption: CliOption = {

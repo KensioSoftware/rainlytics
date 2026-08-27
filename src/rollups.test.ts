@@ -276,6 +276,38 @@ describe("the SQL a rollup runs", () => {
     expect(sql).toContain("nullif(");
   });
 
+  it("counts a search sent to its answer and not one tidying an address", () => {
+    // Given the searches rollup with nobody naming statuses.
+    const sql = sqlFor("searches");
+
+    // Then 302, 303 and 307 are what a site answers when it sends a reader
+    // to the thing they searched for. A 301 or a 308 is address tidying, and
+    // a reader gets one whatever they typed, so counting those reports one
+    // reader twice and calls the first of the two a term the site publishes
+    // a page for.
+    expect(sql).toContain("sc_status IN ('302', '303', '307')");
+    expect(sql).not.toContain("sc_status LIKE '3%'");
+  });
+
+  it("counts the statuses a search was told to count", () => {
+    // Given a site whose exact match answers 301.
+    const sql = sqlFor("searches", { redirectStatuses: ["301", "302"] });
+
+    // Then its column is right for it. The site knows what its own search
+    // page answers with, and nothing else does.
+    expect(sql).toContain("sc_status IN ('301', '302')");
+  });
+
+  it("counts no search as redirected where the list is empty", () => {
+    // Given a request naming no status at all.
+    const sql = sqlFor("searches", { redirectStatuses: [] });
+
+    // Then the column counts nothing. `IN ()` is not something Athena
+    // parses, and a query that will not run is worse than a column of zeros.
+    expect(sql).toContain("sum(CASE WHEN false THEN 1 ELSE 0 END)");
+    expect(sql).not.toContain("IN ()");
+  });
+
   it("takes as many rows as a ranked rollup was asked for", () => {
     // Given a limit.
     // Then the ranked rollups carry it, and the one answering a single row

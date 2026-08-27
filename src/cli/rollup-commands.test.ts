@@ -246,6 +246,98 @@ describe("the named questions", () => {
     ]);
   });
 
+  it("leaves a search that was only sent to a tidier address alone", async () => {
+    // Given a site normalising a missing trailing slash. One reader typed
+    // `happy` at `/search`, got a 308 to `/search/`, and their term is on
+    // both records. Another was sent to the page for 家 with a 302.
+    const deployed = await deployAnalytics();
+
+    await putDelivered(deployed, rightNow, [
+      aRecord(rightNow, {
+        "cs-uri-stem": "/search",
+        "cs-uri-query": "q=happy",
+        "sc-status": "308",
+      }),
+      aRecord(rightNow, {
+        "cs-uri-stem": "/search/",
+        "cs-uri-query": "q=happy",
+      }),
+      aRecord(rightNow, {
+        "cs-uri-stem": "/search/",
+        "cs-uri-query": "q=%25E5%25AE%25B6",
+        "sc-status": "302",
+      }),
+    ]);
+
+    // When the searches are counted.
+    const run = await cli(["searches", "--last", "24h", "--path", "/search"]);
+
+    // Then `happy` found nothing. A permanent redirect is address tidying,
+    // and a reader gets one whatever they typed. Counting the 308 would
+    // report `happy` as a term the site publishes a page for, on the same
+    // line as the term it does publish one for.
+    expect(run.code).toBe(0);
+    expect(run.rows).toStrictEqual([
+      { term: "happy", searches: "2", redirected: "0" },
+      { term: "家", searches: "1", redirected: "1" },
+    ]);
+  });
+
+  it("counts the statuses it was told to count as redirects", async () => {
+    // Given a site whose exact match answers 301.
+    const deployed = await deployAnalytics();
+    const search = { "cs-uri-stem": "/search/" };
+
+    await putDelivered(deployed, rightNow, [
+      aRecord(rightNow, {
+        ...search,
+        "cs-uri-query": "q=happy",
+        "sc-status": "301",
+      }),
+      aRecord(rightNow, { ...search, "cs-uri-query": "q=happy" }),
+    ]);
+
+    // When it names that status.
+    const run = await cli([
+      "searches",
+      "--last",
+      "24h",
+      "--path",
+      "/search/",
+      "--redirect-status",
+      "301,302",
+    ]);
+
+    // Then the column is right for that site. One value carrying commas,
+    // where `--path` is given again for each path.
+    expect(run.code).toBe(0);
+    expect(run.rows).toStrictEqual([
+      { term: "happy", searches: "2", redirected: "1" },
+    ]);
+  });
+
+  it("refuses a redirect status that is not one", async () => {
+    // Given a value that is not a list of status codes.
+    const run = await cli(["searches", "--redirect-status", "3xx"]);
+
+    // Then it says what it takes before anything reaches Athena, the way a
+    // mistyped row count does.
+    expect(run.code).toBe(2);
+    expect(run.error).toContain("--redirect-status takes HTTP status codes");
+    expect(run.error).toContain('Run "rainlytics searches --help"');
+  });
+
+  it("leaves the redirect statuses off a question that counts none", async () => {
+    // Given a rollup counting every response as it came.
+    const run = await cli(["pageviews", "--redirect-status", "302"]);
+
+    // Then it has no redirects to be told about. The option sits on the one
+    // question separating a search sent to its answer from one that produced
+    // a list, the way `--param` sits on the one that reads a parameter.
+    expect(run.code).toBe(2);
+    expect(run.error).toContain("--redirect-status");
+  });
+
   it("counts two spellings of one search as one term", async () => {
     // Given the same search submitted from a form and from a hand-written
     // link. One sends `+` for the space and the other `%20`, which reaches
