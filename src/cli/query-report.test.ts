@@ -56,7 +56,27 @@ describe("the line a query leaves on standard error", () => {
     // quoting 512 bytes alone would make the query look free.
     expect(report).toContain("Scanned 512 B in 0.3s");
     expect(report).toContain("billed as 10.0 MB (the per-query minimum)");
-    expect(report).toContain("About $0.000050");
+    expect(report).toContain("About $0.000050 at the us-east-1 rate");
+  });
+
+  it("names the rate it priced with", () => {
+    // Given any query.
+    // Then the region is on the line. Every region charges its own rate and
+    // this one is us-east-1's, so a figure quoted without saying which would
+    // be wrong everywhere else and look authoritative.
+    expect(scanReport(512, 100)).toContain("at the us-east-1 rate");
+  });
+
+  it("prices nothing for a query that failed", () => {
+    // Given a query Athena would not finish, which it does not bill for.
+    const report = scanReport(4096, 200, false);
+
+    // Then what it read is still reported, since a query that scanned a lot
+    // before giving up is worth knowing about, and no charge is invented for
+    // it.
+    expect(report).toContain("Scanned 4.10 KB in 0.2s");
+    expect(report).toContain("does not charge for a query that failed");
+    expect(report).not.toContain("About $");
   });
 
   it("leaves the minimum out where the query went past it", () => {
@@ -76,7 +96,7 @@ describe("the line a query leaves on standard error", () => {
     // Then the rest of the line still stands.
     expect(report).toBe(
       "Scanned 512 B, billed as 10.0 MB (the per-query minimum)." +
-        " About $0.000050.\n",
+        " About $0.000050 at the us-east-1 rate.\n",
     );
   });
 });

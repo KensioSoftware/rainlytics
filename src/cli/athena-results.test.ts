@@ -48,6 +48,22 @@ describe("reading one page of a result", () => {
     expect(dataRows(page, columnsOf(page), true)).toStrictEqual([["/", "2"]]);
   });
 
+  it("keeps a first page whose first row is data", () => {
+    // Given the first page of a statement Athena writes no header for, so
+    // its first row is a row.
+    const page = aPage([
+      ["/", "2"],
+      ["/liju/", "1"],
+    ]);
+
+    // Then nothing is dropped. The header is recognised by what it holds
+    // rather than by where it sits, so a result without one keeps every row.
+    expect(dataRows(page, columnsOf(page), true)).toStrictEqual([
+      ["/", "2"],
+      ["/liju/", "1"],
+    ]);
+  });
+
   it("keeps a later page's first row, whatever it holds", () => {
     // Given a second page whose first row happens to carry the column names,
     // because a site really does have a path called "path".

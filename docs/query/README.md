@@ -34,9 +34,10 @@ default deployment needs no flags:
 rainlytics query "SELECT count(*) FROM cloudfront_logs"
 ```
 
-Pass `--database` or `--workgroup` where either was renamed. A query naming no workgroup at all
-lands in Athena's `primary`, which has no bytes-scanned cutoff. The default here therefore
-matters more than most defaults do.
+Pass `--database` or `--workgroup` where either was renamed. This command always names a
+workgroup, so a query it runs is always under a cutoff. Athena's `primary` workgroup has no cutoff
+at all, and what lands there is a query sent by something else. The console, the AWS CLI, and a
+script of your own that left the workgroup out all do.
 
 Credentials, region and profile come from the AWS SDK's default chain, the same one the AWS CLI
 reads. There is nothing Rainlytics-specific to configure.
@@ -55,7 +56,8 @@ rainlytics query "SELECT count(*) FROM cloudfront_logs"
 ```
 
 ```
-Scanned 8.12 MB in 1.2s, billed as 10.0 MB (the per-query minimum). About $0.000050.
+Scanned 8.12 MB in 1.2s, billed as 10.0 MB (the per-query minimum). About $0.000050 at the
+us-east-1 rate.
 ```
 
 ```bash
@@ -64,7 +66,8 @@ rainlytics query "SELECT count(*) FROM cloudfront_logs
 ```
 
 ```
-Scanned 265 KB in 0.4s, billed as 10.0 MB (the per-query minimum). About $0.000050.
+Scanned 265 KB in 0.4s, billed as 10.0 MB (the per-query minimum). About $0.000050 at the
+us-east-1 rate.
 ```
 
 580 objects against 13. The second query read a thirtieth of what the first did, and both cost the
@@ -84,7 +87,8 @@ Every query reports what it scanned and what that came to:
 
 ```
 Query 8d0a2f4c-1a3e-4f77-9d0e-6c2b1f9a4e11 ran in workgroup rainlytics.
-Scanned 265 KB in 0.4s, billed as 10.0 MB (the per-query minimum). About $0.000050.
+Scanned 265 KB in 0.4s, billed as 10.0 MB (the per-query minimum). About $0.000050 at the
+us-east-1 rate.
 ```
 
 It goes to standard error. A pipeline reads rows, and a person still sees the price:
@@ -95,10 +99,20 @@ rainlytics query "SELECT c_country, count(*) FROM cloudfront_logs
   GROUP BY 1" | jq '.[0]'
 ```
 
-The dollar figure is an estimate. It applies the us-east-1 rate of $5.00 per terabyte and the ten
-million byte minimum, both read from the AWS Pricing API on 2026-08-27. Another region charges
-another rate, Athena charges nothing for a query that failed, and the invoice rounds across a
-month of them.
+The dollar figure is an estimate, and the line says which rate it used. It applies the us-east-1
+rate of $5.00 per terabyte and the ten million byte minimum, both read from the AWS Pricing API on
+2026-08-27, and rounds a scan up to the next megabyte the way the pricing page describes. Every
+other region charges its own rate, and the invoice rounds across a month of queries.
+
+A query that failed is priced at nothing, because Athena bills nothing for one. What it read
+before giving up is still reported:
+
+```
+Scanned 1.20 GB in 8.4s. Athena does not charge for a query that failed.
+```
+
+A query the workgroup stopped is a different case. Athena cancels that one rather than failing it,
+and it bills a cancelled query for what it scanned.
 
 ## When the workgroup stops a query
 

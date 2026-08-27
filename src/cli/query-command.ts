@@ -89,7 +89,13 @@ async function run(context: CommandContext): Promise<CommandResult> {
   context.io.error(
     `Query ${outcome.queryExecutionId} ran in workgroup ${workgroup}.\n`,
   );
-  context.io.error(scanReport(outcome.bytesScanned, outcome.milliseconds));
+  context.io.error(
+    scanReport(
+      outcome.bytesScanned,
+      outcome.milliseconds,
+      outcome.state !== "FAILED",
+    ),
+  );
 
   if (outcome.state !== "SUCCEEDED") {
     throw queryFailure(outcome.stateChangeReason, workgroup);

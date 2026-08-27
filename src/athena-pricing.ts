@@ -39,21 +39,40 @@ const bytesPerTerabyte = 1_000_000_000_000;
 export const bytesBilledMinimum = 10_000_000;
 
 /**
+ * The megabyte a scan is rounded up to before it is charged.
+ *
+ * [Athena's pricing page](https://aws.amazon.com/athena/pricing/) says the
+ * bytes a query scans are "rounded up to the nearest megabyte". The Pricing
+ * API entry the rate above comes from mentions only the minimum, so this half
+ * is taken from the page rather than the API.
+ *
+ * Decimal, matching the terabyte above. Rounding up is also the direction
+ * that overstates rather than understates.
+ */
+const bytesPerMegabyte = 1_000_000;
+
+/**
  * What one query is billed for having scanned.
  *
- * The minimum above applies, so a query reading a single small object costs
- * the same as one reading ten megabytes.
+ * Rounded up to the next megabyte, and then held to the minimum. A query
+ * reading a single small object therefore costs the same as one reading ten
+ * megabytes.
  */
 export function bytesBilledFor(bytesScanned: number): number {
-  return Math.max(bytesScanned, bytesBilledMinimum);
+  return Math.max(
+    Math.ceil(bytesScanned / bytesPerMegabyte) * bytesPerMegabyte,
+    bytesBilledMinimum,
+  );
 }
 
 /**
- * What one query cost, in dollars.
+ * What one query cost, in dollars, at the us-east-1 rate.
  *
- * An estimate rather than a bill. The rate above is one region's, a failed
- * query is not charged at all, and the invoice rounds across a month of
- * queries rather than one.
+ * An estimate rather than a bill, and whatever quotes it should say which
+ * rate it used. Every region charges its own, and resolving the caller's
+ * would mean either shipping a price list that goes stale without saying so
+ * or a Pricing API call before every query. Naming the assumption costs four
+ * words and cannot rot.
  */
 export function queryChargeInDollars(bytesScanned: number): number {
   return (

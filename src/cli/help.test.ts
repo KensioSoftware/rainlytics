@@ -117,21 +117,20 @@ describe("the help text", () => {
       );
     });
 
-    it("wraps the prose around an example without touching it", () => {
-      // Given a description of several paragraphs.
+    it("keeps a description's paragraphs apart", () => {
+      // Given a description of two paragraphs, each short enough to wrap to
+      // one line so the shape of the output is unambiguous.
       const command = aCommand({
-        description: `${faker.lorem.paragraph()}\n\n${faker.lorem.paragraph()}`,
+        description: "The first thing to know.\n\nThe second thing.",
       });
 
       // When the help is written.
       const help = commandHelp(command);
 
-      // Then the paragraphs stay apart, rather than running together into
-      // one block the way a single wrap would leave them.
-      expect(help).toMatch(/\S\n\n\S/u);
-      for (const line of help.split("\n")) {
-        expect(line.length).toBeLessThanOrEqual(78);
-      }
+      // Then they arrive as two paragraphs. Wrapping the description as one
+      // block ran them together, which is what turned a list of points into
+      // a wall.
+      expect(help).toContain("The first thing to know.\n\nThe second thing.");
     });
 
     it("shows how the command is typed", () => {

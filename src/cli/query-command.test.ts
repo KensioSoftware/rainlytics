@@ -163,9 +163,27 @@ describe("rainlytics query", () => {
     ]);
   };
 
+  /**
+   * The `WHERE` clause naming the partition an instant sits in.
+   *
+   * Built from the same rendering that decided the object's key, so a test
+   * moving `simStartedAt` moves the predicate with it. Written out, the two
+   * would have to be kept in step by whoever noticed.
+   */
+  const inThePartitionOf = (at: Date): string =>
+    partitionPrefix({ distributionId: "unused", at })
+      .split("/")
+      .slice(1)
+      .map((segment) => {
+        const [key = "", value = ""] = segment.split("=");
+
+        return `${key} = '${value}'`;
+      })
+      .join(" AND ");
+
   const anHourQuery =
     "SELECT cs_uri_stem, count(*) AS views FROM cloudfront_logs" +
-    " WHERE year = '2026' AND month = '08' AND day = '23' AND hour = '09'" +
+    ` WHERE ${inThePartitionOf(simStartedAt)}` +
     " GROUP BY 1 ORDER BY 2 DESC";
 
   it("answers a question about the delivered logs", async () => {
@@ -191,8 +209,9 @@ describe("rainlytics query", () => {
     await twoPageViews(deployed);
 
     // When the same question is asked three ways.
-    const asked = `SELECT cs_uri_stem FROM cloudfront_logs WHERE hour = '09'
-      AND year = '2026' AND month = '08' AND day = '23' AND cs_uri_stem = '/liju/'`;
+    const asked =
+      `SELECT cs_uri_stem FROM cloudfront_logs` +
+      ` WHERE ${inThePartitionOf(simStartedAt)} AND cs_uri_stem = '/liju/'`;
     const json = await cli(["query", asked, "-o", "json"]);
     const csv = await cli(["query", asked, "-o", "csv"]);
     const table = await cli(["query", asked, "-o", "table"]);
@@ -291,21 +310,24 @@ describe("rainlytics query", () => {
   });
 
   it("answers with no rows where the question has none", async () => {
-    // Given delivered logs, and a question about an hour that holds nothing.
+    // Given delivered logs, and a question about a day the projection covers
+    // and nothing was delivered for. A day outside the projected range would
+    // answer nothing for a different reason.
     const deployed = await deployAnalytics();
     await twoPageViews(deployed);
+    const aQuietDay = new Date(simStartedAt.getTime() - 86_400_000);
 
     // When it is asked.
     const run = await cli([
       "query",
-      "SELECT cs_uri_stem FROM cloudfront_logs WHERE year = '2020'",
+      `SELECT cs_uri_stem FROM cloudfront_logs` +
+        ` WHERE ${inThePartitionOf(aQuietDay)}`,
       "-o",
       "csv",
     ]);
 
     // Then the answer is an empty one rather than a failure, and the CSV
-    // still carries its header. A row count of zero is a real answer to
-    // "what happened in 2020".
+    // still carries its header. A row count of zero is a real answer.
     expect(run.code).toBe(0);
     expect(run.out).toBe("cs_uri_stem\n");
   });
@@ -345,6 +367,11 @@ describe("rainlytics query", () => {
     expect(run.code).toBe(1);
     expect(run.error).toContain("no_such_table");
     expect(run.error).not.toContain("Narrow the query");
+
+    // And no charge is quoted for it. Athena does not bill a failed query,
+    // so pricing one would be inventing a cost.
+    expect(run.error).toContain("does not charge for a query that failed");
+    expect(run.error).not.toContain("About $");
   });
 
   it("refuses SQL the shell took apart", async () => {
@@ -387,10 +414,24 @@ describe("rainlytics query", () => {
     expect(run.error).toContain("not-a-workgroup");
   });
 
-  /** The byte count out of a scan report, for comparing two of them. */
+  /**
+   * The bytes a scan report names, whichever unit it wrote them in.
+   *
+   * The unit has to come back with the figure. Comparing "8.12 MB" against
+   * "265 KB" on the digits alone says the second is larger, which would let
+   * a broken projection pass this file's pruning case.
+   */
   const scannedBytes = (report: string): number => {
-    const [, digits = "0"] = /Scanned ([\d.]+) /u.exec(report) ?? [];
+    const scale: Readonly<Record<string, number>> = {
+      B: 1,
+      KB: 1e3,
+      MB: 1e6,
+      GB: 1e9,
+      TB: 1e12,
+    };
+    const [, digits = "0", unit = "B"] =
+      /Scanned ([\d.]+) ([KMGT]?B)/u.exec(report) ?? [];
 
-    return Number(digits);
+    return Number(digits) * (scale[unit] ?? 1);
   };
 });

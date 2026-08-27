@@ -48,23 +48,42 @@ export function inDollars(dollars: number): string {
     : `$${dollars.toPrecision(2)}`;
 }
 
-/** What one query scanned and what that comes to, for standard error. */
+/**
+ * What one query scanned and what that comes to, for standard error.
+ *
+ * A query Athena charges for is priced. A failed one is not, since
+ * [Athena's pricing](https://aws.amazon.com/athena/pricing/) lists failed
+ * queries among what it does not bill for, and quoting a figure for one would
+ * be inventing a charge. What it read is reported either way, because a query
+ * that scanned a lot before giving up is worth knowing about.
+ */
 export function scanReport(
   bytesScanned: number,
   milliseconds: number | undefined,
+  isCharged = true,
 ): string {
-  const billed = bytesBilledFor(bytesScanned);
-  const minimum =
-    billed > bytesScanned
-      ? `, billed as ${inBytes(bytesBilledMinimum)} (the per-query minimum)`
-      : "";
   const took =
     milliseconds === undefined
       ? ""
       : ` in ${(milliseconds / 1000).toFixed(1)}s`;
 
+  return `Scanned ${inBytes(bytesScanned)}${took}${
+    isCharged
+      ? chargeFor(bytesScanned)
+      : ". Athena does not charge for a query that failed."
+  }\n`;
+}
+
+/** The rest of the line, for a query that will be billed. */
+function chargeFor(bytesScanned: number): string {
+  const minimum =
+    bytesBilledFor(bytesScanned) > bytesScanned &&
+    bytesScanned < bytesBilledMinimum
+      ? `, billed as ${inBytes(bytesBilledMinimum)} (the per-query minimum)`
+      : "";
+
   return (
-    `Scanned ${inBytes(bytesScanned)}${took}${minimum}.` +
-    ` About ${inDollars(queryChargeInDollars(bytesScanned))}.\n`
+    `${minimum}. About ${inDollars(queryChargeInDollars(bytesScanned))}` +
+    ` at the us-east-1 rate.`
   );
 }
