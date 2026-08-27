@@ -35,7 +35,7 @@ export const smallestBytesScannedCutoff = Size.bytes(10_000_000);
 /**
  * How much one query may scan where nobody chooses otherwise.
  *
- * Ten gibibytes, which caps a single query at about six cents. The figure
+ * Ten gibibytes, which caps a single query at about five cents. The figure
  * comes from the far end of what a legitimate query reads rather than from
  * what a mistake costs.
  *

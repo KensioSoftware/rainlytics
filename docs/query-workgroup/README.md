@@ -36,7 +36,7 @@ a day at 4.42MB of gzipped logs a day, so its raw store levels off near 1.6GB un
 expiry. A rollup reading that whole year scans well under a fifth of the cutoff. What is left is
 headroom for six years of that site, or for one year of a site six times busier.
 
-At $5 per terabyte, ten gibibytes caps a single query at about six cents.
+At $5 per terabyte, ten gibibytes caps a single query at about five cents.
 
 Read it as a ceiling on one mistake rather than as a correctness check. A full scan of a small
 dataset stays under it and costs a fraction of a cent. That is the right answer for a person asking
@@ -59,11 +59,15 @@ construct refuses one at synthesis, before the deploy gets that far.
 
 ## The configuration is enforced
 
-`EnforceWorkGroupConfiguration` is on. The workgroup's settings win over anything a caller asks
-for, and a client passing its own `ResultConfiguration` writes to the results bucket regardless.
+`EnforceWorkGroupConfiguration` is on. The workgroup's `ResultConfiguration` then wins over
+anything a caller asks for, and a client passing its own output location or encryption option writes
+to the results bucket under S3-managed keys regardless.
 
-Without it the workgroup only suggests those settings. A caller able to redirect results is a caller
-able to raise the limit, and a guardrail any client can decline stops being one.
+The cutoff stands apart from this. `BytesScannedCutoffPerQuery` is a workgroup property and
+`StartQueryExecution` has no parameter for it. No client can raise it either way. What
+enforcement adds is that results cannot be sent somewhere outside the expiry, the encryption and the
+blocked public access on the bucket below, and that every query's output stays somewhere the account
+owner has already reasoned about.
 
 ## Queries run in `primary` unless they say otherwise
 
@@ -80,7 +84,7 @@ drifting. Pass `workgroupName` to change it, and pass the same name to whatever 
 
 ## The results bucket
 
-Athena writes one CSV per query, plus a metadata file, under `queries/` in a bucket of its own.
+Athena writes one result object per query under `queries/` in a bucket of its own, with a metadata file beside it. A `SELECT` answers with a CSV and the other statement types vary.
 Public access is blocked, TLS is required, and objects are encrypted with S3-managed keys. The
 workgroup asks for `SSE_S3` as well. The encryption is then a property of the query and not only
 of the bucket it happens to write to.
@@ -155,19 +159,48 @@ new PolicyStatement({
     "athena:UpdateWorkGroup",
     "athena:DeleteWorkGroup",
   ],
-  resources: [`arn:aws:athena:${region}:${account}:workgroup/rainlytics`],
+  resources: [`arn:aws:athena:${region}:${account}:workgroup/${workgroupName}`],
 });
 ```
+
+`workgroupName` is whatever was passed to the construct, and `rainlytics` by default. A policy
+quoting the default against a workgroup that was renamed matches no workgroup, and the deploy fails
+on a resource the statement looks like it covers.
 
 The results bucket needs the S3 permissions on the [log bucket](../log-bucket/) page, against its
 own ARN. Treat both as inferred from what the construct creates. Nothing here has been deployed with
 a role narrower than `AdministratorAccess`.
 
-Running a query is a different policy, held by the person or the schedule that runs it rather than
-by the deploy role. That is `athena:StartQueryExecution`, `athena:GetQueryExecution` and
-`athena:GetQueryResults` on this workgroup, `glue:GetTable` and `glue:GetPartitions` on the
-[log table](../log-table/), `s3:GetObject` on the log bucket and `s3:PutObject` on the results
-bucket.
+## Permissions for running a query
+
+The deploy role has no part in this one. Whoever runs the query carries it, and Athena reads the
+source data and writes the results as them, so both buckets belong here alongside the workgroup.
+
+```typescript
+new PolicyStatement({
+  sid: "RunningRainlyticsQueries",
+  actions: [
+    "athena:StartQueryExecution",
+    "athena:GetQueryExecution",
+    "athena:GetQueryResults",
+    "athena:StopQueryExecution",
+  ],
+  resources: [`arn:aws:athena:${region}:${account}:workgroup/${workgroupName}`],
+});
+```
+
+With `glue:GetDatabase`, `glue:GetTable` and `glue:GetPartitions` on the
+[log table](../log-table/) and the catalog holding it, `s3:GetObject`, `s3:ListBucket` and
+`s3:GetBucketLocation` on the log bucket, and on the results bucket `s3:PutObject`, `s3:GetObject`,
+`s3:ListBucket`, `s3:GetBucketLocation`, `s3:ListBucketMultipartUploads`,
+`s3:ListMultipartUploadParts` and `s3:AbortMultipartUpload`.
+
+The multipart actions earn their place. Athena uploads a large result in parts, and this is the
+list AWS documents for a query results bucket. `s3:GetObject` on results is what reads
+the answer back, which `GetQueryResults` does on the caller's behalf.
+
+This list comes from AWS's documentation rather than from a deploy. Nobody has yet run a Rainlytics
+query under a policy narrower than the one their SSO role already carries.
 
 <!-- card
 ```typescript

@@ -69,8 +69,8 @@ export interface QueryWorkgroupProps {
  * ```
  *
  * Every query naming this workgroup runs under its cutoff and writes where it
- * says. The configuration is enforced, so a client cannot raise the limit or
- * send results somewhere else by asking.
+ * says. The result configuration is enforced, so a client asking for its own
+ * output location gets this one anyway.
  *
  * A guardrail is worth having before there is anything to guard. Athena bills
  * per byte scanned and reports nothing at the time, so an unpartitioned query
@@ -118,10 +118,12 @@ export class QueryWorkgroup extends Construct {
       workGroupConfiguration: {
         bytesScannedCutoffPerQuery: cutoff.toBytes(),
         /*
-         * What makes the two settings above a guardrail rather than a
-         * default. Without it a caller passes its own `ResultConfiguration`
-         * and writes wherever it likes, and the cutoff is the only part that
-         * still binds.
+         * Covers the result configuration and nothing else. The cutoff above
+         * binds either way, since it is a workgroup property and
+         * `StartQueryExecution` has no parameter a caller could raise it
+         * with. What this stops is a query writing its results outside the
+         * expiry, the encryption and the blocked public access the results
+         * bucket carries.
          */
         enforceWorkGroupConfiguration: true,
         /*

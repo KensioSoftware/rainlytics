@@ -178,9 +178,9 @@ describe("the workgroup a Rainlytics query runs in", () => {
       OutputLocation: `s3://${deployed.logBucketName}/somewhere-else/`,
     });
 
-    // Then the workgroup wins. Enforcement is what makes the cutoff a
-    // guardrail: a caller that can redirect the results can also raise the
-    // limit, and then the workgroup is a default rather than a bound.
+    // Then the workgroup wins. The cutoff binds either way, since no request
+    // carries one. What enforcement covers is the results, which would
+    // otherwise land outside the expiry and the encryption this bucket has.
     // The location a described execution reports is the object holding that
     // one query's rows, under the prefix the workgroup named.
     expect(scan.outputLocation).toMatch(
