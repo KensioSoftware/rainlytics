@@ -12,6 +12,7 @@ export {
   pageviews,
   referrers,
   rollups,
+  searches,
   statusCodes,
 } from "./rollup-questions.js";
 export {
@@ -25,6 +26,7 @@ export {
   rollupSql,
   rowsFor,
 } from "./rollups.js";
+export { decodedColumn, decodedParameter } from "./log-encoding.js";
 export {
   lastRange,
   type PartitionValues,

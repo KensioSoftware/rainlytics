@@ -9,7 +9,7 @@
 import { qualifiedTableName } from "./dataset.js";
 import { decodedColumn, decodedParameter } from "./log-encoding.js";
 import type { Rollup, RollupRequest } from "./rollups.js";
-import { quoted, rowsFor } from "./rollups.js";
+import { rowsFor } from "./rollups.js";
 
 /** The `text/html` responses a person actually looked at. */
 const aPageView = [
@@ -156,7 +156,7 @@ One row, so \`--limit\` does nothing here.`,
 
 /** The term one record carries, for the parameter a request named. */
 const searchTerm = (request: RollupRequest): string =>
-  decodedParameter("cs_uri_stem", "cs_uri_query", quoted(request.param));
+  decodedParameter(request.param);
 
 /** What people typed into a search box, most typed first. */
 export const searches: Rollup = {

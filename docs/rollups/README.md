@@ -165,9 +165,9 @@ WHERE year = date_format(current_date, '%Y')
 
 ## Writing a rollup of your own
 
-The four are assembled from parts the package exports, and a site with a question of its own
-assembles a fifth the same way. A rollup is a name, some help text and a function that writes the
-SQL for one request:
+The rollups above are assembled from parts the package exports, and a site with a question of its
+own assembles another the same way. A rollup is a name, some help text and a function that writes
+the SQL for one request:
 
 ```typescript
 import {
@@ -210,6 +210,54 @@ that goes stale.
 
 `rollupSql` hands back the text. Running it is the site's own Athena client. The `rainlytics`
 command reads the ones it ships and has no way to load a question from outside the package.
+
+### Reading a query-string parameter
+
+`decodedParameter` writes the expression that takes one parameter out of a record and decodes it. A
+site counting the campaigns its inbound links name groups by that:
+
+```typescript
+import {
+  decodedParameter,
+  qualifiedTableName,
+  type Rollup,
+  rowsFor,
+} from "@kensio/rainlytics";
+
+const campaign = decodedParameter("utm_campaign");
+
+const campaigns: Rollup = {
+  name: "campaigns",
+  summary: "Count views by the campaign that sent them.",
+  description: "Counts the campaigns inbound links named, most sent first.",
+  isRanked: true,
+  body: (request) =>
+    [
+      `SELECT ${campaign} AS campaign, count(*) AS views`,
+      `  FROM ${qualifiedTableName(request.dataset)}`,
+      rowsFor(request, ["cs_uri_query <> '-'", `${campaign} <> ''`]),
+      "  GROUP BY 1",
+      "  ORDER BY 2 DESC, 1",
+      `  LIMIT ${String(request.limit)}`,
+    ].join("\n"),
+};
+```
+
+It names `cs_uri_stem` and `cs_uri_query` for itself. A record carries no whole URL, and those two
+columns are joined back together with the `?` that was between them before CloudFront split them up.
+(`'-'` is what CloudFront writes where a field was empty. The first condition drops the requests
+that carried no query string.)
+
+The value comes back decoded once, where [pageviews](#the-log-is-percent-encoded-twice) decodes a
+column twice. `url_extract_parameter` decodes its own answer and one further pass finishes the job.
+A second pass would decode a term holding a percent sequence twice, and `50%` typed into a search
+box is the case. That rule is what the function carries. A hand-written
+`url_decode(url_extract_parameter(...))` in the site's own repository carries the expression and
+leaves the rule behind.
+
+`decodedColumn` is the other half of this, for a question grouping by a whole column rather than by
+one parameter. `pageviews` reads the path through it, and [`searches`](../searches/) reads its term
+through `decodedParameter`.
 
 The construct saves a site's rollup in the console beside the built-in ones:
 

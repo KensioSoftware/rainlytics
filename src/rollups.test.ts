@@ -2,6 +2,7 @@ import { faker } from "@faker-js/faker";
 import { describe, expect, it } from "vitest";
 
 import { defaultLogDataset, qualifiedTableName } from "./dataset.js";
+import { decodedParameter } from "./log-encoding.js";
 import { rollups } from "./rollup-questions.js";
 import type { Rollup } from "./rollups.js";
 import {
@@ -164,6 +165,25 @@ describe("the SQL a rollup runs", () => {
     expect(sql).toContain("url_decode(url_decode(cs_uri_stem)) AS path");
   });
 
+  it("decodes a search term once, where the path is decoded twice", () => {
+    // Given the searches rollup.
+    const sql = sqlFor("searches");
+
+    // Then the term is read out of the query string and decoded once.
+    // `url_extract_parameter` decodes its own answer, and a second pass
+    // would decode a term holding a percent sequence twice.
+    expect(sql).toContain(
+      "url_decode(url_extract_parameter(cs_uri_stem || '?' || cs_uri_query," +
+        " 'q'))",
+    );
+  });
+
+  it("reads the parameter a request named", () => {
+    // Given a search page taking its term under another name.
+    // Then that is the parameter read, quoted as a literal.
+    expect(sqlFor("searches", { param: "hanzi" })).toContain("'hanzi'))");
+  });
+
   it("leaves the other rollups' columns as they were delivered", () => {
     // Given the three rollups that read no path.
     // Then none of them decodes anything. The referrer is read for its host,
@@ -294,6 +314,65 @@ describe("a rollup a site wrote for itself", () => {
     // Given a question that reads the HTML responses alone.
     // Then its own condition joins the rest.
     expect(sqlFor()).toContain("AND sc_content_type LIKE 'text/html%'");
+  });
+});
+
+describe("a rollup a site wrote to read a query string", () => {
+  const aWeek = {
+    from: new Date("2026-08-20T00:00:00Z"),
+    to: new Date("2026-08-27T00:00:00Z"),
+  };
+
+  /**
+   * The question the rollups docs page writes out, kept here so the two
+   * agree.
+   *
+   * A site counting the campaigns its inbound links carry reads one parameter
+   * out of the query string. How many times that value is decoded is a rule
+   * of the log rather than of the question, and a hand-written copy of the
+   * expression is where the rule goes stale.
+   */
+  const campaign = decodedParameter("utm_campaign");
+
+  const campaigns: Rollup = {
+    name: "campaigns",
+    summary: "Count views by the campaign that sent them.",
+    description: "Counts the campaigns inbound links named, most sent first.",
+    isRanked: true,
+    body: (request) =>
+      [
+        `SELECT ${campaign} AS campaign, count(*) AS views`,
+        `  FROM ${qualifiedTableName(request.dataset)}`,
+        rowsFor(request, ["cs_uri_query <> '-'", `${campaign} <> ''`]),
+        "  GROUP BY 1",
+      ].join("\n"),
+  };
+
+  const sqlFor = (over = {}): string =>
+    rollupSql(campaigns, rollupRequest({ range: aWeek, ...over }));
+
+  it("reads its parameter the way the built-in one reads a search term", () => {
+    // Given a question nobody here wrote, reading a parameter of its own.
+    const sql = sqlFor();
+
+    // Then it gets the expression the package argues for, naming the two
+    // columns a record splits a URL across and decoding the value once.
+    expect(sql).toContain(
+      "url_decode(url_extract_parameter(cs_uri_stem || '?' || cs_uri_query," +
+        " 'utm_campaign'))",
+    );
+  });
+
+  it("still reads the rows every other rollup reads", () => {
+    // Given the same question, narrowed the way any rollup can be narrowed.
+    const sql = sqlFor({ host: "example.com" });
+
+    // Then reading a parameter costs it none of what `rowsFor` writes.
+    expect(sql).toContain("year IN ('2026')");
+    expect(sql).toContain(
+      `NOT regexp_like(lower(cs_user_agent), '${botUserAgentPattern}')`,
+    );
+    expect(sql).toContain("x_host_header = 'example.com'");
   });
 });
 
