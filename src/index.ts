@@ -19,6 +19,7 @@ export {
   assertRollupName,
   botUserAgentPattern,
   currentMonth,
+  matchedPath,
   type Rollup,
   type RollupRange,
   type RollupRequest,

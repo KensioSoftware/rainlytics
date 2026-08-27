@@ -106,6 +106,10 @@ Guides and tutorials are one section of a site to whoever writes them, and a sit
 at `/words/search/` and `/sentences/search/` has no prefix covering both. Each path becomes its own
 prefix test and the tests are joined by `OR`. One `--path` writes what it always wrote.
 
+An answer counting several sections together says nothing about which of them a row came from.
+[`searches`](../searches/) names the section on every row when it is given more than one, and a
+rollup of your own gets the same column from [`matchedPath`](#naming-the-section-a-row-came-from).
+
 `--host` counts one of the sites a single distribution serves:
 
 ```bash
@@ -322,6 +326,57 @@ leaves the rule behind.
 `decodedColumn` is the other half of this, for a question grouping by a whole column rather than by
 one parameter. `pageviews` reads the path through it, and [`searches`](../searches/) reads its term
 through `decodedParameter`.
+
+### Naming the section a row came from
+
+A question narrowed to several paths counts them together, and one term or one country then holds
+rows from every one of them. `matchedPath` writes the prefix a row's address started with, as a
+column the question selects and groups by:
+
+```typescript
+import {
+  matchedPath,
+  qualifiedTableName,
+  type Rollup,
+  rowsFor,
+} from "@kensio/rainlytics";
+
+const countriesBySection: Rollup = {
+  name: "countries-by-section",
+  summary: "Count views by country and section.",
+  description: "Counts where readers were, section by section.",
+  isRanked: true,
+  body: (request) =>
+    [
+      `SELECT ${matchedPath(request)} AS section,`,
+      "  c_country AS country, count(*) AS views",
+      `  FROM ${qualifiedTableName(request.dataset)}`,
+      rowsFor(request, ["sc_content_type LIKE 'text/html%'"]),
+      "  GROUP BY 1, 2",
+      "  ORDER BY 3 DESC, 1, 2",
+      `  LIMIT ${String(request.limit)}`,
+    ].join("\n"),
+};
+```
+
+It is a `CASE` over the same prefix tests `rowsFor` filters with, branch by branch in the order the
+request gave them. One definition of a prefix match covers both. A copy of the expression in a
+site's own repository is a second definition, and the way those drift is a column that stops
+agreeing with the filter beside it.
+
+What the column holds follows from how many paths a run was given:
+
+- **Several.** The first one the address starts with. Where two overlap, `/guides/` given alongside
+  `/guides/advanced/` reports a row under the second as `/guides/`. Every row is then in exactly one
+  section, and a reader adding the rows up counts each of them once.
+- **One.** That path, as a literal. Every row counted started with it, and a `CASE` there asks a
+  question with one answer.
+- **None.** `CAST(NULL AS varchar)`. The whole distribution was counted and no prefix matched. An
+  empty string would claim a prefix nobody asked for, and the cast gives the column a type in the
+  result Athena hands back.
+
+A rollup selects it however many paths it was given, and `--path` decides what comes back.
+[`searches`](../searches/) is the built-in one that reads it, for a site with two search boxes.
 
 The construct saves a site's rollup in the console beside the built-in ones:
 

@@ -333,6 +333,10 @@ describe("the named questions", () => {
         "cs-uri-query": "q=talent",
       }),
       aRecord(rightNow, {
+        "cs-uri-stem": "/words/search/",
+        "cs-uri-query": "q=talent",
+      }),
+      aRecord(rightNow, {
         "cs-uri-stem": "/sentences/search/",
         "cs-uri-query": "q=talent",
       }),
@@ -358,12 +362,62 @@ describe("the named questions", () => {
     ]);
 
     // Then a row under either is counted and one under neither is left out.
-    // The two searches for the same term are one row. Two separate runs
-    // would have left that addition to whoever read them.
+    // Each row carries the box it came from, so the term searched in both
+    // is two rows and each says which corpus answered it. One run reads
+    // both, where two would have been two questions.
     expect(run.code).toBe(0);
     expect(run.rows).toStrictEqual([
-      { term: "talent", searches: "2", redirected: "0" },
-      { term: "weather", searches: "1", redirected: "0" },
+      {
+        term: "talent",
+        section: "/words/search/",
+        searches: "2",
+        redirected: "0",
+      },
+      {
+        term: "talent",
+        section: "/sentences/search/",
+        searches: "1",
+        redirected: "0",
+      },
+      {
+        term: "weather",
+        section: "/sentences/search/",
+        searches: "1",
+        redirected: "0",
+      },
+    ]);
+  });
+
+  it("names no section where one search page was asked for", async () => {
+    // Given the same two boxes, with one of them asked about.
+    const deployed = await deployAnalytics();
+
+    await putDelivered(deployed, rightNow, [
+      aRecord(rightNow, {
+        "cs-uri-stem": "/words/search/",
+        "cs-uri-query": "q=talent",
+      }),
+      aRecord(rightNow, {
+        "cs-uri-stem": "/sentences/search/",
+        "cs-uri-query": "q=talent",
+      }),
+    ]);
+
+    // When one path is given.
+    const run = await cli([
+      "searches",
+      "--last",
+      "24h",
+      "--path",
+      "/words/search/",
+    ]);
+
+    // Then the answer is the terms alone. Every row would carry the same
+    // section, and a column repeating one value tells the reader what they
+    // typed.
+    expect(run.code).toBe(0);
+    expect(run.rows).toStrictEqual([
+      { term: "talent", searches: "1", redirected: "0" },
     ]);
   });
 

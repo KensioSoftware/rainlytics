@@ -4,11 +4,12 @@ import { describe, expect, it } from "vitest";
 import { defaultLogDataset, qualifiedTableName } from "./dataset.js";
 import { decodedParameter } from "./log-encoding.js";
 import { rollups } from "./rollup-questions.js";
-import type { Rollup } from "./rollups.js";
+import type { Rollup, RollupRequest } from "./rollups.js";
 import {
   assertRollupName,
   botUserAgentPattern,
   currentMonth,
+  matchedPath,
   rollupRequest,
   rollupSql,
   rowsFor,
@@ -207,6 +208,41 @@ describe("the SQL a rollup runs", () => {
     expect(sqlFor("searches", { param: "hanzi" })).toContain("'hanzi'))");
   });
 
+  it("says which search box a row came from", () => {
+    // Given a site with two search boxes and no path covering both.
+    const sql = sqlFor("searches", {
+      paths: ["/words/search/", "/sentences/search/"],
+    });
+
+    // Then every row names the one it started with. A term typed into both
+    // is otherwise one row and one number, and which corpus answered it is
+    // the question a second box creates.
+    expect(sql).toContain(
+      "CASE" +
+        " WHEN strpos(url_decode(url_decode(cs_uri_stem)), '/words/search/')" +
+        " = 1 THEN '/words/search/'" +
+        " WHEN strpos(url_decode(url_decode(cs_uri_stem))," +
+        " '/sentences/search/') = 1 THEN '/sentences/search/'" +
+        " END AS section,",
+    );
+
+    // And the count is per term per box, with the ordinals moved along by
+    // the column in front of them.
+    expect(sql).toContain("GROUP BY 1, 2");
+    expect(sql).toContain("ORDER BY 3 DESC, 1, 2");
+  });
+
+  it("leaves the section out of a search over one page", () => {
+    // Given one search page.
+    const sql = sqlFor("searches", { paths: ["/search/"] });
+
+    // Then the answer is the terms alone. Every row would carry the same
+    // section, and the counts stay where they were.
+    expect(sql).not.toContain("AS section");
+    expect(sql).toContain("GROUP BY 1\n");
+    expect(sql).toContain("ORDER BY 2 DESC, 1");
+  });
+
   it("leaves the other rollups' columns as they were delivered", () => {
     // Given the three rollups that read no path.
     // Then none of them decodes anything. The referrer is read for its host,
@@ -267,6 +303,80 @@ describe("the SQL a rollup runs", () => {
     expect(sql).toContain("year = date_format(current_date, '%Y')");
     expect(sql).toContain("month = date_format(current_date, '%m')");
     expect(sql).not.toContain("timestamp_ms");
+  });
+});
+
+describe("the path a row matched", () => {
+  const aWeek = {
+    from: new Date("2026-08-20T00:00:00Z"),
+    to: new Date("2026-08-27T00:00:00Z"),
+  };
+
+  const asked = (paths: readonly string[]): RollupRequest =>
+    rollupRequest({ range: aWeek, paths });
+
+  const prefixTest = (path: string): string =>
+    `strpos(url_decode(url_decode(cs_uri_stem)), '${path}') = 1`;
+
+  it("tests a prefix the way the filter under it does", () => {
+    // Given a question narrowed to two sections, one of them holding the
+    // character LIKE would have read as a wildcard.
+    const request = asked(["/words/", "/a_b/"]);
+
+    // Then the column and the rows are written from the same test. Two
+    // definitions of a prefix match is a column that stops agreeing with
+    // the filter beside it, and the drift shows up as rows counted under a
+    // section they say they are not in.
+    for (const path of ["/words/", "/a_b/"]) {
+      expect(matchedPath(request)).toContain(
+        `WHEN ${prefixTest(path)} THEN '${path}'`,
+      );
+      expect(rowsFor(request)).toContain(prefixTest(path));
+    }
+  });
+
+  it("takes the first of the paths a row starts with", () => {
+    // Given a section and a section inside it.
+    const sql = matchedPath(asked(["/guides/", "/guides/advanced/"]));
+
+    // Then the branches are in the order they were given, so a row under
+    // both reports the wider one. Whichever way that goes it has to be
+    // said, since a reader adding the rows up needs to know a row is in
+    // exactly one of them.
+    expect(sql.indexOf("THEN '/guides/'")).toBeLessThan(
+      sql.indexOf("THEN '/guides/advanced/'"),
+    );
+  });
+
+  it("is the path itself where one was asked for", () => {
+    // Given one section.
+    const section = `/${faker.string.alpha(8)}/`;
+
+    // Then the column is that path, written as a literal. Every row counted
+    // began with it, and a CASE there asks a question with one answer.
+    expect(matchedPath(asked([section]))).toBe(`'${section}'`);
+  });
+
+  it("is a typed NULL where the whole distribution was counted", () => {
+    // Given a question nobody narrowed, and one narrowed to no paths at
+    // all. The command line hands over an empty list when `--path` was
+    // never given.
+    for (const request of [rollupRequest({ range: aWeek }), asked([])]) {
+      // Then no prefix matched and the column says so. An empty string
+      // would claim a prefix nobody asked for, and the cast is what gives
+      // the column a type Athena can report.
+      expect(matchedPath(request)).toBe("CAST(NULL AS varchar)");
+    }
+  });
+
+  it("takes a path holding a quote without breaking the statement", () => {
+    // Given two sections, one carrying the character SQL string syntax
+    // cares about.
+    const sql = matchedPath(asked(["/it's/", "/other/"]));
+
+    // Then it is doubled on both sides of the branch, so the statement
+    // still parses and still means the path that was asked for.
+    expect(sql).toContain("'/it''s/') = 1 THEN '/it''s/'");
   });
 });
 
@@ -337,6 +447,43 @@ describe("a rollup a site wrote for itself", () => {
     // Given a question that reads the HTML responses alone.
     // Then its own condition joins the rest.
     expect(sqlFor()).toContain("AND sc_content_type LIKE 'text/html%'");
+  });
+
+  it("names the section a row came from without writing the test", () => {
+    // Given the same question asked per section of the site, reporting the
+    // one each row came from out of the package's own exports.
+    const bySection: Rollup = {
+      ...countries,
+      body: (request) =>
+        [
+          `SELECT ${matchedPath(request)} AS section,`,
+          "  c_country AS country, count(*) AS views",
+          `  FROM ${qualifiedTableName(request.dataset)}`,
+          rowsFor(request),
+          "  GROUP BY 1, 2",
+        ].join("\n"),
+    };
+
+    const sql = rollupSql(
+      bySection,
+      rollupRequest({ range: aWeek, paths: ["/guides/", "/tutorials/"] }),
+    );
+
+    // Then the column and the rows under it are written from one test each
+    // way round. A site holding its own copy of that expression holds a
+    // second definition of a prefix match, and the copy is the one that
+    // stops agreeing with the filter it sits above.
+    for (const path of ["/guides/", "/tutorials/"]) {
+      expect(sql).toContain(
+        `WHEN strpos(url_decode(url_decode(cs_uri_stem)), '${path}') = 1` +
+          ` THEN '${path}'`,
+      );
+    }
+
+    expect(sql).toContain(
+      "(strpos(url_decode(url_decode(cs_uri_stem)), '/guides/') = 1" +
+        " OR strpos(url_decode(url_decode(cs_uri_stem)), '/tutorials/') = 1)",
+    );
   });
 });
 
