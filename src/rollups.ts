@@ -76,9 +76,45 @@ export interface RollupRequest {
   readonly dataset: LogDataset;
 }
 
-/** One of the questions the command line answers without any SQL. */
+/**
+ * One question, and the SQL that answers it.
+ *
+ * The four Rainlytics ships are `rollup-questions.ts`, and a site can write
+ * its own. A rollup writes what it selects and groups by, and calls
+ * {@link rowsFor} for the rows underneath. That is where the partition
+ * predicate, the bot filter and the host and path a caller narrowed to are
+ * written, and a question filtering its own way would answer a different
+ * question from its neighbours without saying so.
+ *
+ * ```typescript
+ * const searches: Rollup = {
+ *   name: "searches",
+ *   summary: "Count what readers searched for.",
+ *   description: "Counts the queries readers typed, most typed first.",
+ *   isRanked: true,
+ *   body: (request) =>
+ *     [
+ *       "SELECT cs_uri_query AS query, count(*) AS searches",
+ *       `  FROM ${qualifiedTableName(request.dataset)}`,
+ *       rowsFor(request, ["cs_uri_stem = '/search/'"]),
+ *       "  GROUP BY 1",
+ *       "  ORDER BY 2 DESC, 1",
+ *       `  LIMIT ${String(request.limit)}`,
+ *     ].join("\n"),
+ * };
+ * ```
+ *
+ * `rollupSql(searches, rollupRequest({ range }))` is then the SQL to run, and
+ * the `RollupQueries` construct saves it in the Athena console beside the
+ * built-in four.
+ */
 export interface Rollup {
-  /** The word that selects it, as in `rainlytics pageviews`. */
+  /**
+   * What it is called, as in `rainlytics pageviews`.
+   *
+   * Lowercase words joined by hyphens. It names a subcommand, and a saved
+   * copy of the query takes it too, so it has to survive both.
+   */
   readonly name: string;
 
   /** One line, for the command list. */
@@ -117,4 +153,22 @@ export function rollupSql(rollup: Rollup, request: RollupRequest): string {
   return `${rollup.body(request).trimEnd()}\n`;
 }
 
-export { rowsFor, tableIn } from "./rollup-rows.js";
+/**
+ * The names a rollup can take.
+ *
+ * Lowercase words joined by hyphens, which is what a subcommand and a CDK
+ * logical id both read. `status-codes` passes. `Status Codes` deploys as a
+ * name CDK has to mangle and reads as a subcommand nobody can type.
+ *
+ * @throws {Error} for a name outside that set.
+ */
+export function assertRollupName(name: string): void {
+  if (!/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/u.test(name)) {
+    throw new Error(
+      `The rollup name "${name}" is not one a subcommand can carry. Use` +
+        ` lowercase words joined by hyphens, as in "cache-hit-ratio".`,
+    );
+  }
+}
+
+export { rowsFor } from "./rollup-rows.js";

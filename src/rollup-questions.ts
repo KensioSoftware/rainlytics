@@ -6,9 +6,10 @@
 // rollup that filtered differently would answer a different question from
 // its neighbours without saying so.
 
+import { qualifiedTableName } from "./dataset.js";
 import { decodedColumn } from "./log-encoding.js";
 import type { Rollup, RollupRequest } from "./rollups.js";
-import { rowsFor, tableIn } from "./rollups.js";
+import { rowsFor } from "./rollups.js";
 
 /** The `text/html` responses a person actually looked at. */
 const aPageView = [
@@ -61,7 +62,7 @@ itself. CloudFront writes one percent-encoded twice.`,
   body: (request) =>
     [
       `SELECT ${decodedColumn("cs_uri_stem")} AS path, count(*) AS views`,
-      `  FROM ${tableIn(request.dataset)}`,
+      `  FROM ${qualifiedTableName(request.dataset)}`,
       rowsFor(request, aPageView),
       "  GROUP BY 1",
       rankedOrder,
@@ -88,7 +89,7 @@ give, and browsers give less of it every year.`,
   body: (request) =>
     [
       "SELECT url_extract_host(cs_referer) AS referrer, count(*) AS views",
-      `  FROM ${tableIn(request.dataset)}`,
+      `  FROM ${qualifiedTableName(request.dataset)}`,
       rowsFor(request, [
         ...aPageView,
         `cs_referer <> ${empty}`,
@@ -118,7 +119,7 @@ what you want when reading this one.`,
   body: (request) =>
     [
       "SELECT sc_status AS status, count(*) AS responses",
-      `  FROM ${tableIn(request.dataset)}`,
+      `  FROM ${qualifiedTableName(request.dataset)}`,
       rowsFor(request),
       "  GROUP BY 1",
       rankedOrder,
@@ -148,7 +149,7 @@ One row, so \`--limit\` does nothing here.`,
       `  ${counted("x_edge_result_type = 'Miss'")} AS misses,`,
       `  round(100.0 * ${counted(cacheHit)}` +
         ` / nullif(${counted(cacheDecided)}, 0), 1) AS hit_percent`,
-      `  FROM ${tableIn(request.dataset)}`,
+      `  FROM ${qualifiedTableName(request.dataset)}`,
       rowsFor(request),
     ].join("\n"),
 };

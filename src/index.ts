@@ -15,6 +15,7 @@ export {
   statusCodes,
 } from "./rollup-questions.js";
 export {
+  assertRollupName,
   botUserAgentPattern,
   currentMonth,
   type Rollup,
@@ -22,6 +23,7 @@ export {
   type RollupRequest,
   rollupRequest,
   rollupSql,
+  rowsFor,
 } from "./rollups.js";
 export {
   lastRange,
