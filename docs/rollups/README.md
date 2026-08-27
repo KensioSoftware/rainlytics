@@ -163,6 +163,56 @@ WHERE year = date_format(current_date, '%Y')
   AND month = date_format(current_date, '%m')
 ```
 
+### Narrowing a saved copy
+
+Everything else a command takes is settled per rollup, by `requests`:
+
+```typescript
+new RollupQueries(this, "RainlyticsRollups", {
+  table,
+  workgroup,
+  requests: {
+    searches: { path: "/search/", param: "term" },
+  },
+});
+```
+
+`searches` is why this is here. It reads one query-string parameter on one page. A saved copy left
+to the defaults counts every query string on the distribution, while its own description tells the
+reader to name the search page with `--path`. The parameter defaults to `q`. A site whose box calls
+it something else gets a saved query that answers with an empty table.
+
+Per rollup, and not one set of options across all five. `/search/` is the search page to `searches`
+and one directory of a site to `pageviews`. A shared set would save `rainlytics-pageviews` as a
+query counting the search page under a name promising the whole site. That is the same fault the
+other way round. A rollup left out of `requests` takes the defaults a command starts from.
+
+An entry takes what a rollup command takes, apart from `--last`. The range is always the current
+month for the reason above, and the database comes from the table:
+
+```typescript
+requests: {
+  "status-codes": { includeBots: true },
+  searches: { host: "docs.example.com", path: "/search/", param: "term" },
+}
+```
+
+A fact that belongs to every question, such as the host of one site on a distribution serving
+several, is a variable spread into each entry. Every key has to name a rollup being saved, and a
+mistyped one fails at synthesis. The alternative is a deployed query still counting whatever it
+counted before.
+
+Each saved description says what its own copy covers. The console shows the narrowing to somebody
+who has read no SQL:
+
+```text
+Count searches by the term somebody typed. What "rainlytics searches" runs.
+Over the current month, on docs.example.com, under /search/, reading the "term" parameter.
+```
+
+`--limit` is the one option left out of that line. A row count decides how much of the answer is
+printed and leaves what was counted where it was. It sits on the last line of the SQL below.
+
 ## Writing a rollup of your own
 
 The four are assembled from parts the package exports, and a site with a question of its own
@@ -225,7 +275,8 @@ new RollupQueries(this, "RainlyticsRollups", {
 ```
 
 The saved copy covers the current month, as the built-in ones do. Its description says what it counts and
-stops there, since there is no `rainlytics countries` to point a reader at.
+stops there, since there is no `rainlytics countries` to point a reader at. It takes an entry in
+`requests` under its own name the way the built-in ones do.
 
 A name is lowercase words joined by hyphens (`cache-hit-ratio`). It becomes a CDK logical id and an
 Athena query name, and `assertRollupName` refuses anything else at synthesis.
