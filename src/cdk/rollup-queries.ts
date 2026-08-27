@@ -1,7 +1,7 @@
 import { CfnNamedQuery } from "aws-cdk-lib/aws-athena";
 import { Construct } from "constructs";
 
-import type { LogDataset } from "../dataset.js";
+import { type LogDataset, savedQueryPrefix } from "../dataset.js";
 import { rollups } from "../rollup-questions.js";
 import type { Rollup, RollupRequest } from "../rollups.js";
 import {
@@ -161,7 +161,7 @@ export class RollupQueries extends Construct {
       dataset,
     });
 
-    const name = `rainlytics-${rollup.name}`;
+    const name = `${savedQueryPrefix}${rollup.name}`;
     const description = describing(rollup, request);
 
     assertAthenaLength("name", name);

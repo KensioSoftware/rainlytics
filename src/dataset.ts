@@ -69,6 +69,16 @@ export function qualifiedTableName(
  */
 export const defaultWorkgroupName = "rainlytics";
 
+/**
+ * What a saved copy of a rollup is called, ahead of the rollup's own name.
+ *
+ * Athena lists named queries flat within a workgroup. The prefix gathers a
+ * deployment's own into one place among whatever else somebody has saved
+ * there. `RollupQueries` writes it and `rainlytics saved-query` reads it, so
+ * it is here with the other names both halves have to agree about.
+ */
+export const savedQueryPrefix = "rainlytics-";
+
 /** The names Athena reads back without any quoting or escaping. */
 const queryableName = /^[a-z][a-z0-9_]*$/u;
 
