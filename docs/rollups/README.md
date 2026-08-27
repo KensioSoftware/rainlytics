@@ -23,7 +23,8 @@ what that cost on standard error.
 **`pageviews`** counts the pages people looked at. A pageview is a GET that answered HTML and
 succeeded, which is what separates a page from the images, stylesheets and fonts the same log
 records. A 304 counts, because a browser being told its copy is current is somebody looking at the
-page.
+page. The path is decoded, for the reason under [The log is percent-encoded
+twice](#the-log-is-percent-encoded-twice) below.
 
 **`referrers`** counts where people arrived from, by host. Requests carrying no referrer are left
 out, and so are the ones this site sent itself. Those are somebody moving around inside it. On the
@@ -35,6 +36,26 @@ stylesheet returning 404 is worth seeing and a rollup looking only at pages neve
 **`cache-hit-ratio`** counts over the requests the cache had a say in, being a Hit, a RefreshHit or
 a Miss. A redirect, an error and a response a CloudFront Function generated are requests the cache
 was never asked about, and counting them would move the ratio without the cache having changed.
+
+## The log is percent-encoded twice
+
+CloudFront percent-encodes every value it writes into a log record, and a request URI reaches it
+already carrying the browser's own encoding. A page at `/words/好/` is requested as
+`/words/%E5%A5%BD/` and recorded as `/words/%25E5%25A5%25BD/`.
+
+`pageviews` decodes the path twice, so it reports the address a reader would recognise. One pass
+answers `/words/%E5%A5%BD/`. That is the URI the browser sent, and it reads no better than the
+record. A site whose addresses are all ASCII sees the same table either way.
+
+Only `pageviews` reads a column carrying the encoding. `referrers` reads a referrer for its host,
+and a host is ASCII whatever the rest of the URL holds. A status code and a result type arrive
+plain. The crawler filter matches ASCII substrings of a user agent and reads an encoded one the
+same way.
+
+Two limits are worth knowing. `url_decode` reads `+` as a space. That is right for a query string
+and wrong for a path, where `+` is a literal. Athena also raises over an escape naming no byte,
+such as `%zz`. A path carrying one that still answered HTML would fail the query outright. Both
+stayed theoretical across 137,000 records of real traffic.
 
 ## Crawlers are most of the traffic
 

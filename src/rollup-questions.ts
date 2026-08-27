@@ -19,6 +19,29 @@ const aPageView = [
 /** What CloudFront writes where a field was empty. */
 const empty = "'-'";
 
+/**
+ * One column with CloudFront's encoding taken back off it.
+ *
+ * CloudFront percent-encodes every value in a log record, and the request URI
+ * reaches it already carrying the browser's own encoding, so `/words/好/` is
+ * written `/words/%25E5%25A5%25BD/`. Two passes are what reads it back. One
+ * returns `/words/%E5%A5%BD/`, which looks like an answer and is the URI as
+ * the browser sent it.
+ *
+ * `url_extract_path` is no shortcut here. It answers with the path as the
+ * text wrote it, escapes and all.
+ *
+ * `url_decode` reads `+` as a space, which is right for a query string and
+ * wrong for a path, where `+` is a literal. Nothing reads a path holding one
+ * yet.
+ *
+ * Athena raises over an escape naming no byte, such as `%zz`, where Yulin
+ * answers null. `try` is the guard for it and Yulin has no `try` to test
+ * against, so a path that survives the pageview filter carrying one would
+ * fail the query rather than skew it.
+ */
+const decoded = (column: string): string => `url_decode(url_decode(${column}))`;
+
 /** The result types where the cache had a say. */
 const cacheHit = "x_edge_result_type IN ('Hit', 'RefreshHit')";
 const cacheDecided = "x_edge_result_type IN ('Hit', 'RefreshHit', 'Miss')";
@@ -53,10 +76,13 @@ A pageview is a GET that answered with HTML and succeeded, which is what
 separates a page from the images, stylesheets and fonts the same log records.
 \`sc-content-type\` is delivered for exactly this, since a path alone cannot
 always tell one from the other. A 304 counts, because a browser being told
-its copy is current is somebody looking at the page.`,
+its copy is current is somebody looking at the page.
+
+The path is decoded, so an address holding characters outside ASCII reads as
+itself. CloudFront writes one percent-encoded twice.`,
   body: (request) =>
     [
-      "SELECT cs_uri_stem AS path, count(*) AS views",
+      `SELECT ${decoded("cs_uri_stem")} AS path, count(*) AS views`,
       `  FROM ${tableIn(request.dataset)}`,
       rowsFor(request, aPageView),
       "  GROUP BY 1",
