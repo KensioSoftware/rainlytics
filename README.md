@@ -29,6 +29,7 @@ import {
   CloudFrontLogDelivery,
   LogBucket,
   LogTable,
+  QueryWorkgroup,
 } from "@kensio/rainlytics/cdk";
 
 const logs = new LogBucket(this, "RainlyticsLogs");
@@ -39,15 +40,21 @@ const delivery = new CloudFrontLogDelivery(this, "RainlyticsDelivery", {
 });
 
 new LogTable(this, "RainlyticsTable", { deliveries: [delivery] });
+new QueryWorkgroup(this, "RainlyticsQueries");
 ```
 
 The table projects its partitions, so a query naming a day reads that day and
 is billed for those bytes. No crawler runs over the bucket and no partition is
 ever registered.
 
+The workgroup bounds what one query may scan. Athena bills per byte and says
+nothing at the time, so a query that names no partition is the one mistake here
+that costs money quietly. It fails at the point it is run instead.
+
 That stack has to be in us-east-1, which is the only region CloudFront log
 delivery can be configured from. See the [log bucket](docs/log-bucket/), [log
-delivery](docs/log-delivery/) and [log table](docs/log-table/) pages.
+delivery](docs/log-delivery/), [log table](docs/log-table/) and [query
+workgroup](docs/query-workgroup/) pages.
 
 A `rainlytics` command ships beside them, and runs with nothing else
 installed:

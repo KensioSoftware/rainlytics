@@ -15,6 +15,14 @@ export {
 } from "./log-delivery.js";
 export { LogBucket, type LogBucketProps } from "./log-bucket.js";
 export { LogTable, type LogTableProps } from "./log-table.js";
+export {
+  assertUsableCutoff,
+  defaultBytesScannedCutoff,
+  defaultResultsRetention,
+  dollarsPerTerabyteScanned,
+  smallestBytesScannedCutoff,
+} from "./query-cost.js";
+export { QueryWorkgroup, type QueryWorkgroupProps } from "./query-workgroup.js";
 export { type LogTableFormat, logTableFormat } from "./log-table-format.js";
 export { defaultLogRetention, defaultRecoveryWindow } from "./log-lifecycle.js";
 export { requireStackRegion } from "./stack-region.js";

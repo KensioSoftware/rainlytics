@@ -10,6 +10,7 @@
 export {
   assertQueryableName,
   defaultLogDataset,
+  defaultWorkgroupName,
   type LogDataset,
   qualifiedTableName,
 } from "./dataset.js";
