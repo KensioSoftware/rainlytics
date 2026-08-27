@@ -9,7 +9,7 @@ rainlytics query "SELECT cs_uri_stem, count(*) AS views
   GROUP BY 1 ORDER BY 2 DESC LIMIT 5"
 ```
 
-```
+```text
 cs_uri_stem      views
 ---------------  -----
 /                  412
@@ -55,7 +55,7 @@ Here is the difference on a real bucket. Figures read off the Chinese Boost log 
 rainlytics query "SELECT count(*) FROM cloudfront_logs"
 ```
 
-```
+```text
 Scanned 8.12 MB in 1.2s, billed as 10.0 MB (the per-query minimum). About $0.000050 at the
 us-east-1 rate.
 ```
@@ -65,7 +65,7 @@ rainlytics query "SELECT count(*) FROM cloudfront_logs
   WHERE year = '2026' AND month = '08' AND day = '26' AND hour = '14'"
 ```
 
-```
+```text
 Scanned 265 KB in 0.4s, billed as 10.0 MB (the per-query minimum). About $0.000050 at the
 us-east-1 rate.
 ```
@@ -85,7 +85,7 @@ A rollup that runs every hour for a year is where that difference stops being ac
 
 Every query reports what it scanned and what that came to:
 
-```
+```text
 Query 8d0a2f4c-1a3e-4f77-9d0e-6c2b1f9a4e11 ran in workgroup rainlytics.
 Scanned 265 KB in 0.4s, billed as 10.0 MB (the per-query minimum). About $0.000050 at the
 us-east-1 rate.
@@ -107,7 +107,7 @@ other region charges its own rate, and the invoice rounds across a month of quer
 A query that failed is priced at nothing, because Athena bills nothing for one. What it read
 before giving up is still reported:
 
-```
+```text
 Scanned 1.20 GB in 8.4s. Athena does not charge for a query that failed.
 ```
 
@@ -119,7 +119,7 @@ and it bills a cancelled query for what it scanned.
 The workgroup carries a ceiling. A query that would scan past it is stopped, and the message says
 what it read, what the workgroup allows, and the two ways forward:
 
-```
+```text
 rainlytics: Bytes scanned limit was exceeded. The query scanned 12884901888 bytes, and
 workgroup rainlytics allows 10737418240 per query.
 That ceiling is the workgroup's, and it is there so one query cannot run up a bill nobody

@@ -56,20 +56,31 @@ delivery can be configured from. See the [log bucket](docs/log-bucket/), [log
 delivery](docs/log-delivery/), [log table](docs/log-table/) and [query
 workgroup](docs/query-workgroup/) pages.
 
-A `rainlytics` command ships beside them:
+A `rainlytics` command ships beside them, and answers the questions people
+ask most without any SQL:
 
 ```bash
-npx @kensio/rainlytics query "SELECT cs_uri_stem, count(*) AS views
-  FROM cloudfront_logs
-  WHERE year = '2026' AND month = '08' AND day = '27'
-  GROUP BY 1 ORDER BY 2 DESC LIMIT 5"
+npx @kensio/rainlytics pageviews --last 7d
 ```
+
+```text
+path         views
+-----------  -----
+/              412
+/liju/         208
+/grammar/       97
+```
+
+`referrers`, `status-codes` and `cache-hit-ratio` are the other three, and
+`query` takes SQL for anything else. Crawlers are left out by default, which
+on the reference site is 39% of the traffic in a typical hour.
 
 It authenticates through the AWS SDK's default credential chain and writes
 JSON, CSV or a table, defaulting to the table at a terminal and to JSON when
 it is piped. What each query scanned and what that came to goes to standard
 error, so a pipeline reads rows and a person still sees the price. See the
-[command line](docs/command-line/) and [query](docs/query/) pages.
+[command line](docs/command-line/), [rollups](docs/rollups/) and
+[query](docs/query/) pages.
 
 ## Status
 

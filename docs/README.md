@@ -13,8 +13,10 @@ runs on every `pnpm check`.
 - [Log delivery](log-delivery/), which points a distribution at that bucket.
 - [Log table](log-table/), the Glue table Athena reads what landed there.
 - [Query workgroup](query-workgroup/), which bounds what one query can scan and cost.
+- [Rollup queries](rollups/#the-same-sql-saved-in-the-console), the same SQL saved in Athena.
 
 ## Reading the data back
 
 - [Command line](command-line/), the `rainlytics` command and what it writes.
+- [Rollups](rollups/), the four named questions and what each one counts.
 - [Query](query/), running SQL against the log table with `rainlytics query`.

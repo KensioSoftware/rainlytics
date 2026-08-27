@@ -13,8 +13,8 @@ dependencies of this package, and an install that only wants the command line sk
 `--help` on the root command and on every subcommand is the documentation. A reader should find
 everything there, and this page repeats it for people reading the site.
 
-One command so far. [`query`](../query/) takes SQL and runs it against the log table. The rest of
-this page is what every command shares.
+Five commands. Four of them answer a named question, and [`query`](../query/) takes SQL for
+everything else. The rest of this page is what all of them share.
 
 ## Why a command line
 
@@ -105,12 +105,13 @@ rainlytics --output csv <command>     # refused, with that sentence
 
 ## What it can do today
 
-Run SQL, with [`rainlytics query`](../query/). That is the whole of reading the data back by hand,
-and it is enough to answer any question the log table holds.
+Answer four named questions, with [`rainlytics pageviews`, `referrers`, `status-codes` and
+`cache-hit-ratio`](../rollups/), and run SQL for anything else with
+[`rainlytics query`](../query/).
 
-The named questions people actually ask, which answer without anybody writing SQL, arrive with
-[#24](https://github.com/KensioSoftware/rainlytics/issues/24). Each of those reads a precomputed
-summary off S3 rather than querying, so the answer costs a GET.
+Every one of them reads Athena today. When the scheduled rollups land, the four named ones read a
+precomputed summary off S3 instead and each answer costs a GET. The commands and their options stay
+where they are, so that swap is invisible from out here.
 
 Rainlytics is experimental and pre-1.0. The command surface will change without a major version
 behind it.
