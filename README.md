@@ -83,6 +83,18 @@ error, so a pipeline reads rows and a person still sees the price. See the
 [command line](docs/command-line/), [rollups](docs/rollups/),
 [searches](docs/searches/) and [query](docs/query/) pages.
 
+One more construct runs those questions on a schedule and writes each answer
+to S3:
+
+```typescript
+new RollupSummaries(this, "RainlyticsSummaries", { table, workgroup });
+```
+
+Each question is asked once per hour and once per day, on a lag long enough
+for CloudFront to have delivered the window. Reading an answer back is then a
+GET rather than a query. See the [summary schedule](docs/summary-schedule/)
+and [rollup summaries](docs/summaries/) pages.
+
 ## Status
 
 Experimental and pre-1.0. The construct API changes without a major version

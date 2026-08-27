@@ -3,9 +3,13 @@
 // Shared by everything that builds an Athena client, because they all have
 // the same problem to report. Athena names what it could not find and never
 // where it looked.
+//
+// The region matters most to whoever reads the failure. A person at a
+// terminal has a profile they can change, and a scheduled job has a stack
+// somebody deployed to one region and a table in another.
 
 import type { AthenaClient } from "./athena-outcome.js";
-import { messageOf } from "./failure.js";
+import { messageOf } from "../thrown-message.js";
 
 /**
  * The region the client settled on, where it settled on one.

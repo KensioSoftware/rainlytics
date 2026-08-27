@@ -1,0 +1,28 @@
+{
+  // The second compilation of `src`, as CommonJS, for the Lambda function
+  // `RollupSummaries` deploys. The package itself is ES modules, and a Lambda
+  // deployment package of those needs a `package.json` inside the archive to
+  // say so. A CommonJS build needs nothing beside it, and it is what the
+  // simulator in the tests can load.
+  //
+  // The CDK constructs and the command line are left out. Neither is reachable
+  // from a handler, and `aws-cdk-lib` is a peer dependency the function's
+  // runtime does not have.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist/lambda",
+    "module": "CommonJS",
+    "moduleResolution": "Bundler",
+    // ES import syntax compiled to `require`, which is the whole point of
+    // this configuration and what `verbatimModuleSyntax` exists to forbid.
+    "verbatimModuleSyntax": false,
+    // A deployment package is loaded and never navigated. Declarations and
+    // maps would be bytes in every cold start for nobody's benefit.
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false
+  },
+  "include": ["src/**/*"],
+  "exclude": ["src/cdk", "src/cli", "test", "**/*.test.ts", "**/*.spec.ts"]
+}

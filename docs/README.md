@@ -14,6 +14,8 @@ runs on every `pnpm check`.
 - [Log table](log-table/), the Glue table Athena reads what landed there.
 - [Query workgroup](query-workgroup/), which bounds what one query can scan and cost.
 - [Rollup queries](rollups/#the-same-sql-saved-in-the-console), the same SQL saved in Athena.
+- [Summary schedule](summary-schedule/), which computes the questions on a timer and stores the
+  answers.
 
 ## Reading the data back
 

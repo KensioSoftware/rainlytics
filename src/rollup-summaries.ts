@@ -13,8 +13,9 @@
 // The window a summary covers is in `summary-windows.ts`, with the reason
 // every stored window is UTC.
 //
-// Nothing here computes, writes, schedules or fetches a summary.
-// KensioSoftware/rainlytics#55 does the first three and #56 the last.
+// Nothing here computes, writes, schedules or fetches a summary. The
+// `RollupSummaries` construct does the first three and
+// KensioSoftware/rainlytics#56 the last.
 
 import { assertRollupName, type RollupRequest } from "./rollups.js";
 import {

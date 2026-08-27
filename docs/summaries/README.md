@@ -6,8 +6,7 @@ Every named question runs Athena today, and Athena prices per query. Asking the 
 pays twice. A summary is one question answered over one window, written once and read as many times
 as anybody looks.
 
-This page is the schema. Nothing computes or reads one yet.
-[#55](https://github.com/KensioSoftware/rainlytics/issues/55) writes them on a schedule and
+This page is the schema. The [summary schedule](../summary-schedule/) construct writes these, and
 [#56](https://github.com/KensioSoftware/rainlytics/issues/56) makes the commands read them.
 
 ## The document
@@ -91,9 +90,9 @@ Only the question's name reaches the key. Two narrowings of one question are two
 two names, the way `RollupQueries` [saves one named query per rollup
 name](../rollups/#the-same-sql-saved-in-the-console). A site that wants pageviews for one section as
 well as for the whole of it [writes a rollup of its own](../rollups/#writing-a-rollup-of-your-own)
-and gives it a name. Two questions scheduled under one name would overwrite each other, and #55 can
-refuse that pair at synthesis the way `RollupQueries` refuses two rollups saved under one name. The
-narrowing in the document is what catches it afterwards.
+and gives it a name. Two questions scheduled under one name would overwrite each other, and
+`RollupSummaries` refuses that pair at synthesis. The narrowing in the document is what catches it
+afterwards.
 
 Keys sort into the order the windows happened. The newest summary is the last one in a listing of
 the prefix above it. No reader parses a key. The dates in it are UTC, and the document carries the
@@ -124,7 +123,8 @@ one that every measure in a summary is true over.
 The cost of storing both is one Athena query per window per question. Athena bills a ten million byte
 minimum whatever a query reads, and 25 queries a day comes to about four cents a month for one
 question. Five questions on both cadences is 45,625 objects a year, about $0.23 of PUTs and a
-rounding error of storage. The [query](../query/) page has where the per-query figure comes from.
+rounding error of storage. The [query](../query/) page has where the per-query figure comes from, and
+the [summary schedule](../summary-schedule/) page has what recomputing a trailing window adds.
 
 ## Every window is UTC
 
@@ -221,15 +221,10 @@ be reached. #74 decides where the salt lives.
 
 ## What is still to come
 
-[#55](https://github.com/KensioSoftware/rainlytics/issues/55) is the construct that computes these on
-a schedule, on a lag long enough for CloudFront to have delivered the hour. Delivery took under six
-minutes across 200,074 records in
-[#9](https://github.com/KensioSoftware/rainlytics/issues/9), and a run that treated an hour as closed
-the moment it ended would drop the tail of every one of them.
 [#56](https://github.com/KensioSoftware/rainlytics/issues/56) makes `rainlytics pageviews --last 7d`
-read a summary, and says what a command does with a range no stored window covers.
-
-Until both land, the [rollup commands](../rollups/) query Athena and report what that cost.
+read a summary, and says what a command does with a range no stored window covers. Until it lands,
+the [rollup commands](../rollups/) query Athena and report what that cost, whether or not a summary
+of the same window is already sitting in the bucket.
 
 <!-- card
 ```json

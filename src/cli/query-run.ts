@@ -6,8 +6,8 @@
 // command answers with. Three copies of that would drift, and the way they
 // drift is one command reporting a price and another quietly not.
 
-import { runAthenaQuery } from "./athena-query.js";
-import type { AthenaQuery } from "./athena-outcome.js";
+import { runAthenaQuery } from "../athena/athena-query.js";
+import type { AthenaQuery } from "../athena/athena-outcome.js";
 import type { UsageError } from "./failure.js";
 import type { CliIo } from "./io.js";
 import type { CommandResult } from "./output/result.js";

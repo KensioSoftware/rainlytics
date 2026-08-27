@@ -20,12 +20,15 @@ export {
   botUserAgentPattern,
   currentMonth,
   matchedPath,
+  partitionPredicate,
   type Rollup,
   type RollupRange,
   type RollupRequest,
   rollupRequest,
   rollupSql,
   rowsFor,
+  summarisedWindow,
+  windowPlaceholder,
 } from "./rollups.js";
 export {
   neverComputed,
@@ -45,6 +48,12 @@ export {
   summarySpan,
   type SummaryWindow,
 } from "./summary-windows.js";
+export {
+  defaultRecomputedWindows,
+  recomputedWindows,
+  windowedSql,
+  windowRange,
+} from "./summary-runs.js";
 export { decodedColumn, decodedParameter } from "./log-encoding.js";
 export {
   lastRange,

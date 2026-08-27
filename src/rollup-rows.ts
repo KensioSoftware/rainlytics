@@ -16,9 +16,14 @@
 // filter under it hold one definition of a prefix match between them.
 
 import { decodedColumn } from "./log-encoding.js";
-import { botUserAgentPattern, currentMonth } from "./rollups.js";
+import {
+  botUserAgentPattern,
+  currentMonth,
+  summarisedWindow,
+} from "./rollups.js";
 import type { RollupRequest } from "./rollups.js";
 import { quoted } from "./sql-text.js";
+import type { TimeRange } from "./time-range.js";
 import { partitionValuesCovering } from "./time-range.js";
 
 /**
@@ -41,7 +46,41 @@ export function rowsFor(
   request: RollupRequest,
   extra: readonly string[] = [],
 ): string {
-  return ["  WHERE ", conditions(request, extra).join("\n    AND ")].join("");
+  return ["  WHERE ", joined(conditions(request, extra))].join("");
+}
+
+/**
+ * What one query written for the {@link summarisedWindow} range carries where
+ * its partition predicate goes.
+ *
+ * Invalid SQL, deliberately. A template that reached Athena with this still in
+ * it would be refused before it read anything. The alternative shapes all
+ * parse: a comment would take the rest of the line with it, and a bare `TRUE`
+ * would run and read every partition the table projects.
+ *
+ * The `${...}` shape is Athena's own, being what a table's
+ * `storage.location.template` writes where a partition value goes.
+ */
+// oxlint-disable-next-line eslint/no-template-curly-in-string
+export const windowPlaceholder = "${rainlytics_window}";
+
+/**
+ * The rows one span reads, as the conditions {@link rowsFor} would write for
+ * it.
+ *
+ * Written out here so that a query built for the {@link summarisedWindow}
+ * range and filled in later says exactly what a query built for the span
+ * directly says. The two are the same text from the same builder, and a
+ * scheduled summary and a `rainlytics --last` run counting the same hour
+ * count it the same way.
+ */
+export function partitionPredicate(range: TimeRange): string {
+  return joined(coveringRange(range));
+}
+
+/** How the conditions of a `WHERE` clause are laid out under each other. */
+function joined(conditions: readonly string[]): string {
+  return conditions.join("\n    AND ");
 }
 
 /**
@@ -169,7 +208,9 @@ function startingWith(path: string): string {
  * A range asked for by date becomes explicit partition values, which is the
  * only form certain to prune. A range left open becomes the current month,
  * written with Athena's own date functions so that a saved copy of the query
- * goes on working without a date baked into it.
+ * goes on working without a date baked into it. A query built for a window
+ * the job has yet to reach becomes {@link windowPlaceholder}, and
+ * `windowedSql` fills it in when the run happens.
  *
  * The timestamp condition after them is what makes the answer exact. The
  * partition values are a cross product, so a week spanning a month boundary
@@ -184,12 +225,21 @@ function partitionsOf(request: RollupRequest): readonly string[] {
     ];
   }
 
+  if (request.range === summarisedWindow) {
+    return [windowPlaceholder];
+  }
+
+  return coveringRange(request.range);
+}
+
+/** The partition values and the exact span, for a range given by date. */
+function coveringRange(range: TimeRange): readonly string[] {
   return [
-    ...partitionValuesCovering(request.range).map(
+    ...partitionValuesCovering(range).map(
       (key) => `${key.name} IN (${key.values.map(quoted).join(", ")})`,
     ),
     `cast(timestamp_ms AS bigint)` +
-      ` BETWEEN ${String(request.range.from.getTime())}` +
-      ` AND ${String(request.range.to.getTime())}`,
+      ` BETWEEN ${String(range.from.getTime())}` +
+      ` AND ${String(range.to.getTime())}`,
   ];
 }

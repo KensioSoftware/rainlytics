@@ -1,12 +1,18 @@
 // Running one query through Athena and waiting for it to finish.
 //
+// Two halves of the package send queries. The `rainlytics` command runs one
+// somebody typed, and the scheduled rollup job runs one a schedule fired. The
+// lifecycle is the same either way, and a second copy of the polling and the
+// paging would drift.
+//
 // The SDK is loaded when a query is actually run, not when this module is
 // imported. Two reasons, and the second is the one that would break a
 // release. `rainlytics --help` should not pay to load a client it will never
 // send with. And `scripts/sh/pack-check.sh` runs the packed CLI out of a
 // tarball with no node_modules anywhere above it, so a static import here
 // would turn `--help` into a "Cannot find module" for the check whose whole
-// job is to catch that.
+// job is to catch that. A Lambda runtime provides the SDK the same way, and
+// the deployment package carries none of it.
 
 import type * as Athena from "@aws-sdk/client-athena";
 

@@ -4,6 +4,7 @@
 // whatever went to standard error, and both are worth spending a little care
 // on.
 
+import { messageOf } from "../thrown-message.js";
 import type { CliIo } from "./io.js";
 
 /**
@@ -48,17 +49,6 @@ export class UsageError extends Error {
     this.name = "UsageError";
     this.helpFor = helpFor;
   }
-}
-
-/**
- * What something thrown said.
- *
- * Anything at all can be thrown, and the SDKs and the runtime between them
- * throw plenty besides an `Error`. This is the one place that turns whatever
- * arrived into a sentence.
- */
-export function messageOf(thrown: unknown): string {
-  return thrown instanceof Error ? thrown.message : String(thrown);
 }
 
 /** Writes a failure to standard error and answers with its exit code. */

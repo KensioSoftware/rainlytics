@@ -27,6 +27,13 @@ export {
   type RollupQueriesProps,
   type SavedRollupRequest,
 } from "./rollup-queries.js";
+export { RollupSummaries } from "./rollup-summaries.js";
+export type { RollupSummariesProps } from "./summary-configuration.js";
+export {
+  type SummariesBucket,
+  type SummaryBucketProps,
+} from "./summary-bucket.js";
+export { defaultSummaryLag } from "./summary-lag.js";
 export { type LogTableFormat, logTableFormat } from "./log-table-format.js";
 export { defaultLogRetention, defaultRecoveryWindow } from "./log-lifecycle.js";
 export { requireStackRegion } from "./stack-region.js";
