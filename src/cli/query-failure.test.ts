@@ -1,7 +1,7 @@
 import { faker } from "@faker-js/faker";
 import { describe, expect, it } from "vitest";
 
-import { queryFailure } from "./query-command.js";
+import { queryFailure } from "./query-run.js";
 
 describe("explaining a query Athena would not finish", () => {
   it("says what to do about the workgroup's cutoff", () => {

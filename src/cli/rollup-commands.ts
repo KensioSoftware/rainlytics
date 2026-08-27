@@ -12,13 +12,11 @@
 
 import type { Rollup } from "../rollups.js";
 import { rollupSql } from "../rollups.js";
-import { runAthenaQuery } from "./athena-query.js";
 import type { Command, CommandContext } from "./command.js";
 import type { CommandResult } from "./output/result.js";
 import { rollupOptions } from "./rollup-command-options.js";
 import { requestFrom } from "./rollup-options.js";
-import { queryFailure } from "./query-command.js";
-import { scanReport, whereItRan } from "./query-report.js";
+import { queryRows } from "./query-run.js";
 
 /** Runs one rollup and answers with its rows. */
 async function runRollup(
@@ -26,31 +24,16 @@ async function runRollup(
   context: CommandContext,
 ): Promise<CommandResult> {
   const asked = requestFrom(context, rollup);
-  const outcome = await runAthenaQuery({
-    sql: rollupSql(rollup, asked.request),
-    database: asked.database,
-    workgroup: asked.workgroup,
-    region: asked.region,
-  });
-  const { workgroup } = asked;
 
-  context.io.error(whereItRan(outcome, workgroup));
-  context.io.error(
-    scanReport(
-      outcome.bytesScanned,
-      outcome.milliseconds,
-      outcome.state !== "FAILED",
-    ),
+  return queryRows(
+    {
+      sql: rollupSql(rollup, asked.request),
+      database: asked.database,
+      workgroup: asked.workgroup,
+      region: asked.region,
+    },
+    context.io,
   );
-
-  if (outcome.state !== "SUCCEEDED") {
-    throw queryFailure(outcome.stateChangeReason, workgroup);
-  }
-
-  return {
-    columns: outcome.columns.map((column) => column.name),
-    rows: outcome.rows,
-  };
 }
 
 /** One rollup as a subcommand. */
