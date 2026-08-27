@@ -204,6 +204,32 @@ describe("the named questions", () => {
     ]);
   });
 
+  it("reads a path back out of CloudFront's encoding", async () => {
+    // Given two views of a page whose address holds characters outside
+    // ASCII, delivered the way CloudFront delivers one. The browser encodes
+    // 好 as `%E5%A5%BD` and CloudFront encodes that again, so the log holds
+    // `%25E5%25A5%25BD`.
+    const deployed = await deployAnalytics();
+    const encoded = "/words/%25E5%25A5%25BD/";
+
+    await putDelivered(deployed, rightNow, [
+      aRecord(rightNow, { "cs-uri-stem": encoded }),
+      aRecord(rightNow, { "cs-uri-stem": encoded }),
+      aRecord(rightNow, { "cs-uri-stem": "/words/%25E4%25BA%25BA/" }),
+    ]);
+
+    // When the pageviews are counted.
+    const run = await cli(["pageviews", "--last", "24h"]);
+
+    // Then the address reads as the reader would recognise it. One pass
+    // would answer `/words/%E5%A5%BD/`, which is the URI the browser sent
+    // and is no more readable than the record.
+    expect(run.rows).toStrictEqual([
+      { path: "/words/好/", views: "2" },
+      { path: "/words/人/", views: "1" },
+    ]);
+  });
+
   it("counts where people arrived from, and leaves this site out", async () => {
     // Given the same hour, in which one person arrived from Google and one
     // moved between two pages of this site.

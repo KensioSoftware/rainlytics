@@ -103,6 +103,26 @@ describe("the SQL a rollup runs", () => {
     expect(sql).toContain("sc_status IN ('200', '304')");
   });
 
+  it("reads CloudFront's encoding back off the path", () => {
+    // Given the pageviews rollup.
+    const sql = sqlFor("pageviews");
+
+    // Then the path is decoded twice, which is what CloudFront encoded it.
+    // One pass answers the URI as the browser sent it, which is the shape
+    // this reads like when it is half done.
+    expect(sql).toContain("url_decode(url_decode(cs_uri_stem)) AS path");
+  });
+
+  it("leaves the other rollups' columns as they were delivered", () => {
+    // Given the three rollups that read no path.
+    // Then none of them decodes anything. The referrer is read for its host,
+    // which is ASCII whatever the rest of the URL holds, and a status code
+    // and a result type carry no encoding at all.
+    expect(sqlFor("referrers")).not.toContain("url_decode");
+    expect(sqlFor("status-codes")).not.toContain("url_decode");
+    expect(sqlFor("cache-hit-ratio")).not.toContain("url_decode");
+  });
+
   it("leaves this site out of its own referrers", () => {
     // Given the referrers rollup.
     const sql = sqlFor("referrers");
