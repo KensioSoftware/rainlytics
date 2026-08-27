@@ -32,15 +32,26 @@ rainlytics searches --path /search/ --last 30d
 rainlytics searches --path /tools/convert/ --param hanzi --last 30d
 ```
 
-A site with two search boxes gives `--path` once for each, and the terms from both are counted
-together:
+A site with two search boxes gives `--path` once for each, and every row names the box it came from:
 
 ```bash
 rainlytics searches --path /words/search/ --path /sentences/search/ --last 30d
 ```
 
-Two runs would answer two questions, and adding those answers up by hand is the arithmetic the
-command was there to do.
+```text
+term      section             searches  redirected
+--------  ------------------  --------  ----------
+happy     /words/search/            41          38
+happy     /sentences/search/        12           0
+```
+
+Two corpora give two answers to the same word. The `section` column names the box a row came from,
+written out of the same test that let the row in. Where two of the prefixes overlap (`/guides/`
+given alongside `/guides/advanced/`) a row reports the first of them given, and every row is in
+exactly one section.
+
+One `--path` leaves the column out, since every row would carry the same value. One run still reads
+both boxes for one query's money, where two runs would be two questions and two bills.
 
 `--param` names the parameter carrying the term and defaults to `q`. One site can hold several, and
 each is its own question. Everything else the rollups take works here too, `--host`, `--limit` and

@@ -9,7 +9,7 @@
 import { qualifiedTableName } from "./dataset.js";
 import { decodedColumn, decodedParameter } from "./log-encoding.js";
 import type { Rollup, RollupRequest } from "./rollups.js";
-import { rowsFor } from "./rollups.js";
+import { matchedPath, rowsFor } from "./rollups.js";
 
 /** The `text/html` responses a person actually looked at. */
 const aPageView = [
@@ -158,6 +158,36 @@ One row, so \`--limit\` does nothing here.`,
 const searchTerm = (request: RollupRequest): string =>
   decodedParameter(request.param);
 
+/** The lines a search rollup varies with the pages it was asked about. */
+interface SearchShape {
+  /** The column naming the page a row came from, where there is one. */
+  readonly section: readonly string[];
+
+  /** What the answer is grouped by and ordered on. */
+  readonly order: readonly string[];
+}
+
+/**
+ * What a search rollup selects and groups by, given the pages it covers.
+ *
+ * Several pages get a column naming the one each row came from, and the count
+ * is then per term per page. One page has one answer, and a column repeating
+ * it down the table tells the reader what they typed. The ordinals move along
+ * by the column in front of them.
+ *
+ * {@link matchedPath} writes that column out of the same prefix tests the
+ * filter under it is built from. A copy of the expression here would be a
+ * second statement of what a prefix match is, and the drift shows up as a
+ * column disagreeing with the rows beside it.
+ */
+const searchShape = (request: RollupRequest): SearchShape =>
+  (request.paths ?? []).length > 1
+    ? {
+        section: [`  ${matchedPath(request)} AS section,`],
+        order: ["  GROUP BY 1, 2", "  ORDER BY 3 DESC, 1, 2"],
+      }
+    : { section: [], order: ["  GROUP BY 1", rankedOrder] };
+
 /** What people typed into a search box, most typed first. */
 export const searches: Rollup = {
   name: "searches",
@@ -178,10 +208,18 @@ defaults to \`q\`.
 
 \`redirected\` counts the searches that answered 3xx. A site that sends an
 exact match straight to its page can read that as the searches that found
-one, against the searches that only produced a list.`,
-  body: (request) =>
-    [
+one, against the searches that only produced a list.
+
+Give \`--path\` twice and every row names its own page in a \`section\`
+column. Two search boxes are then one answer that says which box each term
+was typed into. One \`--path\` leaves the column out, since every row would
+carry the same value.`,
+  body: (request) => {
+    const shape = searchShape(request);
+
+    return [
       `SELECT ${searchTerm(request)} AS term,`,
+      ...shape.section,
       "  count(*) AS searches,",
       `  ${counted("sc_status LIKE '3%'")} AS redirected`,
       `  FROM ${qualifiedTableName(request.dataset)}`,
@@ -190,10 +228,10 @@ one, against the searches that only produced a list.`,
         `cs_uri_query <> ${empty}`,
         `${searchTerm(request)} <> ''`,
       ]),
-      "  GROUP BY 1",
-      rankedOrder,
+      ...shape.order,
       limitOf(request),
-    ].join("\n"),
+    ].join("\n");
+  },
 };
 
 /** Every question the command line answers without any SQL. */

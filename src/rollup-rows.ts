@@ -10,6 +10,10 @@
 // written the way Rainlytics writes them, and a hand-written copy is a second
 // statement of both rules. `rowsFor` is exported from the package root for
 // that.
+//
+// `matchedPath` goes out beside it and names which of the paths a row began
+// with. It reads the prefix tests the filter writes, so the column and the
+// filter under it hold one definition of a prefix match between them.
 
 import { decodedColumn } from "./log-encoding.js";
 import { botUserAgentPattern, currentMonth } from "./rollups.js";
@@ -38,6 +42,60 @@ export function rowsFor(
   extra: readonly string[] = [],
 ): string {
   return ["  WHERE ", conditions(request, extra).join("\n    AND ")].join("");
+}
+
+/**
+ * Which of the paths a request narrowed to a row began with, as an expression.
+ *
+ * A rollup given several paths counts them together, and a row carrying a term
+ * and a count says nothing about which of them produced it. Two search boxes
+ * give two answers to the same word. Select this beside the count and each row
+ * names the box it came from:
+ *
+ * ```typescript
+ * `SELECT ${decodedParameter(request.param)} AS term,\n` +
+ *   `  ${matchedPath(request)} AS section, count(*) AS searches`;
+ * ```
+ *
+ * ```text
+ * term    section             searches
+ * ------  ------------------  --------
+ * happy   /words/search/            41
+ * happy   /sentences/search/        12
+ * ```
+ *
+ * It is a `CASE` over the prefix tests {@link rowsFor} filters with, branch by
+ * branch in the order the request gave them. Where two of the paths overlap
+ * the first one given wins. `/guides/` alongside `/guides/advanced/` reports a
+ * row under the second as `/guides/`, and every row is in exactly one of them.
+ *
+ * One path is that path, written as a literal. Every row counted began with it,
+ * and a `CASE` there asks a question with one answer. A rollup selects this
+ * however many paths it was given and gets a column true of every row either
+ * way.
+ *
+ * No paths at all is `NULL`, cast so the column still comes back as text. The
+ * whole distribution was counted and no prefix matched. An empty string would
+ * claim a prefix nobody asked for, and Athena types an uncast `NULL` as
+ * unknown.
+ */
+export function matchedPath(request: RollupRequest): string {
+  const paths = request.paths ?? [];
+  const [first] = paths;
+
+  if (first === undefined) {
+    return "CAST(NULL AS varchar)";
+  }
+
+  if (paths.length === 1) {
+    return quoted(first);
+  }
+
+  const branches = paths.map(
+    (path) => `WHEN ${startingWith(path)} THEN ${quoted(path)}`,
+  );
+
+  return `CASE ${branches.join(" ")} END`;
 }
 
 function conditions(
@@ -95,13 +153,14 @@ function startingWithAny(paths: readonly string[]): readonly string[] {
     return [];
   }
 
-  const anyOf = paths
-    .map(
-      (path) => `strpos(${decodedColumn("cs_uri_stem")}, ${quoted(path)}) = 1`,
-    )
-    .join(" OR ");
+  const anyOf = paths.map((path) => startingWith(path)).join(" OR ");
 
   return [paths.length === 1 ? anyOf : `(${anyOf})`];
+}
+
+/** A row whose decoded path begins with one prefix. */
+function startingWith(path: string): string {
+  return `strpos(${decodedColumn("cs_uri_stem")}, ${quoted(path)}) = 1`;
 }
 
 /**

@@ -206,6 +206,10 @@ describe("the rollups saved in Athena", () => {
     expect(search?.description).toContain(`under ${words} or ${sentences}`);
     expect(search?.queryString).toContain(quoted(words));
     expect(search?.queryString).toContain(quoted(sentences));
+
+    // And the saved SQL says which of them each row came from, the way the
+    // command does.
+    expect(search?.queryString).toContain("AS section");
   });
 
   it("names the parameter a search reads even where nobody chose one", async () => {
