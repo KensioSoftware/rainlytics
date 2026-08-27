@@ -4,6 +4,7 @@ import type { CliIo } from "./io.js";
 import type { OptionValues } from "./command-line.js";
 import type { CliOption } from "./option.js";
 import type { CommandResult } from "./output/result.js";
+import { queryCommand } from "./query-command.js";
 
 /** What a command is handed when it runs. */
 export interface CommandContext {
@@ -53,9 +54,9 @@ export interface Command {
 /**
  * The commands `rainlytics` ships with.
  *
- * Empty. This release is the command line itself, being the argument parsing,
- * the output formats, the help and the exit codes. Reading data back is
- * https://github.com/KensioSoftware/rainlytics/issues/23 and the named
- * questions are #24.
+ * One so far. `query` takes SQL and runs it, which is the whole of reading
+ * the data back by hand. The named questions people actually ask, which
+ * answer without anybody writing SQL, are
+ * https://github.com/KensioSoftware/rainlytics/issues/24.
  */
-export const rainlyticsCommands: readonly Command[] = [];
+export const rainlyticsCommands: readonly Command[] = [queryCommand];

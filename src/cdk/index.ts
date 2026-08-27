@@ -19,7 +19,6 @@ export {
   assertUsableCutoff,
   defaultBytesScannedCutoff,
   defaultResultsRetention,
-  dollarsPerTerabyteScanned,
   smallestBytesScannedCutoff,
 } from "./query-cost.js";
 export { QueryWorkgroup, type QueryWorkgroupProps } from "./query-workgroup.js";

@@ -8,29 +8,20 @@
 
 import { Duration, Size } from "aws-cdk-lib/core";
 
-/**
- * What Athena charges for a query, per byte scanned.
- *
- * $5.00 per terabyte in us-east-1, read from the AWS Pricing API on
- * 2026-08-27 (`AmazonAthena`, `USE1-DataScannedInTB`, effective 2026-03-01).
- * Other regions differ, and this is here to make the arithmetic below
- * checkable rather than to price anybody's bill.
- */
-export const dollarsPerTerabyteScanned = 5;
+import { bytesBilledMinimum } from "../athena-pricing.js";
 
 /**
  * The smallest cutoff Athena accepts, which is also its minimum billing unit.
  *
- * The same Pricing API entry describes the charge as "total data scanned per
- * query with a minimum 10MB for each successful or cancelled queries". Every
- * query therefore bills for at least this much whatever it reads, and Athena
- * refuses a workgroup cutoff below it.
+ * Every query bills for at least this much whatever it reads, so Athena
+ * refuses a workgroup cutoff below it. `athena-pricing.ts` has where the
+ * figure comes from, and the command line prices a query with the same one.
  *
  * Ten million bytes rather than ten mebibytes. AWS writes the floor as 10MB
  * and a cutoff between the two spellings is legal, so the check uses the
  * lower one and refuses nothing Athena would take.
  */
-export const smallestBytesScannedCutoff = Size.bytes(10_000_000);
+export const smallestBytesScannedCutoff = Size.bytes(bytesBilledMinimum);
 
 /**
  * How much one query may scan where nobody chooses otherwise.

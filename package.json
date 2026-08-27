@@ -94,5 +94,8 @@
   },
   "author": "Kensio Software",
   "license": "Apache-2.0",
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "@aws-sdk/client-athena": "^3.1118.0"
+  }
 }

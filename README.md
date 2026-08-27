@@ -56,17 +56,20 @@ delivery can be configured from. See the [log bucket](docs/log-bucket/), [log
 delivery](docs/log-delivery/), [log table](docs/log-table/) and [query
 workgroup](docs/query-workgroup/) pages.
 
-A `rainlytics` command ships beside them, and runs with nothing else
-installed:
+A `rainlytics` command ships beside them:
 
 ```bash
-npx @kensio/rainlytics --help
+npx @kensio/rainlytics query "SELECT cs_uri_stem, count(*) AS views
+  FROM cloudfront_logs
+  WHERE year = '2026' AND month = '08' AND day = '27'
+  GROUP BY 1 ORDER BY 2 DESC LIMIT 5"
 ```
 
 It authenticates through the AWS SDK's default credential chain and writes
 JSON, CSV or a table, defaulting to the table at a terminal and to JSON when
-it is piped. So far it explains itself and little else, and querying arrives
-next. See the [command line](docs/command-line/) page.
+it is piped. What each query scanned and what that came to goes to standard
+error, so a pipeline reads rows and a person still sees the price. See the
+[command line](docs/command-line/) and [query](docs/query/) pages.
 
 ## Status
 

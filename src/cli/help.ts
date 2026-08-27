@@ -13,7 +13,13 @@ import {
   readingOneCommand,
 } from "./help-text.js";
 import { type CliOption, commonOptions, rootOptions } from "./option.js";
-import { indent, indented, paragraph, twoColumn } from "./text-layout.js";
+import {
+  indent,
+  indented,
+  paragraph,
+  prose,
+  twoColumn,
+} from "./text-layout.js";
 
 /** How an option is spelled in help, as `-o, --output <format>`. */
 function flagsOf(option: CliOption): string {
@@ -69,7 +75,7 @@ export function commandHelp(command: Command): string {
   const sections = [
     `Usage:\n${indent}${usage}`,
     paragraph(command.summary),
-    paragraph(command.description),
+    prose(command.description),
     optionsSection([...commonOptions, ...(command.options ?? [])]),
     paragraph(footer),
   ];

@@ -92,6 +92,47 @@ describe("the help text", () => {
       expect(help).toContain(unwrapped(command.description));
     });
 
+    it("keeps an example in a description exactly as it was written", () => {
+      // Given a command whose description carries an example, indented the
+      // way a code block is.
+      const command = aCommand({
+        description: [
+          faker.lorem.paragraph(),
+          "",
+          '  rainlytics query "SELECT 1',
+          '    FROM cloudfront_logs"',
+          "",
+          faker.lorem.paragraph(),
+        ].join("\n"),
+      });
+
+      // When the help is written.
+      const help = commandHelp(command);
+
+      // Then the example's own line breaks survive. Wrapping it would join
+      // the lines into one, and an example somebody copies has to be the
+      // statement that runs.
+      expect(help).toContain(
+        '  rainlytics query "SELECT 1\n    FROM cloudfront_logs"',
+      );
+    });
+
+    it("keeps a description's paragraphs apart", () => {
+      // Given a description of two paragraphs, each short enough to wrap to
+      // one line so the shape of the output is unambiguous.
+      const command = aCommand({
+        description: "The first thing to know.\n\nThe second thing.",
+      });
+
+      // When the help is written.
+      const help = commandHelp(command);
+
+      // Then they arrive as two paragraphs. Wrapping the description as one
+      // block ran them together, which is what turned a list of points into
+      // a wall.
+      expect(help).toContain("The first thing to know.\n\nThe second thing.");
+    });
+
     it("shows how the command is typed", () => {
       // Given a command taking an argument, which says so itself.
       const usage = `rainlytics query "SELECT 1"`;
