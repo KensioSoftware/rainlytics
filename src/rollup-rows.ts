@@ -1,18 +1,20 @@
 // Which rows a rollup reads, as a `WHERE` clause.
 //
-// One builder for all four questions, because every one of them leaves out
-// the same automated traffic over the same partitions. A rollup that filtered
+// One builder for every question, because every one of them leaves out the
+// same automated traffic over the same partitions. A rollup that filtered
 // differently would answer a different question from its neighbours without
 // saying so.
 //
-// The same argument reaches past the four. A site with a question of its own
-// wants the partition predicate and the bot filter written the way Rainlytics
-// writes them, and a hand-written copy is a second statement of both rules.
-// `rowsFor` is exported from the package root for that.
+// The same argument reaches past the ones shipped here. A site with a
+// question of its own wants the partition predicate and the bot filter
+// written the way Rainlytics writes them, and a hand-written copy is a second
+// statement of both rules. `rowsFor` is exported from the package root for
+// that.
 
 import { decodedColumn } from "./log-encoding.js";
 import { botUserAgentPattern, currentMonth } from "./rollups.js";
 import type { RollupRequest } from "./rollups.js";
+import { quoted } from "./sql-text.js";
 import { partitionValuesCovering } from "./time-range.js";
 
 /**
@@ -113,9 +115,4 @@ function partitionsOf(request: RollupRequest): readonly string[] {
       ` BETWEEN ${String(request.range.from.getTime())}` +
       ` AND ${String(request.range.to.getTime())}`,
   ];
-}
-
-/** One value as SQL writes it, with any quote in it doubled. */
-export function quoted(value: string): string {
-  return `'${value.replaceAll("'", "''")}'`;
 }

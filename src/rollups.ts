@@ -190,4 +190,5 @@ export function assertRollupName(name: string): void {
   }
 }
 
-export { quoted, rowsFor } from "./rollup-rows.js";
+export { rowsFor } from "./rollup-rows.js";
+export { quoted } from "./sql-text.js";
