@@ -291,6 +291,46 @@ describe("the rollups saved in Athena", () => {
     );
   });
 
+  it("saves a site's own version of a question it ships", async () => {
+    // Given a site whose searches answer differently from the shipped
+    // question, under the name the subcommand already has.
+    const ownSearches: Rollup = {
+      ...searches,
+      description: "Counts the terms this site's own box was typed into.",
+      body: (request) =>
+        ["SELECT 1 AS term, count(*) AS searches", rowsFor(request)].join("\n"),
+    };
+
+    // When it is saved in place of the shipped one.
+    const saved = await deployRollups({
+      rollups: [
+        ...rollups.filter((rollup) => rollup.name !== "searches"),
+        ownSearches,
+      ],
+    });
+
+    // Then `rainlytics-searches` is the site's own question, and there are
+    // still five. Replacing a built-in is the reason two rollups end up
+    // sharing a name, and leaving the built-in out is the way to do it.
+    const search = saved.find((query) => query.name === "rainlytics-searches");
+
+    expect(search?.queryString).toContain("count(*) AS searches");
+    expect(saved).toHaveLength(rollups.length);
+  });
+
+  it("refuses two rollups saved under one name", async () => {
+    // Given a site passing its own version of a question beside the shipped
+    // one, rather than in place of it.
+    const both = [...rollups, { ...searches, isRanked: false }];
+
+    // Then synthesis fails, naming the rollup, the query the two would
+    // share and the way to replace a built-in. CDK refuses the repeated
+    // construct id on its own, under a message naming none of the three.
+    await expect(deployRollups({ rollups: both })).rejects.toThrow(
+      /"searches".+"rainlytics-searches".+rollup\.name !== "searches"/su,
+    );
+  });
+
   it("claims a command only where there is one", async () => {
     // Given a rollup the command line has no subcommand for.
     const nowhere: Rollup = {

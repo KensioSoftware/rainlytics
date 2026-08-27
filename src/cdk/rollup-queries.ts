@@ -11,6 +11,11 @@ import {
   rollupSql,
 } from "../rollups.js";
 import { assertAthenaLength, describing } from "./named-query-text.js";
+import {
+  assertOneQueryEach,
+  assertRequestedNames,
+  queryId,
+} from "./saved-query-names.js";
 import type { LogTable } from "./log-table.js";
 import type { QueryWorkgroup } from "./query-workgroup.js";
 
@@ -39,6 +44,19 @@ export interface RollupQueriesProps {
    *
    * A site with a rollup of its own passes `[...rollups, countries]` to save
    * that beside them. Passing a list of its own alone saves that alone.
+   *
+   * A site whose own version of a shipped question answers differently
+   * leaves the shipped one out:
+   *
+   * ```typescript
+   * rollups: [
+   *   ...rollups.filter((rollup) => rollup.name !== "searches"),
+   *   mySearches,
+   * ],
+   * ```
+   *
+   * Two rollups of one name are refused at synthesis, since one saved query
+   * cannot answer both.
    */
   readonly rollups?: readonly Rollup[] | undefined;
 
@@ -123,7 +141,8 @@ export class RollupQueries extends Construct {
 
     const saving = props.rollups ?? rollups;
 
-    assertRequestedNames(saving, props.requests);
+    assertOneQueryEach(saving);
+    assertRequestedNames(saving, Object.keys(props.requests ?? {}));
 
     this.queries = saving.map((rollup) => this.save(rollup, props));
   }
@@ -163,44 +182,4 @@ export class RollupQueries extends Construct {
 
     return query;
   }
-}
-
-/**
- * Refuses a request naming a rollup nothing here is saving.
- *
- * A key is a rollup name typed by hand. `searche` reaches no rollup, and the
- * saved query it was meant for goes on counting every query string on the
- * distribution. That is the failure this prop was added to end. It is caught
- * at synthesis, where somebody can still read the message.
- *
- * @throws {Error} naming the key and the rollups being saved.
- */
-function assertRequestedNames(
-  saving: readonly Rollup[],
-  requests: Readonly<Record<string, SavedRollupRequest>> | undefined,
-): void {
-  const saved = saving.map((rollup) => rollup.name);
-  const unknown = Object.keys(requests ?? {}).filter(
-    (name) => !saved.includes(name),
-  );
-
-  if (unknown.length > 0) {
-    throw new Error(
-      `No rollup being saved is called ${listed(unknown)}. The saved` +
-        ` queries here are for ${listed(saved)}.`,
-    );
-  }
-}
-
-/** Some names as a message quotes them. */
-function listed(names: readonly string[]): string {
-  return names.map((name) => `"${name}"`).join(", ");
-}
-
-/** A logical id for one saved query, in the case CDK expects. */
-function queryId(name: string): string {
-  return name
-    .split("-")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join("");
 }
