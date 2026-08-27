@@ -18,6 +18,7 @@ import type {
 } from "./athena-outcome.js";
 import { outcomeFrom } from "./athena-outcome.js";
 import { allResults } from "./athena-results.js";
+import { messageOf } from "./failure.js";
 
 /**
  * How long to wait before asking again whether a query has finished.
@@ -38,12 +39,19 @@ const pollBackoff = { first: 25, factor: 2, longest: 1000 };
  * A query that failed comes back described rather than thrown. What it
  * scanned on the way to failing is worth reporting, and the caller is what
  * knows how to explain the reason.
+ *
+ * The client is built for the region the query names, and left to the AWS
+ * SDK's default chain where it names none. Whichever answered comes back on
+ * the outcome, and on anything the client throws.
  */
 export async function runAthenaQuery(
   query: AthenaQuery,
 ): Promise<AthenaOutcome> {
   const athena: AthenaModule = await import("@aws-sdk/client-athena");
-  const client = new athena.AthenaClient({});
+  const client = new athena.AthenaClient(
+    query.region === undefined ? {} : { region: query.region },
+  );
+  const region = await resolvedRegion(client);
 
   try {
     const started = await client.send(
@@ -68,10 +76,57 @@ export async function runAthenaQuery(
       execution?.Status?.State === "SUCCEEDED"
         ? await allResults(client, athena, queryExecutionId)
         : { columns: [], rows: [] },
+      region,
     );
+  } catch (error) {
+    throw refusalIn(error, region);
   } finally {
     client.destroy();
   }
+}
+
+/**
+ * The region the client settled on, where it settled on one.
+ *
+ * Asked of the client rather than read off the command line. A run naming no
+ * region still has to know where it went, and the client is what knows what
+ * the chain answered.
+ *
+ * The chain reads `AWS_REGION`, the profile, or the instance the command runs
+ * on. A chain answering none of those leaves this undefined, and that case
+ * reports itself, since a client with no region refuses to send.
+ */
+async function resolvedRegion(
+  client: AthenaClient,
+): Promise<string | undefined> {
+  try {
+    return await client.config.region();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * What Athena refused, with the region it was asked in.
+ *
+ * Athena names what it could not find and never where it looked. A profile
+ * defaulting elsewhere is told `WorkGroup rainlytics is not found.` about a
+ * workgroup sitting in the region it meant, and the region is the missing
+ * half of that sentence.
+ *
+ * Every refusal gets it, rather than the ones whose wording says something
+ * was missing. Matching on a service's prose goes quiet the day the prose
+ * changes, and credentials, permissions and endpoint failures are all worth
+ * locating too.
+ */
+function refusalIn(thrown: unknown, region: string | undefined): Error {
+  const said = messageOf(thrown);
+
+  return new Error(
+    region === undefined
+      ? said
+      : `${said} Athena was asked in ${region}. Name another with --region.`,
+  );
 }
 
 /** Whether a query has stopped moving. */

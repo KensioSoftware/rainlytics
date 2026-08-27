@@ -531,6 +531,28 @@ describe("the named questions", () => {
     expect(run.error).toContain("not-a-workgroup");
   });
 
+  it("asks Athena in the region it was told to", async () => {
+    // Given a deployment in us-east-1, and a rollup asked for somewhere else.
+    const deployed = await deployAnalytics();
+    await anHourOfTraffic(deployed);
+
+    // When the region is named on a named question rather than on `query`.
+    const run = await cli([
+      "pageviews",
+      "--last",
+      "24h",
+      "--region",
+      "eu-west-1",
+    ]);
+
+    // Then it goes there, finds no workgroup, and says where it looked.
+    // Every command that reaches Athena takes the region, since the four
+    // named questions run the same way `query` does once the SQL is written.
+    expect(run.code).toBe(1);
+    expect(run.error).toContain("WorkGroup rainlytics is not found");
+    expect(run.error).toContain("Athena was asked in eu-west-1");
+  });
+
   it("refuses a span it cannot read", async () => {
     // Given a range nobody could act on.
     const run = await cli(["pageviews", "--last", "a fortnight"]);

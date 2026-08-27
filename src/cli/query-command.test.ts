@@ -394,6 +394,56 @@ describe("rainlytics query", () => {
     expect(run.error).toContain("query takes the SQL to run");
   });
 
+  it("asks Athena in the region it was told to", async () => {
+    // Given a deployment in us-east-1, which is where the workgroup and the
+    // table were created.
+    const deployed = await deployAnalytics();
+    await twoPageViews(deployed);
+
+    // When the same question is asked somewhere else.
+    const run = await cli(["query", anHourQuery, "--region", "eu-west-1"]);
+
+    // Then it is asked there rather than where the data is, and finds no
+    // workgroup. A region the client never received would have answered this
+    // question from us-east-1 and succeeded.
+    expect(run.code).toBe(1);
+    expect(run.error).toContain("WorkGroup rainlytics is not found");
+
+    // And the message says where it looked, which Athena's own never does.
+    // "Not found" about something sitting in the region you meant is the
+    // failure this names.
+    expect(run.error).toContain("Athena was asked in eu-west-1");
+  });
+
+  it("answers from the region the log bucket is in", async () => {
+    // Given the same deployment, and the region it went to.
+    const deployed = await deployAnalytics();
+    await twoPageViews(deployed);
+
+    // When the query names that region.
+    const run = await cli([
+      "query",
+      anHourQuery,
+      "--region",
+      "us-east-1",
+      "-o",
+      "json",
+    ]);
+
+    // Then the rows come back.
+    expect(run.code).toBe(0);
+    expect(JSON.parse(run.out)).toStrictEqual([
+      { cs_uri_stem: "/", views: "2" },
+      { cs_uri_stem: "/liju/", views: "1" },
+    ]);
+
+    // And the report says where it ran. A question answering zero rows can
+    // then be checked against where the data is.
+    expect(run.error).toMatch(
+      /Query \S+ ran in workgroup rainlytics in us-east-1\./u,
+    );
+  });
+
   it("runs in the workgroup it is told to", async () => {
     // Given a deployment whose workgroup was left at its default.
     const deployed = await deployAnalytics();

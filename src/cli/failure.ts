@@ -50,11 +50,20 @@ export class UsageError extends Error {
   }
 }
 
+/**
+ * What something thrown said.
+ *
+ * Anything at all can be thrown, and the SDKs and the runtime between them
+ * throw plenty besides an `Error`. This is the one place that turns whatever
+ * arrived into a sentence.
+ */
+export function messageOf(thrown: unknown): string {
+  return thrown instanceof Error ? thrown.message : String(thrown);
+}
+
 /** Writes a failure to standard error and answers with its exit code. */
 export function reportFailure(thrown: unknown, io: CliIo): number {
-  const message = thrown instanceof Error ? thrown.message : String(thrown);
-
-  io.error(`rainlytics: ${message}\n`);
+  io.error(`rainlytics: ${messageOf(thrown)}\n`);
 
   if (thrown instanceof UsageError) {
     const help =

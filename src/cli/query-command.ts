@@ -8,9 +8,10 @@ import type { CommandResult } from "./output/result.js";
 import {
   databaseOption,
   queryDescription,
+  regionOption,
   workgroupOption,
 } from "./query-help.js";
-import { scanReport } from "./query-report.js";
+import { scanReport, whereItRan } from "./query-report.js";
 
 /**
  * The SQL to run, as one argument.
@@ -84,11 +85,10 @@ async function run(context: CommandContext): Promise<CommandResult> {
     database:
       chosen(context.options["database"]) ?? defaultLogDataset.databaseName,
     workgroup,
+    region: chosen(context.options["region"]),
   });
 
-  context.io.error(
-    `Query ${outcome.queryExecutionId} ran in workgroup ${workgroup}.\n`,
-  );
+  context.io.error(whereItRan(outcome, workgroup));
   context.io.error(
     scanReport(
       outcome.bytesScanned,
@@ -113,6 +113,6 @@ export const queryCommand: Command = {
   summary: "Run SQL against the log table.",
   usage: 'rainlytics query "<sql>" [options]',
   description: queryDescription,
-  options: [databaseOption, workgroupOption],
+  options: [databaseOption, workgroupOption, regionOption],
   run,
 };
