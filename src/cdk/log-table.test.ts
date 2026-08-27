@@ -1,3 +1,5 @@
+import { gzipSync } from "node:zlib";
+
 import { faker } from "@faker-js/faker";
 import { Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
@@ -258,6 +260,46 @@ describe("the Glue table over delivered logs", () => {
     expect(oneHour).toBeLessThan(everything);
   });
 
+  it("reads back the records CloudFront actually delivered", async () => {
+    // Given an object written the way a delivery writes one: gzipped JSON
+    // lines, keyed by the Hive partition path, with CloudFront's own field
+    // names inside. These are the two spellings a Glue column cannot have,
+    // and the record carries them exactly as #9 read them off S3.
+    const deployed = await deployTable();
+    const [distributionId = ""] = deployed.distributionIds;
+    await putDelivered(deployed, distributionId, simStartedAt, [
+      {
+        "timestamp(ms)": "1787793822795",
+        "cs-uri-stem": "/liju/",
+        "cs(Referer)": "-",
+        "cs(User-Agent)": "Mozilla/5.0",
+        "c-country": "GB",
+      },
+    ]);
+    await enableQueryEngine(deployed);
+
+    // When a query selects those columns by the names the table declares.
+    const answered = await queryRows(
+      deployed,
+      `SELECT cs_uri_stem, cs_referer, cs_user_agent, c_country, hour` +
+        ` FROM ${table()} WHERE year = '2026' AND month = '08'` +
+        ` AND day = '23' AND hour = '09'`,
+    );
+
+    // Then the values come back. This is the whole table definition working
+    // at once: the SerDe reads a gzipped object, `mapping.cs_referer` finds
+    // `cs(Referer)` in the record, and the projection supplies the partition
+    // column from the prefix rather than from the data, since no delivered
+    // record carries the hour.
+    expect(answered.rows).toStrictEqual([
+      ["/liju/", "-", "Mozilla/5.0", "GB", "09"],
+    ]);
+
+    // And the query engine answered rather than a declaration this test
+    // wrote. Rows that a fixture happens to agree with look the same.
+    expect(answered.answeredBy).toBe("engine");
+  });
+
   it("prunes to one distribution where a bucket holds several", async () => {
     // Given two sites delivering into one bucket, which is what makes
     // `distributionid` the first partition key.
@@ -477,8 +519,32 @@ describe("the Glue table over delivered logs", () => {
     distributionId: string,
     at: Date,
     records: number,
+  ): Promise<number> =>
+    putDelivered(
+      deployed,
+      distributionId,
+      at,
+      Array.from({ length: records }, () => ({ "c-country": "GB" })),
+    );
+
+  /**
+   * One delivered object holding these records, written the way CloudFront
+   * writes one.
+   *
+   * Gzipped JSON lines under the delivery prefix and the Hive partition path,
+   * with CloudFront's own field names as the keys. Returns the object's size
+   * in bytes, which is what a query scanning it is billed for.
+   */
+  const putDelivered = async (
+    deployed: DeployedTable,
+    distributionId: string,
+    at: Date,
+    records: readonly Readonly<Record<string, string>>[],
   ): Promise<number> => {
-    const body = `{"c_country":"GB"}\n`.repeat(records);
+    const body = gzipSync(
+      records.map((record) => JSON.stringify(record)).join("\n"),
+    );
+
     await deployed.simAws
       .region("us-east-1")
       .account()
@@ -493,7 +559,72 @@ describe("the Glue table over delivered logs", () => {
         },
       });
 
-    return Buffer.byteLength(body);
+    return body.byteLength;
+  };
+
+  /**
+   * Turns the query engine on for this simulation.
+   *
+   * Off by default in Yulin, and it loads `node-sql-parser` when it goes on.
+   * Every other case here reads the catalog or measures a scan, neither of
+   * which runs a query, so this is asked for where it is wanted.
+   */
+  const enableQueryEngine = async (deployed: DeployedTable): Promise<void> => {
+    await deployed.simAws
+      .region("us-east-1")
+      .account()
+      .athena()
+      .engine()
+      .enable();
+  };
+
+  /**
+   * The rows one query answered with, and what answered it.
+   *
+   * The first row Athena returns is the column names, which is a header
+   * rather than data, so it is dropped here.
+   */
+  const queryRows = async (
+    deployed: DeployedTable,
+    queryString: string,
+  ): Promise<{
+    readonly rows: readonly (readonly (string | undefined)[])[];
+    readonly answeredBy: string | undefined;
+  }> => {
+    const athena = deployed.simAws.region("us-east-1").account().athena();
+    const started = await athena.startQueryExecution({
+      input: {
+        QueryString: queryString,
+        QueryExecutionContext: { Database: defaultLogDataset.databaseName },
+        ResultConfiguration: {
+          OutputLocation: `s3://${deployed.resultsBucketName}/queries/`,
+        },
+      },
+    });
+    await deployed.simAws.backgroundTasksComplete();
+
+    const id = started.QueryExecutionId ?? "";
+    const results = await athena.getQueryResults({
+      input: { QueryExecutionId: id },
+    });
+    const execution = athena
+      .queryExecutions()
+      .find((each) => each.queryExecutionId === id);
+
+    if (execution?.state !== "SUCCEEDED") {
+      throw new Error(
+        `The query did not succeed, so its rows prove nothing. ${
+          execution?.stateChangeReason ?? "No reason was given."
+        }`,
+      );
+    }
+
+    return {
+      rows: (results.ResultSet?.Rows ?? [])
+        .slice(1)
+        .map((row) => (row.Data ?? []).map((cell) => cell.VarCharValue)),
+      answeredBy: execution.answeredBy,
+    };
   };
 
   /**

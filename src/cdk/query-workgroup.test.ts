@@ -1,3 +1,5 @@
+import { gzipSync } from "node:zlib";
+
 import { faker } from "@faker-js/faker";
 import { Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
@@ -299,15 +301,20 @@ describe("the workgroup a Rainlytics query runs in", () => {
   };
 
   /**
-   * One delivered object of a given size, in the partition an instant belongs
-   * to. Returns its size in bytes.
+   * One delivered object of about a given size, in the partition an instant
+   * belongs to. Returns the size it actually landed at.
+   *
+   * Gzipped, because the key says `.gz` and Athena reads the extension.
+   * Stored rather than compressed, since a case about scanning ten million
+   * bytes needs an object that holds them and gzip would take a repeated
+   * character down to nothing.
    */
   const putLogObject = async (
     deployed: Deployed,
     at: Date,
     bytes: number,
   ): Promise<number> => {
-    const body = Buffer.alloc(bytes, "x");
+    const body = gzipSync(Buffer.alloc(bytes, "x"), { level: 0 });
     const address = { distributionId: deployed.distributionId, at };
 
     await deployed.simAws
@@ -322,7 +329,7 @@ describe("the workgroup a Rainlytics query runs in", () => {
         },
       });
 
-    return bytes;
+    return body.byteLength;
   };
 
   /** What one query came to, whether or not it was allowed to finish. */
