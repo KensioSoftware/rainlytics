@@ -43,6 +43,23 @@ export const botUserAgentPattern = "bot|crawl|spider|slurp";
  */
 export const currentMonth = "the current month";
 
+/**
+ * The statuses a search rollup counts as a redirect by default.
+ *
+ * 302, 303 and 307. Those are what a site answers when it sends a reader to
+ * the thing they searched for.
+ *
+ * 301 and 308 are left out. A permanent redirect is address tidying, and a
+ * reader gets one whatever they typed. A site answering `/search?q=happy`
+ * with a 308 to `/search/?q=happy` carries the term on the redirect and
+ * again on the request behind it, and counting the 308 reports one reader as
+ * two searches and calls the first of them a term the site publishes a page
+ * for. A canonical-host 301 does it again.
+ *
+ * A site whose exact match answers 301 says so with `--redirect-status`.
+ */
+export const defaultRedirectStatuses: readonly string[] = ["302", "303", "307"];
+
 /** How far back a rollup looks, or the standing range a saved copy uses. */
 export type RollupRange = TimeRange | typeof currentMonth;
 
@@ -64,6 +81,20 @@ export interface RollupRequest {
    * ignored by the one answering a single row.
    */
   readonly param: string;
+
+  /**
+   * The statuses counted as a search sent to what it asked for.
+   *
+   * {@link defaultRedirectStatuses} where nobody says, and that comment
+   * carries the reasoning. A site knows what its own search page answers
+   * with, and one whose exact match is a 301 reads a column that is right
+   * for it.
+   *
+   * Ignored by the rollups counting every response as it came, the way
+   * `param` is ignored by the ones reading whole columns. An empty list
+   * counts no search as redirected.
+   */
+  readonly redirectStatuses: readonly string[];
 
   /**
    * The sections of the site counted, as paths a counted request starts with.
@@ -149,6 +180,15 @@ export interface Rollup {
    */
   readonly namesAParameter?: boolean | undefined;
 
+  /**
+   * Whether it counts redirects, and so takes `--redirect-status`.
+   *
+   * Absent on the rollups counting every response as it came. Only a
+   * question separating a search sent to its answer from one that produced a
+   * list has redirect statuses to be told about.
+   */
+  readonly countsRedirects?: boolean | undefined;
+
   /** What it selects and groups by, given the filters below it. */
   readonly body: (request: RollupRequest) => string;
 }
@@ -167,6 +207,7 @@ export function rollupRequest(
     includeBots: false,
     limit: 20,
     param: "q",
+    redirectStatuses: defaultRedirectStatuses,
     dataset: defaultLogDataset,
     ...over,
   };

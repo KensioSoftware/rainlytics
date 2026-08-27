@@ -10,6 +10,7 @@ import { qualifiedTableName } from "./dataset.js";
 import { decodedColumn, decodedParameter } from "./log-encoding.js";
 import type { Rollup, RollupRequest } from "./rollups.js";
 import { matchedPath, rowsFor } from "./rollups.js";
+import { oneOf } from "./sql-text.js";
 
 /** The `text/html` responses a person actually looked at. */
 const aPageView = [
@@ -27,6 +28,14 @@ const cacheDecided = "x_edge_result_type IN ('Hit', 'RefreshHit', 'Miss')";
 
 const counted = (condition: string): string =>
   `sum(CASE WHEN ${condition} THEN 1 ELSE 0 END)`;
+
+/**
+ * A response one request counts as a redirect to what somebody searched for.
+ *
+ * `sc_status` is delivered as text, which is why the codes go in quoted.
+ */
+const aRedirect = (request: RollupRequest): string =>
+  oneOf("sc_status", request.redirectStatuses);
 
 /**
  * The order a ranked rollup answers in.
@@ -194,6 +203,7 @@ export const searches: Rollup = {
   summary: "Count searches by the term somebody typed.",
   isRanked: true,
   namesAParameter: true,
+  countsRedirects: true,
   description: `\
 Counts what people typed into a search box, most typed first.
 
@@ -206,9 +216,14 @@ Name the search page with \`--path\`, since a site's other query strings are
 in the same log. \`--param\` names the parameter carrying the term, and
 defaults to \`q\`.
 
-\`redirected\` counts the searches that answered 3xx. A site that sends an
-exact match straight to its page can read that as the searches that found
-one, against the searches that only produced a list.
+\`redirected\` counts the searches answered with 302, 303 or 307. A site
+that sends an exact match straight to its page can read that as the searches
+that found one, against the searches that only produced a list.
+
+301 and 308 are left out, and \`--redirect-status\` names your own. A
+permanent redirect is address tidying. A reader gets one whatever they
+typed, and counting a trailing-slash 308 reports that reader as two searches
+and calls the first of them a term the site publishes a page for.
 
 Give \`--path\` twice and every row names its own page in a \`section\`
 column. Two search boxes are then one answer that says which box each term
@@ -221,7 +236,7 @@ carry the same value.`,
       `SELECT ${searchTerm(request)} AS term,`,
       ...shape.section,
       "  count(*) AS searches,",
-      `  ${counted("sc_status LIKE '3%'")} AS redirected`,
+      `  ${counted(aRedirect(request))} AS redirected`,
       `  FROM ${qualifiedTableName(request.dataset)}`,
       rowsFor(request, [
         "cs_method = 'GET'",

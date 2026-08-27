@@ -8,6 +8,7 @@
 
 import { rollups } from "../rollup-questions.js";
 import type { Rollup, RollupRequest } from "../rollups.js";
+import { defaultRedirectStatuses } from "../rollups.js";
 
 /**
  * What Athena holds a named query's name and description in.
@@ -54,6 +55,11 @@ export function describing(rollup: Rollup, request: RollupRequest): string {
  * box carries the term under another name has a saved query answering with an
  * empty table and no sign of why.
  *
+ * The redirect statuses are named only where a deployment chose its own. The
+ * three a search rollup counts by default are in its description already,
+ * and a line repeating them on every saved copy says nothing about that
+ * copy.
+ *
  * `limit` is left out. A row count decides how much of the answer is printed
  * and leaves what was counted where it was. It sits on the last line of the
  * SQL below.
@@ -68,8 +74,27 @@ function covering(rollup: Rollup, request: RollupRequest): readonly string[] {
     ...(rollup.namesAParameter === true
       ? [`reading the "${request.param}" parameter`]
       : []),
+    ...(rollup.countsRedirects === true && chosenStatuses(request)
+      ? [countingRedirects(request)]
+      : []),
     ...(request.includeBots ? ["counting automated traffic"] : []),
   ];
+}
+
+/** What a copy with statuses of its own counts as redirected. */
+function countingRedirects(request: RollupRequest): string {
+  const statuses = request.redirectStatuses;
+
+  return statuses.length === 0
+    ? "counting no search as redirected"
+    : `counting ${statuses.join(" or ")} as redirected`;
+}
+
+/** Whether a saved copy was given redirect statuses of its own. */
+function chosenStatuses(request: RollupRequest): boolean {
+  return (
+    request.redirectStatuses.join(",") !== defaultRedirectStatuses.join(",")
+  );
 }
 
 /**
