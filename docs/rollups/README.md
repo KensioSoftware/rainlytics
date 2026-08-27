@@ -482,7 +482,7 @@ rainlytics referrers --last 7d | jq '.[0].referrer'
 one row and has nothing to limit.
 
 Each of these reads Athena today, at the cost the [query](../query/) page describes. When the
-scheduled rollups land, the same commands will read a precomputed summary off S3 and each
+scheduled rollups land, the same commands will read a [precomputed summary](../summaries/) off S3 and each
 answer will cost a GET. The commands and their options stay where they are, so that swap is
 invisible from out here.
 

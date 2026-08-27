@@ -27,6 +27,24 @@ export {
   rollupSql,
   rowsFor,
 } from "./rollups.js";
+export {
+  neverComputed,
+  type RollupSummary,
+  type SummaryCell,
+  summaryKey,
+  type SummaryLookup,
+  type SummaryQuestion,
+  type SummaryRow,
+  summarySchemaVersion,
+  type VisitorCount,
+} from "./rollup-summaries.js";
+export {
+  type SummaryGranularity,
+  summaryGranularities,
+  type SummarySpan,
+  summarySpan,
+  type SummaryWindow,
+} from "./summary-windows.js";
 export { decodedColumn, decodedParameter } from "./log-encoding.js";
 export {
   lastRange,
