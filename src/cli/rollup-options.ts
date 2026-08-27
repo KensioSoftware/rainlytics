@@ -85,6 +85,9 @@ export interface RollupAsked {
 
   /** The workgroup it runs in, which carries the cutoff. */
   readonly workgroup: string;
+
+  /** The region to ask, or undefined to leave it to the SDK's chain. */
+  readonly region: string | undefined;
 }
 
 /**
@@ -102,6 +105,7 @@ export function requestFrom(
   return {
     database,
     workgroup: chosen(context.options["workgroup"]) ?? defaultWorkgroupName,
+    region: chosen(context.options["region"]),
     request: rollupRequest({
       range: rangeFrom(context, rollup.name),
       includeBots: context.options["include-bots"] === true,

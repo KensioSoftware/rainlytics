@@ -18,7 +18,7 @@ import type { CommandResult } from "./output/result.js";
 import { rollupOptions } from "./rollup-command-options.js";
 import { requestFrom } from "./rollup-options.js";
 import { queryFailure } from "./query-command.js";
-import { scanReport } from "./query-report.js";
+import { scanReport, whereItRan } from "./query-report.js";
 
 /** Runs one rollup and answers with its rows. */
 async function runRollup(
@@ -30,12 +30,11 @@ async function runRollup(
     sql: rollupSql(rollup, asked.request),
     database: asked.database,
     workgroup: asked.workgroup,
+    region: asked.region,
   });
   const { workgroup } = asked;
 
-  context.io.error(
-    `Query ${outcome.queryExecutionId} ran in workgroup ${workgroup}.\n`,
-  );
+  context.io.error(whereItRan(outcome, workgroup));
   context.io.error(
     scanReport(
       outcome.bytesScanned,

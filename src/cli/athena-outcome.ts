@@ -22,6 +22,14 @@ export interface AthenaQuery {
 
   /** The workgroup, which carries the cutoff and the results location. */
   readonly workgroup: string;
+
+  /**
+   * The region to ask, or the AWS SDK's default chain where none is given.
+   *
+   * A workgroup, a table and a bucket each exist in one region. A query
+   * asked in the wrong one finds none of them.
+   */
+  readonly region?: string | undefined;
 }
 
 /** One column of a result, as Athena describes it. */
@@ -55,6 +63,15 @@ export interface AthenaOutcome {
 
   /** The rows, each addressed by column name. */
   readonly rows: readonly Readonly<Record<string, string | undefined>>[];
+
+  /**
+   * The region it ran in, where the client could resolve one.
+   *
+   * Carried here because the caller often has no way to know it. A run
+   * naming no region takes one from the AWS SDK's default chain, and where
+   * that pointed is what explains a missing table or an answer of no rows.
+   */
+  readonly region: string | undefined;
 }
 
 /**
@@ -64,14 +81,19 @@ export interface AthenaOutcome {
  * practice. The fallbacks are for the gap between those two, and a query id
  * of `""` or a scan of zero bytes is what a caller gets where the service
  * said less than its own shapes allow.
+ *
+ * The region comes from the client. Athena describes an execution without
+ * saying where it was asked.
  */
 export function outcomeFrom(
   queryExecutionId: string | undefined,
   execution: Athena.QueryExecution | undefined,
   results: Pick<AthenaOutcome, "columns" | "rows">,
+  region: string | undefined,
 ): AthenaOutcome {
   return {
     queryExecutionId: queryExecutionId ?? "",
+    region,
     state: execution?.Status?.State,
     stateChangeReason: execution?.Status?.StateChangeReason,
     bytesScanned: execution?.Statistics?.DataScannedInBytes ?? 0,

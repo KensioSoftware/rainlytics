@@ -1,4 +1,4 @@
-// What a query cost, said in one line on standard error.
+// What a query cost and where it ran, said on standard error.
 //
 // The price of an ad-hoc question is the thing this project is organised
 // around, and it is invisible everywhere else. Athena reports it after the
@@ -13,6 +13,27 @@ import {
   bytesBilledMinimum,
   queryChargeInDollars,
 } from "../athena-pricing.js";
+import type { AthenaOutcome } from "./athena-outcome.js";
+
+/**
+ * Where one query ran, for standard error.
+ *
+ * The execution id is what finds it again in the console. The workgroup and
+ * the region are the two things a query has to be right about, and one of
+ * them is usually wrong behind an answer of zero rows. Where the chain
+ * resolved no region, the line names the workgroup alone.
+ */
+export function whereItRan(
+  outcome: Pick<AthenaOutcome, "queryExecutionId" | "region">,
+  workgroup: string,
+): string {
+  const region = outcome.region === undefined ? "" : ` in ${outcome.region}`;
+
+  return (
+    `Query ${outcome.queryExecutionId} ran in workgroup` +
+    ` ${workgroup}${region}.\n`
+  );
+}
 
 const byteUnits = ["B", "KB", "MB", "GB", "TB"] as const;
 

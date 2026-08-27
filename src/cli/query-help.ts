@@ -30,6 +30,18 @@ export const workgroupOption: CliOption = {
     ` workgroup has no cutoff at all.`,
 };
 
+export const regionOption: CliOption = {
+  name: "region",
+  short: "r",
+  type: "string",
+  valueName: "name",
+  description:
+    `The AWS region to ask. Defaults to whatever the SDK's default chain` +
+    ` resolves, being AWS_REGION or the profile's own region. A workgroup, a` +
+    ` table and a bucket each exist in one region, and Athena bills the` +
+    ` transfer for reading a bucket from another.`,
+};
+
 export const queryDescription = `\
 Runs SQL against the Rainlytics log table and prints the rows.
 
@@ -54,5 +66,11 @@ when it finishes, so a pipeline reads rows and a person still sees the price.
 The workgroup puts a ceiling on one query. A query that would scan past it is
 stopped, and the message says what it read and what the workgroup allows.
 
-Credentials, region and profile come from the AWS SDK's default chain, the
-same one the AWS CLI uses. There is nothing Rainlytics-specific to configure.`;
+Credentials come from the AWS SDK's default chain, the same one the AWS CLI
+uses. There is nothing Rainlytics-specific to configure.
+
+The region comes from that chain too, unless --region says otherwise. A
+workgroup and a table each exist in one region, and a profile pointing
+somewhere else is answered "WorkGroup rainlytics is not found." Athena also
+bills the transfer for reading a bucket from another region. The region to
+ask is the one the log bucket is in.`;

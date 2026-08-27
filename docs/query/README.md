@@ -39,8 +39,37 @@ workgroup, so a query it runs is always under a cutoff. Athena's `primary` workg
 at all, and what lands there is a query sent by something else. The console, the AWS CLI, and a
 script of your own that left the workgroup out all do.
 
-Credentials, region and profile come from the AWS SDK's default chain, the same one the AWS CLI
-reads. There is nothing Rainlytics-specific to configure.
+Credentials and profile come from the AWS SDK's default chain, the same one the AWS CLI reads.
+There is nothing Rainlytics-specific to configure.
+
+## The region has to be the one the data is in
+
+The region comes from that chain too. It reads `AWS_REGION` first and then the region on the
+profile, and `--region` names one over the top of both:
+
+```bash
+rainlytics query "SELECT count(*) FROM cloudfront_logs" --region us-east-1
+```
+
+A workgroup, a Glue table and an S3 bucket each exist in one region. Ask a region that holds none of
+them and Athena answers about the workgroup, which is the first thing it looks for:
+
+```text
+rainlytics: WorkGroup rainlytics is not found. Athena was asked in eu-west-2. Name another with
+--region.
+```
+
+The first sentence is Athena's, and it names the workgroup it could not find and never says where it
+looked. The second is this command adding that. A profile defaulting to a region the deployment
+never went near produces exactly this, and so does a workgroup that really was deleted.
+
+Which region to ask is decided by the log bucket. Athena reads a bucket in another region and bills
+the transfer for every query, which is why the [log table](../log-table/) belongs in the bucket's
+region as well. Log delivery is the one part of Rainlytics that has to be configured from us-east-1.
+Where that delivery stack sits is a separate question from where a query runs.
+
+Every command that reaches Athena takes `--region`, `--database` and `--workgroup`, including the
+four [named questions](../rollups/).
 
 ## Naming a partition is most of what a query costs
 
@@ -86,7 +115,7 @@ A rollup that runs every hour for a year is where that difference stops being ac
 Every query reports what it scanned and what that came to:
 
 ```text
-Query 8d0a2f4c-1a3e-4f77-9d0e-6c2b1f9a4e11 ran in workgroup rainlytics.
+Query 8d0a2f4c-1a3e-4f77-9d0e-6c2b1f9a4e11 ran in workgroup rainlytics in us-east-1.
 Scanned 265 KB in 0.4s, billed as 10.0 MB (the per-query minimum). About $0.000050 at the
 us-east-1 rate.
 ```

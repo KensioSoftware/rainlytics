@@ -1,12 +1,12 @@
 // Which options one rollup command carries.
 //
 // Apart from `rollup-help.ts`, which describes each option as prose. This is
-// the assembly, and it reaches across to `query-help.ts` for the two options
-// every command that talks to Athena takes.
+// the assembly, and it reaches across to `query-help.ts` for the three
+// options every command that talks to Athena takes.
 
 import type { Rollup } from "../rollups.js";
 import type { CliOption } from "./option.js";
-import { databaseOption, workgroupOption } from "./query-help.js";
+import { databaseOption, regionOption, workgroupOption } from "./query-help.js";
 import {
   hostOption,
   includeBotsOption,
@@ -34,5 +34,6 @@ export function rollupOptions(rollup: Rollup): readonly CliOption[] {
     ...(rollup.isRanked ? [limitOption] : []),
     databaseOption,
     workgroupOption,
+    regionOption,
   ];
 }

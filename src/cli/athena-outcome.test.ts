@@ -17,12 +17,14 @@ describe("what running a query came to", () => {
         },
       },
       { columns: [{ name: "views", type: "bigint" }], rows: [{ views: "2" }] },
+      "eu-west-1",
     );
 
     // Then every part of it survives, including the id that finds the query
     // again in the console.
     expect(outcome).toStrictEqual({
       queryExecutionId: "abc-123",
+      region: "eu-west-1",
       state: "SUCCEEDED",
       stateChangeReason: undefined,
       bytesScanned: 4096,
@@ -36,7 +38,7 @@ describe("what running a query came to", () => {
     // Given an execution the SDK described with none of it. Every field is
     // optional in those types and present in practice, and this is the gap
     // between the two.
-    const outcome = outcomeFrom(undefined, undefined, noResults);
+    const outcome = outcomeFrom(undefined, undefined, noResults, undefined);
 
     // Then the outcome is still usable. Nothing downstream has to ask
     // whether a byte count is a number before adding it up, and the scan
@@ -57,6 +59,7 @@ describe("what running a query came to", () => {
         Statistics: { DataScannedInBytes: 0 },
       },
       noResults,
+      "us-east-1",
     );
 
     // Then the reason comes through, which is the only thing the caller has
