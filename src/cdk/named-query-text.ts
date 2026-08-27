@@ -40,10 +40,14 @@ export function describing(rollup: Rollup, request: RollupRequest): string {
 /**
  * The clauses saying what one saved copy counts.
  *
- * The range, the host and the section it was narrowed to, the parameter a
+ * The range, the host and the sections it was narrowed to, the parameter a
  * search reads, and whether automated traffic is counted. Each of those
  * changes the answer, and a copy answering a narrower question than its name
  * promises is what the narrowing was added to say out loud.
+ *
+ * Several sections are joined by "or". That is what the SQL underneath does
+ * with them, and it keeps them apart from the commas joining the clauses
+ * around them.
  *
  * The parameter is named on every copy of a rollup that reads one, whether
  * or not the deployment chose it. `param` falls back to `q`, and a site whose
@@ -55,10 +59,12 @@ export function describing(rollup: Rollup, request: RollupRequest): string {
  * SQL below.
  */
 function covering(rollup: Rollup, request: RollupRequest): readonly string[] {
+  const paths = request.paths ?? [];
+
   return [
     "Over the current month",
     ...(request.host === undefined ? [] : [`on ${request.host}`]),
-    ...(request.path === undefined ? [] : [`under ${request.path}`]),
+    ...(paths.length === 0 ? [] : [`under ${paths.join(" or ")}`]),
     ...(rollup.namesAParameter === true
       ? [`reading the "${request.param}" parameter`]
       : []),

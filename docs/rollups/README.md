@@ -183,7 +183,7 @@ new RollupQueries(this, "RainlyticsRollups", {
   table,
   workgroup,
   requests: {
-    searches: { path: "/search/", param: "term" },
+    searches: { paths: ["/search/"], param: "term" },
   },
 });
 ```
@@ -204,9 +204,12 @@ month for the reason above, and the database comes from the table:
 ```typescript
 requests: {
   "status-codes": { includeBots: true },
-  searches: { host: "docs.example.com", path: "/search/", param: "term" },
+  searches: { host: "docs.example.com", paths: ["/search/"], param: "term" },
 }
 ```
+
+`paths` is the list `--path` collects when a command is given it more than once. A site with a
+search box under two sections names both, and the saved copy counts them together.
 
 A fact that belongs to every question, such as the host of one site on a distribution serving
 several, is a variable spread into each entry. Every key has to name a rollup being saved, and a
@@ -339,6 +342,39 @@ stops there, since there is no `rainlytics countries` to point a reader at. It t
 
 A name is lowercase words joined by hyphens (`cache-hit-ratio`). It becomes a CDK logical id and an
 Athena query name, and `assertRollupName` refuses anything else at synthesis.
+
+### Replacing one of the built-in questions
+
+A site whose searches answer differently from the shipped `searches` writes its own version and
+leaves the shipped one out of the list:
+
+```typescript
+import { rollups } from "@kensio/rainlytics";
+import { RollupQueries } from "@kensio/rainlytics/cdk";
+
+new RollupQueries(this, "RainlyticsRollups", {
+  table,
+  workgroup,
+  rollups: [
+    ...rollups.filter((rollup) => rollup.name !== "searches"),
+    mySearches,
+  ],
+});
+```
+
+`rainlytics-searches` in the console is then the site's own question. The `rainlytics searches`
+command still runs the shipped one, since it reads the questions the package ships and has no way to
+load one from outside it. Replacing a saved copy leaves the console and the terminal answering
+differently.
+
+Passing both is refused at synthesis, since one saved query cannot answer two questions:
+
+```text
+More than one rollup is called "searches", and each would be saved as
+"rainlytics-searches". Where one of them replaces a built-in question, leave
+the built-in out: rollups: [...rollups.filter((rollup) => rollup.name !==
+"searches"), mySearches]
+```
 
 ## Output, and what happens next
 
