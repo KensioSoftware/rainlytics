@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   availableLogFields,
+  deliveredLogColumnNames,
   deliveredLogFields,
   deliveredLogFieldNames,
+  deliveredLogFieldsNamed,
+  logColumnName,
   omittedLogFields,
 } from "./log-fields.js";
 
@@ -97,5 +100,90 @@ describe("what justifies a delivered field", () => {
     expect(new Set(deliveredLogFieldNames).size).toBe(
       deliveredLogFieldNames.length,
     );
+  });
+});
+
+describe("the names a delivered field is read back under", () => {
+  /**
+   * What AWS does to a field name on the way into a Parquet file.
+   *
+   * Inferred from the eleven names KensioSoftware/rainlytics#9 read out of
+   * delivered objects. Every run of characters outside `[A-Za-z0-9]` becomes
+   * one underscore, a trailing underscore is dropped, and case survives.
+   *
+   * Written here and not in `log-fields.ts` on purpose. AWS documents the
+   * transformation nowhere, so the declared name stays the one a table is
+   * built from and this is what notices when a twelfth field disagrees with
+   * the rule. The alternative is a column of nulls under a query that reports
+   * success.
+   */
+  const asParquetWrites = (name: string): string =>
+    name.replaceAll(/[^A-Za-z0-9]+/gu, "_").replace(/_$/u, "");
+
+  it("spells each Parquet name the way AWS was observed to spell it", () => {
+    // Given the declared fields.
+    // Then the rule reproduces every one of them.
+    for (const field of deliveredLogFields) {
+      expect(field.parquetName, `Parquet name for ${field.name}`).toBe(
+        asParquetWrites(field.name),
+      );
+    }
+  });
+
+  it("keeps the delivered spelling apart from the Parquet one", () => {
+    // Given the two names each field carries.
+    // Then the pair differs on every field Rainlytics delivers, which is why
+    // a table cannot be built from the delivered names alone.
+    for (const field of deliveredLogFields) {
+      expect(field.parquetName).not.toBe(field.name);
+    }
+  });
+
+  it("gives every field a column name Athena reads without escaping", () => {
+    // Given the Glue column names.
+    // Then each is lowercase letters, digits and underscores. Athena stores
+    // every name lowercased, and anything else has to be quoted in every
+    // query that ever reads it.
+    for (const column of deliveredLogColumnNames) {
+      expect(column).toMatch(/^[a-z][a-z0-9_]*$/u);
+    }
+
+    // And no two fields collide. Two columns of one name is a table Athena
+    // refuses to query.
+    expect(new Set(deliveredLogColumnNames).size).toBe(
+      deliveredLogColumnNames.length,
+    );
+  });
+
+  it("names the columns in the order the fields are delivered", () => {
+    // Given the delivered fields.
+    // Then the column list is those fields in that order, which is the order
+    // a table declares and a `SELECT *` answers in.
+    expect(deliveredLogColumnNames).toStrictEqual(
+      deliveredLogFields.map((field) => logColumnName(field)),
+    );
+  });
+});
+
+describe("looking a delivered field up by name", () => {
+  it("answers in the order it was asked", () => {
+    // Given a narrower field set than the default, in its own order.
+    const found = deliveredLogFieldsNamed(["cs-uri-stem", "timestamp(ms)"]);
+
+    // Then that is what comes back. A table's columns are built from this,
+    // and they have to match the order the objects carry.
+    expect(found.map((field) => field.name)).toStrictEqual([
+      "cs-uri-stem",
+      "timestamp(ms)",
+    ]);
+  });
+
+  it("refuses a field Rainlytics has never declared", () => {
+    // Given a real CloudFront field that is not in the Rainlytics set.
+    const looking = (): unknown => deliveredLogFieldsNamed(["x-edge-location"]);
+
+    // Then it refuses, rather than guessing what Parquet would call it.
+    expect(looking).toThrow(/x-edge-location/u);
+    expect(looking).toThrow(/log-fields\.ts/u);
   });
 });

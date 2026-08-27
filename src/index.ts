@@ -8,19 +8,33 @@
 // the built output.
 
 export {
+  assertQueryableName,
+  defaultLogDataset,
+  type LogDataset,
+  qualifiedTableName,
+} from "./dataset.js";
+export {
   availableLogFields,
   type DeliveredLogField,
+  deliveredLogColumnNames,
   deliveredLogFieldNames,
   deliveredLogFields,
+  deliveredLogFieldsNamed,
+  logColumnName,
   omittedLogFields,
 } from "./log-fields.js";
 export {
+  defaultFirstPartitionYear,
   defaultPartitionGranularity,
   type PartitionGranularity,
+  type PartitionProjectionScope,
 } from "./partition-keys.js";
 export {
   deliverySuffixPath,
   type PartitionAddress,
+  partitionKeyNames,
+  partitionLocationTemplate,
   partitionPrefix,
+  partitionProjection,
   timePartitionKeyNames,
 } from "./partitions.js";

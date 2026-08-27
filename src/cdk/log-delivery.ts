@@ -3,7 +3,6 @@ import {
   CfnDeliveryDestination,
   CfnDeliverySource,
 } from "aws-cdk-lib/aws-logs";
-import type { IKey } from "aws-cdk-lib/aws-kms";
 import { Stack } from "aws-cdk-lib/core";
 import { Construct } from "constructs";
 
@@ -13,30 +12,10 @@ import {
 } from "../partition-keys.js";
 import { deliveredLogFieldNames } from "../log-fields.js";
 import { deliverySuffixPath } from "../partitions.js";
+import { assertOneBucket, type LogDeliveryBucket } from "./delivery-bucket.js";
 import { grantLogDeliveryKeyUse } from "./delivery-key-grant.js";
 import { logDeliveryRegion } from "./delivery-region.js";
 import { requireStackRegion } from "./stack-region.js";
-
-/**
- * What this construct needs of a log bucket, which is an ARN and whatever
- * key encrypts it.
- *
- * Deliberately narrower than `IBucket`. Under `exactOptionalPropertyTypes`,
- * CDK's own `Bucket` is not assignable to `IBucket`, because the interface
- * declares `isWebsite?: boolean` where the class declares
- * `isWebsite: boolean | undefined`. A consumer with that compiler option on
- * therefore cannot pass the bucket they just made. Asking for the two things
- * actually read sidesteps that, and says what the dependency really is.
- *
- * `IBucket` and `Bucket` both satisfy it.
- */
-export interface LogDeliveryBucket {
-  /** The bucket's ARN, which the delivery destination is built from. */
-  readonly bucketArn: string;
-
-  /** The key encrypting it, where it is encrypted with one. */
-  readonly encryptionKey?: IKey | undefined;
-}
 
 /** The formats CloudFront will write access logs in. */
 export type LogOutputFormat = "json" | "plain" | "w3c" | "raw" | "parquet";
@@ -130,6 +109,24 @@ export class CloudFrontLogDelivery extends Construct {
   /** What joins the two. */
   readonly delivery: CfnDelivery;
 
+  /** The distribution whose logs these are. */
+  readonly distributionId: string;
+
+  /** The bucket they land in. */
+  readonly logBucket: LogDeliveryBucket;
+
+  /** The prefix inside it that the partitions start under. */
+  readonly prefix: string;
+
+  /** The format the objects are written in. */
+  readonly outputFormat: LogOutputFormat;
+
+  /** How finely they are partitioned by time. */
+  readonly granularity: PartitionGranularity;
+
+  /** The fields each record carries, in the order they are delivered. */
+  readonly fields: readonly string[];
+
   constructor(scope: Construct, id: string, props: CloudFrontLogDeliveryProps) {
     super(scope, id);
 
@@ -138,6 +135,15 @@ export class CloudFrontLogDelivery extends Construct {
     const stack = Stack.of(this);
     const name = props.deliveryName ?? `rainlytics-${props.distributionId}`;
     const prefix = props.prefix ?? "rainlytics";
+
+    assertOneBucket(props.logBucket);
+
+    this.distributionId = props.distributionId;
+    this.logBucket = props.logBucket;
+    this.prefix = prefix;
+    this.outputFormat = props.outputFormat ?? "json";
+    this.granularity = props.granularity ?? defaultPartitionGranularity;
+    this.fields = props.fields ?? deliveredLogFieldNames;
 
     this.source = new CfnDeliverySource(this, "Source", {
       name,
@@ -153,17 +159,15 @@ export class CloudFrontLogDelivery extends Construct {
     this.destination = new CfnDeliveryDestination(this, "Destination", {
       name,
       destinationResourceArn: `${props.logBucket.bucketArn}/${prefix}`,
-      outputFormat: props.outputFormat ?? "json",
+      outputFormat: this.outputFormat,
     });
 
     this.delivery = new CfnDelivery(this, "Delivery", {
       deliverySourceName: this.source.name,
       deliveryDestinationArn: this.destination.attrArn,
       s3EnableHiveCompatiblePath: true,
-      s3SuffixPath: deliverySuffixPath(
-        props.granularity ?? defaultPartitionGranularity,
-      ),
-      recordFields: [...(props.fields ?? deliveredLogFieldNames)],
+      s3SuffixPath: deliverySuffixPath(this.granularity),
+      recordFields: [...this.fields],
     });
     this.delivery.addResourceDependency(this.source);
     this.delivery.addResourceDependency(this.destination);

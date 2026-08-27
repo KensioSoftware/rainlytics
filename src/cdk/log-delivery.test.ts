@@ -336,6 +336,34 @@ describe("delivering CloudFront access logs", () => {
     });
   });
 
+  it("refuses a bucket whose name and ARN disagree", () => {
+    // Given a hand-assembled log bucket, which is what the narrow
+    // `LogDeliveryBucket` interface lets a caller pass, holding two literals
+    // that name different buckets.
+    const deploying = (): CloudFrontLogDelivery => {
+      // A stack of its own each time. The refusal comes from inside the
+      // constructor, so the construct is already in the tree by then and a
+      // second attempt in the same stack would collide on the id instead.
+      const stack = new Stack(new App(), "DeliveryStack", {
+        env: { account: "123456789012", region: "us-east-1" },
+      });
+
+      return new CloudFrontLogDelivery(stack, "Delivery", {
+        distributionId: aDistributionId(),
+        logBucket: {
+          bucketArn: "arn:aws:s3:::rainlytics-logs",
+          bucketName: "rainlytics-archive",
+        },
+      });
+    };
+
+    // Then it fails at synthesis. The delivery writes to the ARN and an
+    // Athena table over it reads the name, so the pair would fill one bucket
+    // and query another, with both halves reporting success.
+    expect(deploying).toThrow(/rainlytics-archive/u);
+    expect(deploying).toThrow(/arn:aws:s3:::rainlytics-logs/u);
+  });
+
   it("refuses to be deployed outside us-east-1", async () => {
     // Given the delivery placed beside the rest of a consumer's site, which
     // is the easy mistake since that is where everything else lives.

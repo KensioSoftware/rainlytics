@@ -7,7 +7,10 @@ import {
 } from "./partition-keys.js";
 import {
   deliverySuffixPath,
+  partitionKeyNames,
+  partitionLocationTemplate,
   partitionPrefix,
+  partitionProjection,
   timePartitionKeyNames,
 } from "./partitions.js";
 
@@ -170,5 +173,116 @@ describe("the S3 partition layout", () => {
     // Then it fails here, and not as a prefix on S3 that every later query
     // silently misses.
     expect(addressing).toThrow(RangeError);
+  });
+});
+
+describe("what Athena is told about the partitions", () => {
+  const granularities: readonly PartitionGranularity[] = ["hourly", "daily"];
+
+  const aScope = (): { firstYear: number; distributionIds: string[] } => ({
+    firstYear: faker.number.int({ min: 2020, max: 2030 }),
+    distributionIds: [
+      `E${faker.string.alphanumeric({ length: 13, casing: "upper" })}`,
+    ],
+  });
+
+  it.each(granularities)(
+    "templates the path a reader would address (%s)",
+    (granularity) => {
+      // Given an instant, and the distribution its requests reached.
+      const address = {
+        distributionId: `E${faker.string.alphanumeric({ length: 13 })}`,
+        at: faker.date.past(),
+      };
+
+      // When the template is filled in with that partition's values, the way
+      // Athena fills it in from a projection.
+      const values: Readonly<Record<string, string>> = Object.fromEntries(
+        partitionPrefix(address, granularity)
+          .split("/")
+          .map((segment) => segment.split("=")),
+      );
+      const filled = partitionLocationTemplate(granularity).replaceAll(
+        /\$\{(?<key>\w+)\}/gu,
+        (_match, key: string) => values[key] ?? "",
+      );
+
+      // Then it comes out as the prefix that partition's objects sit under.
+      // The template is where Athena looks for the data, so a template
+      // disagreeing with the writer reads an empty prefix and answers no
+      // rows.
+      expect(filled).toBe(partitionPrefix(address, granularity));
+    },
+  );
+
+  it.each(granularities)(
+    "projects every key the layout carries, and no others (%s)",
+    (granularity) => {
+      // Given a dataset with a first year and a distribution in it.
+      const scope = aScope();
+
+      // When its projection is rendered.
+      const projection = partitionProjection(scope, granularity);
+
+      // Then projection is on, and each key declares the values it takes. A
+      // key without a projection is what makes Athena refuse the whole
+      // query, since a projected table has no other way to know.
+      expect(projection["projection.enabled"]).toBe("true");
+      for (const name of partitionKeyNames(granularity)) {
+        expect(projection[`projection.${name}.type`]).toBeDefined();
+      }
+
+      // And nothing is projected that the writer never writes. A projected
+      // key with no partition under it sends every query looking through
+      // prefixes that hold nothing.
+      const projected = new Set(
+        Object.keys(projection)
+          .filter((parameter) => parameter !== "projection.enabled")
+          .map((parameter) => parameter.split(".")[1] ?? ""),
+      );
+      expect(projected).toStrictEqual(new Set(partitionKeyNames(granularity)));
+    },
+  );
+
+  it("writes Athena's own placeholder where each value goes", () => {
+    // Given the hourly layout.
+    // When its location template is rendered.
+    // Then every segment carries the key and the placeholder Athena
+    // substitutes. A literal `${year}` left in the path is a table reading a
+    // prefix that never exists.
+    expect(partitionLocationTemplate("hourly")).toBe(
+      `distributionid=\${distributionid}/year=\${year}/month=\${month}` +
+        `/day=\${day}/hour=\${hour}`,
+    );
+  });
+
+  it("runs the years from the first one to now", () => {
+    // Given a dataset whose first logs arrived in a known year.
+    const scope = { ...aScope(), firstYear: 2026 };
+
+    // When its projection is rendered.
+    const projection = partitionProjection(scope);
+
+    // Then the range is open at the top. A fixed end year is a table that
+    // stops finding data on a New Year's Day, and nothing reports it.
+    expect(projection["projection.year.range"]).toBe("2026,NOW");
+  });
+
+  it("names every distribution delivering into the dataset", () => {
+    // Given three sites sharing one bucket.
+    const distributionIds = ["E1AAAA", "E2BBBB", "E3CCCC"];
+
+    // When the projection is rendered.
+    const projection = partitionProjection({
+      firstYear: 2026,
+      distributionIds,
+    });
+
+    // Then the first partition key enumerates them. This is the one key
+    // whose values no rule can work out.
+    expect(projection["projection.distributionid.type"]).toBe("enum");
+    expect(projection["projection.distributionid.values"]).toBe(
+      "E1AAAA,E2BBBB,E3CCCC",
+    );
   });
 });
