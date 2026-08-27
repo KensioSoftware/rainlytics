@@ -176,4 +176,49 @@ describe("the rollups saved in Athena", () => {
     // name CDK had to mangle to make a logical id out of.
     await expect(deployRollups([shouting])).rejects.toThrow(/Reader Searches/u);
   });
+
+  /** A question of a site's own, named and summarised to order. */
+  const sized = (name: string, summary: string): Rollup => ({
+    name,
+    summary,
+    description: "Counts something.",
+    isRanked: false,
+    body: (request) => ["SELECT count(*) AS rows", rowsFor(request)].join("\n"),
+  });
+
+  /** A rollup name of a given length, in the shape the rule allows. */
+  const nameOf = (length: number): string => "a".repeat(length);
+
+  it("saves a name that fills what Athena holds", async () => {
+    // Given a name that is exactly the 128 characters Athena takes, once
+    // the `rainlytics-` prefix is on it.
+    const longest = sized(nameOf(128 - "rainlytics-".length), "Counts.");
+
+    // When the stack is deployed.
+    const saved = await deployRollups([longest]);
+
+    // Then it is saved. The check has to admit the longest usable name, or
+    // it is refusing something Athena would have taken.
+    expect(saved[0]?.name).toHaveLength(128);
+  });
+
+  it("refuses a name longer than Athena would hold", async () => {
+    // Given one character more than that.
+    const overlong = sized(nameOf(129 - "rainlytics-".length), "Counts.");
+
+    // Then synthesis fails. A deploy would run for a while and come back
+    // with a validation message naming a field rather than a rollup.
+    await expect(deployRollups([overlong])).rejects.toThrow(/129 characters/u);
+  });
+
+  it("refuses a summary that would overrun the description", async () => {
+    // Given a summary long enough that the description built from it passes
+    // 1,024 characters.
+    const wordy = sized("searches", "Counts what readers typed. ".repeat(40));
+
+    // Then synthesis fails, and says which field to shorten.
+    await expect(deployRollups([wordy])).rejects.toThrow(
+      /Shorten the rollup's summary/u,
+    );
+  });
 });

@@ -10,6 +10,7 @@ import {
   rollupRequest,
   rollupSql,
 } from "../rollups.js";
+import { assertAthenaLength, describing } from "./named-query-text.js";
 import type { LogTable } from "./log-table.js";
 import type { QueryWorkgroup } from "./query-workgroup.js";
 
@@ -80,11 +81,17 @@ export class RollupQueries extends Construct {
 
     assertRollupName(rollup.name);
 
+    const name = `rainlytics-${rollup.name}`;
+    const description = describing(rollup);
+
+    assertAthenaLength("name", name);
+    assertAthenaLength("description", description);
+
     const query = new CfnNamedQuery(this, queryId(rollup.name), {
-      name: `rainlytics-${rollup.name}`,
+      name,
       database: dataset.databaseName,
       workGroup: props.workgroup.workgroupName,
-      description: describing(rollup),
+      description,
       queryString: rollupSql(
         rollup,
         rollupRequest({ range: currentMonth, dataset }),
@@ -98,22 +105,6 @@ export class RollupQueries extends Construct {
 
     return query;
   }
-}
-
-/**
- * What one saved query says about itself in the console.
- *
- * The four Rainlytics ships name the command that runs them, because somebody
- * reading one in the console wants to know which `rainlytics` subcommand it
- * answers. A rollup a site wrote has no subcommand, and naming one would send
- * its reader to a command that does not exist.
- */
-function describing(rollup: Rollup): string {
-  const command = rollups.includes(rollup)
-    ? ` What "rainlytics ${rollup.name}" runs.`
-    : "";
-
-  return `${rollup.summary}${command} Over the current month.`;
 }
 
 /** A logical id for one saved query, in the case CDK expects. */
