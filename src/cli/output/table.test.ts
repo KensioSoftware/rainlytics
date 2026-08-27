@@ -39,8 +39,12 @@ describe("table output", () => {
   });
 
   it("rules the heading off from the rows", () => {
-    // Given a result with one row.
-    const path = `/${faker.word.noun()}`;
+    // Given a result with one row, whose value is wider than the heading
+    // above it. A column is as wide as the widest of the two, so a shorter
+    // value would make this case about the heading's width instead. The
+    // random word was two letters often enough to fail about one run in six
+    // hundred, which is how it was found.
+    const path = `/${faker.string.alpha({ length: 12, casing: "lower" })}`;
 
     // When it is written.
     const [heading, rule, row] = linesOf(
