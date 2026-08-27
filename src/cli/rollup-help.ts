@@ -5,13 +5,15 @@
 // `help.ts`. These are documentation, meant to be edited as prose.
 
 import type { CliOption } from "./option.js";
-import { databaseOption, workgroupOption } from "./query-help.js";
 
 /** How far back a rollup looks when nobody says. */
 export const defaultLast = "7d";
 
 /** How many rows a ranked rollup answers with when nobody says. */
 export const defaultLimit = 20;
+
+/** The query-string parameter a search is read from when nobody says. */
+export const defaultParam = "q";
 
 export const lastOption: CliOption = {
   name: "last",
@@ -53,6 +55,16 @@ export const pathOption: CliOption = {
     " rows counted and leaves the bytes scanned where they were.",
 };
 
+export const paramOption: CliOption = {
+  name: "param",
+  type: "string",
+  valueName: "name",
+  description:
+    `Which query-string parameter carries the term, as in ?q=hello.` +
+    ` Defaults to ${defaultParam}. A site with a search box and a legacy tool` +
+    ` beside it has two, and they are two questions.`,
+};
+
 export const hostOption: CliOption = {
   name: "host",
   type: "string",
@@ -63,23 +75,3 @@ export const hostOption: CliOption = {
     " its www name are two hosts. It narrows the rows counted and leaves" +
     " the bytes scanned where they were.",
 };
-
-/**
- * Every option one rollup command accepts, in the order help prints them.
- *
- * Assembled here beside the descriptions rather than next to the command, so
- * that adding an option is one edit in one file. The row limit is the only
- * one that varies, and the rollup answering a single row has nothing to
- * limit.
- */
-export function rollupOptions(isRanked: boolean): readonly CliOption[] {
-  return [
-    lastOption,
-    pathOption,
-    hostOption,
-    includeBotsOption,
-    ...(isRanked ? [limitOption] : []),
-    databaseOption,
-    workgroupOption,
-  ];
-}

@@ -58,6 +58,14 @@ export interface RollupRequest {
   readonly limit: number;
 
   /**
+   * The query-string parameter a rollup reading one takes its values from.
+   *
+   * Ignored by the rollups that read whole columns, the way `limit` is
+   * ignored by the one answering a single row.
+   */
+  readonly param: string;
+
+  /**
    * The section of the site counted, as a path every counted request starts
    * with. Absent counts the whole distribution.
    *
@@ -79,7 +87,7 @@ export interface RollupRequest {
 /**
  * One question, and the SQL that answers it.
  *
- * The four Rainlytics ships are in `rollup-questions.ts`, and a site can
+ * The ones Rainlytics ships are in `rollup-questions.ts`, and a site can
  * write its own. A rollup writes what it selects and groups by, and calls
  * {@link rowsFor} for the rows underneath. That is where the partition
  * predicate, the bot filter and the host and path a caller narrowed to are
@@ -87,16 +95,16 @@ export interface RollupRequest {
  * question from its neighbours without saying so.
  *
  * ```typescript
- * const searches: Rollup = {
- *   name: "searches",
- *   summary: "Count what readers searched for.",
- *   description: "Counts the queries readers typed, most typed first.",
+ * const countries: Rollup = {
+ *   name: "countries",
+ *   summary: "Count views by country.",
+ *   description: "Counts where readers were, most read from first.",
  *   isRanked: true,
  *   body: (request) =>
  *     [
- *       "SELECT cs_uri_query AS query, count(*) AS searches",
+ *       "SELECT c_country AS country, count(*) AS views",
  *       `  FROM ${qualifiedTableName(request.dataset)}`,
- *       rowsFor(request, ["cs_uri_stem = '/search/'"]),
+ *       rowsFor(request, ["sc_content_type LIKE 'text/html%'"]),
  *       "  GROUP BY 1",
  *       "  ORDER BY 2 DESC, 1",
  *       `  LIMIT ${String(request.limit)}`,
@@ -104,9 +112,9 @@ export interface RollupRequest {
  * };
  * ```
  *
- * `rollupSql(searches, rollupRequest({ range }))` is then the SQL to run, and
- * the `RollupQueries` construct saves it in the Athena console beside the
- * built-in four.
+ * `rollupSql(countries, rollupRequest({ range }))` is then the SQL to run,
+ * and the `RollupQueries` construct saves it in the Athena console beside the
+ * built-in ones.
  */
 export interface Rollup {
   /**
@@ -127,6 +135,14 @@ export interface Rollup {
   /** Whether it answers with a ranked list, and so takes a row limit. */
   readonly isRanked: boolean;
 
+  /**
+   * Whether it reads one query-string parameter, and so takes `--param`.
+   *
+   * Absent on the rollups that read whole columns. Only a question about
+   * what somebody typed has a parameter to be told about.
+   */
+  readonly namesAParameter?: boolean | undefined;
+
   /** What it selects and groups by, given the filters below it. */
   readonly body: (request: RollupRequest) => string;
 }
@@ -144,6 +160,7 @@ export function rollupRequest(
   return {
     includeBots: false,
     limit: 20,
+    param: "q",
     dataset: defaultLogDataset,
     ...over,
   };
@@ -173,4 +190,4 @@ export function assertRollupName(name: string): void {
   }
 }
 
-export { rowsFor } from "./rollup-rows.js";
+export { quoted, rowsFor } from "./rollup-rows.js";

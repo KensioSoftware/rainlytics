@@ -29,3 +29,27 @@
 export function decodedColumn(column: string): string {
   return `url_decode(url_decode(${column}))`;
 }
+
+/**
+ * One query-string parameter, read out of a record and decoded.
+ *
+ * One `url_decode` here against the two in {@link decodedColumn}, because
+ * `url_extract_parameter` decodes its own answer. Trino splits the query
+ * string and runs `URLDecoder.decode` over what it finds, so the doubly
+ * encoded value a record holds is left needing one further pass. Two passes
+ * here would decode a term that happens to hold a percent sequence twice, and
+ * `50%` typed into a search box is the case.
+ *
+ * A record carries no whole URL. The path and the query are columns of their
+ * own, so they are joined with the `?` that was between them before
+ * CloudFront split them up.
+ *
+ * `url_decode` reads `+` as a space, which is what a form submits.
+ */
+export function decodedParameter(
+  stem: string,
+  query: string,
+  parameter: string,
+): string {
+  return `url_decode(url_extract_parameter(${stem} || '?' || ${query}, ${parameter}))`;
+}

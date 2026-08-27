@@ -240,24 +240,24 @@ describe("a rollup a site wrote for itself", () => {
    * it was a shape nobody outside the package could write. The reference
    * site had a hand-written copy of `rowsFor` for exactly this.
    */
-  const searches: Rollup = {
-    name: "searches",
-    summary: "Count what readers searched for.",
-    description: "Counts the queries readers typed, most typed first.",
+  const countries: Rollup = {
+    name: "countries",
+    summary: "Count views by country.",
+    description: "Counts where readers were, most read from first.",
     isRanked: true,
     body: (request) =>
       [
-        "SELECT cs_uri_query AS query, count(*) AS searches",
+        "SELECT c_country AS country, count(*) AS views",
         `  FROM ${qualifiedTableName(request.dataset)}`,
-        rowsFor(request, ["cs_uri_stem = '/search/'"]),
+        rowsFor(request, ["sc_content_type LIKE 'text/html%'"]),
         "  GROUP BY 1",
       ].join("\n"),
   };
 
   const sqlFor = (over = {}): string =>
-    rollupSql(searches, rollupRequest({ range: aWeek, ...over }));
+    rollupSql(countries, rollupRequest({ range: aWeek, ...over }));
 
-  it("prunes to the same partitions the built-in four prune to", () => {
+  it("prunes to the same partitions the built-in ones prune to", () => {
     // Given a week in August, asked for by a rollup nobody here wrote.
     const sql = sqlFor();
 
@@ -291,9 +291,9 @@ describe("a rollup a site wrote for itself", () => {
   });
 
   it("carries the conditions its own question adds", () => {
-    // Given a question that reads one path of the site.
+    // Given a question that reads the HTML responses alone.
     // Then its own condition joins the rest.
-    expect(sqlFor()).toContain("AND cs_uri_stem = '/search/'");
+    expect(sqlFor()).toContain("AND sc_content_type LIKE 'text/html%'");
   });
 });
 

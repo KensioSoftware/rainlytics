@@ -71,16 +71,17 @@ path         views
 /grammar/       97
 ```
 
-`referrers`, `status-codes` and `cache-hit-ratio` are the other three, and
-`query` takes SQL for anything else. Crawlers are left out by default, which
-on the reference site is 39% of the traffic in a typical hour.
+`referrers`, `status-codes` and `cache-hit-ratio` are the others, `searches`
+counts what people typed into a search box, and `query` takes SQL for anything
+else. Crawlers are left out by default, which on the reference site is 39% of
+the traffic in a typical hour.
 
 It authenticates through the AWS SDK's default credential chain and writes
 JSON, CSV or a table, defaulting to the table at a terminal and to JSON when
 it is piped. What each query scanned and what that came to goes to standard
 error, so a pipeline reads rows and a person still sees the price. See the
-[command line](docs/command-line/), [rollups](docs/rollups/) and
-[query](docs/query/) pages.
+[command line](docs/command-line/), [rollups](docs/rollups/),
+[searches](docs/searches/) and [query](docs/query/) pages.
 
 ## Status
 

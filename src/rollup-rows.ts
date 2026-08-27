@@ -116,6 +116,6 @@ function partitionsOf(request: RollupRequest): readonly string[] {
 }
 
 /** One value as SQL writes it, with any quote in it doubled. */
-function quoted(value: string): string {
+export function quoted(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
 }

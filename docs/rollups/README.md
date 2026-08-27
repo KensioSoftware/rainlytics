@@ -1,6 +1,6 @@
 # Rollups
 
-Four questions the command line answers without anybody writing SQL.
+The questions the command line answers without anybody writing SQL.
 
 ```bash
 rainlytics pageviews --last 7d
@@ -14,7 +14,7 @@ path         views
 /grammar/       97
 ```
 
-`referrers`, `status-codes` and `cache-hit-ratio` are the other three. Each takes the same
+`referrers`, `status-codes`, `cache-hit-ratio` and [`searches`](../searches/) are the others. Each takes the same
 `--last`, the same `--path` and `--host`, the same output formats and the same bot filter, and each
 reports what it scanned and what that cost on standard error.
 
@@ -179,16 +179,16 @@ import {
   rowsFor,
 } from "@kensio/rainlytics";
 
-const searches: Rollup = {
-  name: "searches",
-  summary: "Count what readers searched for.",
-  description: "Counts the queries readers typed, most typed first.",
+const countries: Rollup = {
+  name: "countries",
+  summary: "Count views by country.",
+  description: "Counts where readers were, most read from first.",
   isRanked: true,
   body: (request) =>
     [
-      "SELECT cs_uri_query AS query, count(*) AS searches",
+      "SELECT c_country AS country, count(*) AS views",
       `  FROM ${qualifiedTableName(request.dataset)}`,
-      rowsFor(request, ["cs_uri_stem = '/search/'"]),
+      rowsFor(request, ["sc_content_type LIKE 'text/html%'"]),
       "  GROUP BY 1",
       "  ORDER BY 2 DESC, 1",
       `  LIMIT ${String(request.limit)}`,
@@ -196,7 +196,7 @@ const searches: Rollup = {
 };
 
 const sql = rollupSql(
-  searches,
+  countries,
   rollupRequest({ range: lastRange("7d", new Date()) }),
 );
 ```
@@ -209,9 +209,9 @@ filter](#crawlers-are-most-of-the-traffic) in the site's own repository, and the
 that goes stale.
 
 `rollupSql` hands back the text. Running it is the site's own Athena client. The `rainlytics`
-command reads the four it ships and has no way to load a question from outside the package.
+command reads the ones it ships and has no way to load a question from outside the package.
 
-The construct saves a site's rollup in the console beside the built-in four:
+The construct saves a site's rollup in the console beside the built-in ones:
 
 ```typescript
 import { rollups } from "@kensio/rainlytics";
@@ -220,12 +220,12 @@ import { RollupQueries } from "@kensio/rainlytics/cdk";
 new RollupQueries(this, "RainlyticsRollups", {
   table,
   workgroup,
-  rollups: [...rollups, searches],
+  rollups: [...rollups, countries],
 });
 ```
 
-The saved copy covers the current month, as the four do. Its description says what it counts and
-stops there, since there is no `rainlytics searches` to point a reader at.
+The saved copy covers the current month, as the built-in ones do. Its description says what it counts and
+stops there, since there is no `rainlytics countries` to point a reader at.
 
 A name is lowercase words joined by hyphens (`cache-hit-ratio`). It becomes a CDK logical id and an
 Athena query name, and `assertRollupName` refuses anything else at synthesis.
@@ -244,14 +244,14 @@ rainlytics referrers --last 7d | jq '.[0].referrer'
 one row and has nothing to limit.
 
 Each of these reads Athena today, at the cost the [query](../query/) page describes. When the
-scheduled rollups land, the same four commands will read a precomputed summary off S3 and each
+scheduled rollups land, the same commands will read a precomputed summary off S3 and each
 answer will cost a GET. The commands and their options stay where they are, so that swap is
 invisible from out here.
 
 ## Anything else
 
-[`rainlytics query`](../query/) takes SQL. These four are the questions worth a name, and the log
-table holds a great many more.
+[`rainlytics query`](../query/) takes SQL. These are the questions worth a name, and the log table
+holds a great many more.
 
 <!-- card
 ```bash
