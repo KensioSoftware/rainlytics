@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import { rollups } from "./rollup-questions.js";
 import {
+  neverComputed,
   type RollupSummary,
   summaryKey,
   type SummaryQuestion,
+  type SummaryLookup,
   summarySchemaVersion,
 } from "./rollup-summaries.js";
 import {
@@ -222,6 +224,19 @@ describe("what a rollup summary holds", () => {
     // which is why the instants are text. A `Date` here would be a string on
     // the way back and a type saying otherwise the whole way.
     expect(read).toStrictEqual(written);
+  });
+
+  it("answers for a window nobody has computed", () => {
+    // Given a lookup that found no object at all, and one that found a
+    // summary with no rows in it.
+    const found: SummaryLookup = neverComputed;
+    const quiet: SummaryLookup = { ...aSummary(), rows: [] };
+
+    // Then the two are different answers, and the first prints as the
+    // sentence it is. A quiet Sunday and a job that died on Sunday night
+    // would otherwise be the same 404.
+    expect(found).not.toStrictEqual(quiet);
+    expect(found).toBe("never computed");
   });
 
   it("says in the document that a visitor count does not add", () => {
