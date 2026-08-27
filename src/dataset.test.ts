@@ -29,6 +29,21 @@ describe("what the log dataset is called", () => {
     expect(qualifiedTableName()).toBe('"rainlytics"."cloudfront_logs"');
   });
 
+  it("refuses to quote a name Athena would not find", () => {
+    // Given a dataset carrying a name no Rainlytics table can have been
+    // created under.
+    const naming = (): string =>
+      qualifiedTableName({
+        databaseName: "Rainlytics Logs",
+        tableName: "cloudfront_logs",
+      });
+
+    // Then it refuses here rather than quoting it into SQL. The construct
+    // checks the same names at synthesis, and a caller writing a query has
+    // its own names and need never have gone through the construct.
+    expect(naming).toThrow(/Rainlytics Logs/u);
+  });
+
   it("accepts the names Athena reads back plainly", () => {
     // Given lowercase names of letters, digits and underscores.
     const naming = (): void => {

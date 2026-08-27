@@ -64,15 +64,21 @@ bills per terabyte scanned. The predicate is most of what a query costs.
 The partition keys are `distributionid`, `year`, `month`, `day` and `hour`. A predicate on anything
 else narrows the rows after they have been read, and the bytes are billed either way.
 
-That includes the record's own timestamp. `WHERE from_unixtime(cast(timestamp_ms AS bigint) / 1000)
+That includes the record's own timestamp:
 
-> current_timestamp - interval '1' day` answers correctly and scans the whole dataset to do it.
-> Name the day and the hour as well, and let the timestamp trim the edges.
+```sql
+WHERE from_unixtime(cast(timestamp_ms AS bigint) / 1000)
+  > current_timestamp - interval '1' day
+```
 
-Each key is a string, and every value is zero padded to a fixed width. Athena compares a projected
-value against the S3 key one character at a time, so `hour = '4'` finds no partition under
-`hour=04`, and `hour = 4` compares a string to a number. Both come back empty. An empty answer at
-least fails where a wrong one would not.
+That answers correctly and scans the whole dataset to do it. Name the day and the hour as well, and
+let the timestamp trim the edges.
+
+Each key is a string, and every value is zero padded to a fixed width, so the hour before ten is
+`hour = '04'`. Athena compares a projected value against the S3 key one character at a time. Drop
+the padding and `hour = '4'` finds no partition under `hour=04`. Drop the quotes and `hour = 4`
+compares a string to a number. Both come back empty. An empty answer at least fails where a wrong
+one would not.
 
 ## Every column is a string
 

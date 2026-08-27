@@ -7,10 +7,10 @@
 // for the beacon alone pulls neither of them in.
 
 export { logDeliveryRegion } from "./delivery-region.js";
+export type { LogDeliveryBucket } from "./delivery-bucket.js";
 export {
   CloudFrontLogDelivery,
   type CloudFrontLogDeliveryProps,
-  type LogDeliveryBucket,
   type LogOutputFormat,
 } from "./log-delivery.js";
 export { LogBucket, type LogBucketProps } from "./log-bucket.js";

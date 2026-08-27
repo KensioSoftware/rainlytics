@@ -36,10 +36,20 @@ export const defaultLogDataset: LogDataset = {
  * Athena takes double quotes around an identifier. Quoting is habit rather
  * than necessity for the names {@link assertQueryableName} allows, and it
  * keeps a query working if that rule is ever loosened.
+ *
+ * Both names are checked here as well as where the table is created. The two
+ * happen a long way apart, and a caller with names of its own can reach this
+ * without ever having gone through the construct. Quoting would carry a name
+ * Athena stores lowercased straight into a query that then finds no table.
+ *
+ * @throws {Error} for a name outside what Athena reads back plainly.
  */
 export function qualifiedTableName(
   dataset: LogDataset = defaultLogDataset,
 ): string {
+  assertQueryableName("database", dataset.databaseName);
+  assertQueryableName("table", dataset.tableName);
+
   return `"${dataset.databaseName}"."${dataset.tableName}"`;
 }
 
