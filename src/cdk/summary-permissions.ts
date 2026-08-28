@@ -32,6 +32,9 @@ export function athenaStatements(
         "athena:StopQueryExecution",
         "athena:GetQueryExecution",
         "athena:GetQueryResults",
+        // Athena reads the workgroup's own configuration on the way to
+        // running a query in it, and refuses the query without this.
+        "athena:GetWorkGroup",
       ],
       resources: [
         Stack.of(scope).formatArn({
@@ -55,17 +58,27 @@ export function catalogStatements(
   scope: Construct,
   dataset: LogDataset,
 ): readonly PolicyStatement[] {
-  const arnOf = (resource: string, resourceName: string): string =>
-    Stack.of(scope).formatArn({ service: "glue", resource, resourceName });
+  const stack = Stack.of(scope);
 
   return [
     new PolicyStatement({
       effect: Effect.ALLOW,
       actions: ["glue:GetDatabase", "glue:GetTable", "glue:GetPartitions"],
       resources: [
-        arnOf("catalog", ""),
-        arnOf("database", dataset.databaseName),
-        arnOf("table", `${dataset.databaseName}/${dataset.tableName}`),
+        // The catalog's own ARN ends at the word, with nothing after it. A
+        // resource name of `""` would put a separator on the end, and Glue
+        // matches an ARN that shape against nothing.
+        stack.formatArn({ service: "glue", resource: "catalog" }),
+        stack.formatArn({
+          service: "glue",
+          resource: "database",
+          resourceName: dataset.databaseName,
+        }),
+        stack.formatArn({
+          service: "glue",
+          resource: "table",
+          resourceName: `${dataset.databaseName}/${dataset.tableName}`,
+        }),
       ],
     }),
   ];
@@ -78,6 +91,10 @@ export function catalogStatements(
  * partition predicate selected before it reads anything in them. A role with
  * the read and not the list reports an empty answer for a window that has
  * data in it.
+ *
+ * The grantee is taken as well as given a statement, because a bucket
+ * encrypted with a customer key hands out its own decrypt permission and
+ * there is nothing here to add to the statement for it.
  */
 export function logReadStatements(
   bucket: LogDeliveryBucket,
