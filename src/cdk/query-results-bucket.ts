@@ -1,5 +1,6 @@
 // Where Athena puts what a query answered.
 
+import type { IKey } from "aws-cdk-lib/aws-kms";
 import {
   BlockPublicAccess,
   Bucket,
@@ -11,6 +12,23 @@ import type { Construct } from "constructs";
 
 import { defaultResultsRetention } from "./query-cost.js";
 import type { QueryWorkgroupProps } from "./query-workgroup.js";
+
+/**
+ * What a policy statement needs of the results bucket, which is an ARN and
+ * whatever key encrypts it.
+ *
+ * Narrower than `IBucket`, for the reason `LogDeliveryBucket` sets out. The
+ * bucket below is created with S3-managed keys and has no key to hand out.
+ * The shape carries one anyway, so a statement over a results bucket
+ * somebody else made reads the same way the log bucket's does.
+ */
+export interface QueryResultsBucket {
+  /** The bucket's ARN, which the statement is scoped to. */
+  readonly bucketArn: string;
+
+  /** The key encrypting it, where it is encrypted with one. */
+  readonly encryptionKey?: IKey | undefined;
+}
 
 /**
  * The bucket Athena writes a query's results into.

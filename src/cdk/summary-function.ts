@@ -24,6 +24,7 @@ import {
   athenaStatements,
   catalogStatements,
   logReadStatements,
+  resultsStatements,
   visitorSaltStatements,
 } from "./summary-permissions.js";
 
@@ -120,14 +121,14 @@ export class SummaryFunction extends Construct {
       ...athenaStatements(this, props.workgroup.workgroupName),
       ...catalogStatements(this, props.table.dataset),
       ...logReadStatements(props.table.logBucket, this.lambda),
+      // Athena writes every query's output to the workgroup's results
+      // location as the caller, and reads it back to answer GetQueryResults.
+      ...resultsStatements(props.workgroup.resultsBucket, this.lambda),
       ...visitorSaltStatements(this, saltParameter),
     ]) {
       this.lambda.addToRolePolicy(statement);
     }
 
-    // Athena writes every query's output to the workgroup's results location
-    // as the caller, and reads it back to answer GetQueryResults.
-    props.workgroup.resultsBucket.grantReadWrite(this.lambda);
     props.bucket.grantPut(this.lambda);
   }
 }

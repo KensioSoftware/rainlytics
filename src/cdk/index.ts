@@ -22,6 +22,7 @@ export {
   smallestBytesScannedCutoff,
 } from "./query-cost.js";
 export { QueryWorkgroup, type QueryWorkgroupProps } from "./query-workgroup.js";
+export type { QueryResultsBucket } from "./query-results-bucket.js";
 export {
   RollupQueries,
   type RollupQueriesProps,

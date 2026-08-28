@@ -1,8 +1,11 @@
 import { gzipSync } from "node:zlib";
 
 import { faker } from "@faker-js/faker";
+import { Match, Template } from "aws-cdk-lib/assertions";
 import { Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
+import { Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
+import { Key } from "aws-cdk-lib/aws-kms";
 import { App, CfnOutput, Duration, Size, Stack } from "aws-cdk-lib/core";
 import { describe, expect, it } from "vitest";
 
@@ -15,7 +18,7 @@ import {
 } from "../dataset.js";
 import { partitionPrefix } from "../partitions.js";
 import { CloudFrontLogDelivery } from "./log-delivery.js";
-import { LogBucket } from "./log-bucket.js";
+import { LogBucket, type LogBucketProps } from "./log-bucket.js";
 import { LogTable } from "./log-table.js";
 import { defaultBytesScannedCutoff } from "./query-cost.js";
 import { QueryWorkgroup, type QueryWorkgroupProps } from "./query-workgroup.js";
@@ -272,6 +275,126 @@ describe("the workgroup a Rainlytics query runs in", () => {
     // ten million bytes whatever it reads, so a cutoff under that refuses
     // every query, including the ones the pipeline runs on a schedule.
     expect(building).toThrow(/10000000/u);
+  });
+
+  describe("what an identity granted querying can reach", () => {
+    /**
+     * A whole deployment in one stack, with a role handed the grant.
+     *
+     * Synthesised rather than deployed. IAM is the part of this a simulated
+     * account cannot prove, for the reason `summary-permissions.test.ts`
+     * gives, so these cases read the policy the grant wrote.
+     */
+    const grantedTo = (
+      logEncryption: (stack: Stack) => LogBucketProps = () => ({}),
+    ): { readonly stack: Stack; readonly logBucketName: string } => {
+      const stack = new Stack(new App(), "AnalyticsStack", {
+        env: { account: "123456789012", region: "us-east-1" },
+      });
+      const logBucketName = `rainlytics-logs-${faker.string.uuid()}`;
+      const logs = new LogBucket(stack, "RainlyticsLogs", {
+        bucketName: logBucketName,
+        ...logEncryption(stack),
+      });
+      const delivery = new CloudFrontLogDelivery(stack, "RainlyticsDelivery", {
+        distributionId: "E1EXAMPLE1234",
+        logBucket: logs.bucket,
+      });
+      const logTable = new LogTable(stack, "RainlyticsTable", {
+        deliveries: [delivery],
+      });
+      const queries = new QueryWorkgroup(stack, "RainlyticsQueries", {
+        resultsBucketName: `rainlytics-results-${faker.string.uuid()}`,
+      });
+
+      queries.grantQuerying(
+        new Role(stack, "Analyst", {
+          assumedBy: new ServicePrincipal("lambda.amazonaws.com"),
+        }),
+        logTable,
+      );
+
+      return { stack, logBucketName };
+    };
+
+    /** One allow statement as CloudFormation carries it. */
+    interface WrittenStatement {
+      readonly Action: string | string[];
+      readonly Resource: unknown;
+    }
+
+    /** The statements the granted role's own policy carries. */
+    const statementsIn = (stack: Stack): readonly WrittenStatement[] => {
+      const policies = Template.fromStack(stack).findResources(
+        "AWS::IAM::Policy",
+        {
+          Properties: { Roles: [{ Ref: Match.stringLikeRegexp("^Analyst") }] },
+        },
+      ) as Record<
+        string,
+        { Properties: { PolicyDocument: { Statement: WrittenStatement[] } } }
+      >;
+
+      return Object.values(policies).flatMap(
+        (policy) => policy.Properties.PolicyDocument.Statement,
+      );
+    };
+
+    /** Every action those statements allow. */
+    const allowed = (stack: Stack): readonly string[] =>
+      statementsIn(stack).flatMap((statement) => [statement.Action].flat());
+
+    it("reaches every service one query touches", () => {
+      // Given a role a site handed the grant.
+      const { stack } = grantedTo();
+
+      // When the stack it was granted in is synthesised.
+      const actions = allowed(stack);
+
+      // Then it holds all four halves of a query. Athena starts it, Glue
+      // plans it, the log bucket answers it and the results bucket takes the
+      // answer, and Athena does the last three as the caller rather than as
+      // itself.
+      expect(actions).toContain("athena:StartQueryExecution");
+      expect(actions).toContain("glue:GetPartitions");
+      expect(actions).toContain("s3:GetObject");
+      expect(actions).toContain("s3:PutObject");
+      // And it can look up a query the site saved, which is what
+      // `rainlytics saved-query` runs.
+      expect(actions).toContain("athena:BatchGetNamedQuery");
+    });
+
+    it("names this deployment's resources and never a wildcard", () => {
+      // Given a role granted querying over one deployment.
+      const { stack } = grantedTo();
+
+      // When the resources the grant wrote are read back.
+      const resources = statementsIn(stack).map((statement) =>
+        JSON.stringify(statement.Resource),
+      );
+
+      // Then it names this workgroup, this database and this table. A grant
+      // reaching `*` would answer the case above and still be wrong, and the
+      // account holds analytics for every site the maintainer runs.
+      expect(resources.join(",")).toContain("workgroup/rainlytics");
+      expect(resources.join(",")).toContain("table/rainlytics/cloudfront_logs");
+      expect(resources.filter((each) => each.includes('"*"'))).toStrictEqual(
+        [],
+      );
+    });
+
+    it("decrypts a log bucket a site keeps under its own key", () => {
+      // Given a deployment whose logs are encrypted with a customer key
+      // rather than with S3-managed encryption.
+      const { stack } = grantedTo((inStack) => ({
+        encryptionKey: new Key(inStack, "LogKey"),
+      }));
+
+      // Then the grantee can decrypt what it reads. S3 answers a GetObject
+      // under a key the caller cannot use with an AccessDenied from KMS, and
+      // the S3 statement has nothing to say about that.
+      expect(allowed(stack)).toContain("kms:Decrypt");
+    });
   });
 
   const table = (): string => qualifiedTableName();

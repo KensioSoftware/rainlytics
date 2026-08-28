@@ -1,6 +1,7 @@
 // Where the precomputed answers live.
 
 import type { Grant, IGrantable } from "aws-cdk-lib/aws-iam";
+import type { IKey } from "aws-cdk-lib/aws-kms";
 import {
   BlockPublicAccess,
   Bucket,
@@ -11,8 +12,8 @@ import { Duration, RemovalPolicy } from "aws-cdk-lib/core";
 import type { Construct } from "constructs";
 
 /**
- * What the job needs of the bucket it writes into, which is a name and
- * permission to put an object.
+ * What the job needs of the bucket it writes into, and what a reader needs of
+ * the bucket it reads.
  *
  * Deliberately narrower than `IBucket`, for the reason `LogDeliveryBucket`
  * sets out. Under `exactOptionalPropertyTypes`, CDK's own `Bucket` is not
@@ -24,6 +25,14 @@ import type { Construct } from "constructs";
 export interface SummariesBucket {
   /** The bucket's name, which the job is given in its environment. */
   readonly bucketName: string;
+
+  /**
+   * The bucket's ARN, which `grantReadingSummaries` scopes the read to.
+   */
+  readonly bucketArn: string;
+
+  /** The key encrypting it, where it is encrypted with one. */
+  readonly encryptionKey?: IKey | undefined;
 
   /** Letting the job put an object in it. */
   readonly grantPut: (
