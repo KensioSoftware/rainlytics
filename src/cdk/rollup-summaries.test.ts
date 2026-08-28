@@ -23,7 +23,6 @@ import { partitionPrefix } from "../partitions.js";
 import { pageviews } from "../rollup-questions.js";
 import type { RollupSummary } from "../rollup-summaries.js";
 import { summarySchemaVersion } from "../rollup-summaries.js";
-import type { Rollup } from "../rollups.js";
 import { defaultRedirectStatuses, windowPlaceholder } from "../rollups.js";
 import {
   defaultVisitorSaltParameter,
@@ -44,18 +43,6 @@ describe("computing rollup summaries on a schedule", () => {
    * past, so the newest closed hour a run meets is the one before it.
    */
   const theClosedHour = new Date("2026-08-23T08:00:00.000Z");
-
-  /**
-   * The pageviews question with its visitor count turned off.
-   *
-   * Every case here is about windows, keys, buckets and lag, and a visitor
-   * count in the middle of them would be a second query nothing can answer.
-   * Yulin's Athena engine has no `sha256`, `to_utf8` or `to_hex`, so the
-   * shipped count comes back empty under a SUCCEEDED state and the run
-   * refuses it. KensioSoftware/yulin#1082 is that gap, and the two cases
-   * below cover the wiring that reaches it.
-   */
-  const viewsOnly: Rollup = { ...pageviews, countsVisitors: false };
 
   /** A whole deployment in a simulated account, computing one question. */
   const deployAnalytics = async (
@@ -93,7 +80,7 @@ describe("computing rollup summaries on a schedule", () => {
         new RollupSummaries(stack, "RainlyticsSummaries", {
           table,
           workgroup,
-          rollups: [viewsOnly],
+          rollups: [pageviews],
           granularities: ["hourly"],
           summariesBucketName,
           removalPolicy: RemovalPolicy.DESTROY,
@@ -132,7 +119,13 @@ describe("computing rollup summaries on a schedule", () => {
 
   type Deployed = Awaited<ReturnType<typeof deployAnalytics>>;
 
-  /** One record, with everything a rollup reads set to something sensible. */
+  /**
+   * One record, with everything a rollup reads set to something sensible.
+   *
+   * Every record gets an address of its own. A case that says nothing about
+   * visitors then counts one per record, and a case that cares who came back
+   * hands `c-ip` in.
+   */
   const aRecord = (
     at: Date,
     over: Readonly<Record<string, string>> = {},
@@ -148,6 +141,7 @@ describe("computing rollup summaries on a schedule", () => {
     "cs(User-Agent)": "Mozilla/5.0%20(Macintosh)",
     "x-edge-result-type": "Hit",
     "c-country": "GB",
+    "c-ip": faker.internet.ipv4(),
     ...over,
   });
 
@@ -405,10 +399,53 @@ describe("computing rollup summaries on a schedule", () => {
     });
   });
 
+  it("counts the visitors the closed hour saw", async () => {
+    // Given an hour holding two views from one address and one from another.
+    const returning = faker.internet.ipv4();
+    const deployed = await deployAnalytics();
+    await putDelivered(deployed, theClosedHour, [
+      aRecord(theClosedHour, { "c-ip": returning }),
+      aRecord(theClosedHour, { "c-ip": returning }),
+      aRecord(theClosedHour, { "c-ip": faker.internet.ipv4() }),
+    ]);
+
+    // When the schedule fires.
+    await deployed.simAws.clock().advanceBy({ minutes: 16 });
+
+    // Then the summary carries three views and two visitors. The gap between
+    // the two numbers is the address that came back, counted once.
+    const summary = await summaryAt(deployed, closedHourKey);
+
+    expect(summary?.rows).toStrictEqual([{ path: "/", views: "3" }]);
+    expect(summary?.visitors).toStrictEqual({ distinct: 2, additive: false });
+  });
+
+  it("asks Athena nothing where the salt parameter is missing", async () => {
+    // Given a deployment naming a parameter nobody created, and an hour of
+    // traffic waiting to be counted.
+    const parameter = `/mine/${faker.string.uuid()}`;
+    const deployed = await deployAnalytics({ visitorSaltParameter: parameter });
+    const account = deployed.simAws.region("us-east-1").account();
+    await putDelivered(deployed, theClosedHour, [aRecord(theClosedHour)]);
+
+    // When the schedule fires.
+    await deployed.simAws.clock().advanceBy({ minutes: 16 });
+
+    // Then the run failed naming the parameter, having asked Athena nothing.
+    // A run that queried first would have paid for a window it then refused
+    // to write. Scheduler keeps a failed invocation to itself, and the
+    // simulation's record of it stands in for the log group.
+    const [failure] = account.scheduler().deliveryFailures;
+
+    expect(failure?.message).toContain(parameter);
+    expect(account.athena().queryExecutions()).toStrictEqual([]);
+    await expect(summaryAt(deployed, closedHourKey)).resolves.toBeUndefined();
+  });
+
   it("hands the visitor count to the schedule without the salt", async () => {
     // Given a deployment of the question as Rainlytics ships it, which counts
     // visitors.
-    const deployed = await deployAnalytics({ rollups: [pageviews] });
+    const deployed = await deployAnalytics();
 
     // When the schedule's target input is read back.
     const schedule = await deployed.simAws
