@@ -56,6 +56,12 @@ form, and its \`requests\` prop is where a deployment adds a narrowed one. A
 run whose filters no stored summary matches says what was stored and stops,
 so nothing quietly falls back to a query nobody chose.
 
+A run that names none of those options takes the ones the summaries were
+computed with, and standard error says which. The deployment declared its
+narrowing on RollupSummaries and this command reads that copy back. A shell
+alias never has to carry a second one. An option somebody typed is still
+theirs, and still refused where no stored summary matches it.
+
 A range is covered by whole UTC windows, days wherever a whole day fits and
 hours at the two edges. The part hours at either end have no stored window, so
 a span always reads a little short of the one asked for. Standard error names

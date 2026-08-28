@@ -15,7 +15,10 @@ import type { SummaryWindow } from "../summary-windows.js";
 import { summarySpan } from "../summary-windows.js";
 import { UsageError } from "./failure.js";
 import { summaryBucketVariable } from "./summary-help.js";
-import type { QuestionDifference } from "./summary-question.js";
+import type {
+  QuestionDifference,
+  StoredDisagreement,
+} from "./summary-question.js";
 
 /** What a reader is told where nothing says which bucket holds the answers. */
 export function nowhereToRead(rollup: Rollup): UsageError {
@@ -63,6 +66,39 @@ export function answersSomethingElse(
       `A schedule computes the questions its deployment named, and the` +
       ` requests prop on RollupSummaries is where a narrowed one is added.` +
       ` --query answers this run from Athena at the cost a query reports.`,
+  );
+}
+
+/**
+ * What a reader is told where the stored summaries were narrowed two ways.
+ *
+ * A command line naming no filters takes the ones its deployment declared, and
+ * this is the span where there is more than one answer to take. A deployment
+ * that changed its `requests` halfway through has summaries of both questions,
+ * and an answer assembled from them would cover part of the span under a
+ * narrowing the rest was never computed with.
+ *
+ * The reader settles it by typing the one they want. Every window the run
+ * still disagrees with is then named by {@link answersSomethingElse}. That is
+ * the same conversation from the other end.
+ */
+export function computedMoreThanOneWay(
+  rollup: Rollup,
+  disagreements: readonly StoredDisagreement[],
+): Error {
+  const lines = disagreements.map(
+    (disagreement) =>
+      `  ${disagreement.option}: some windows computed with` +
+      ` ${disagreement.computed.join(", others with ")}`,
+  );
+
+  return new Error(
+    `The stored ${rollup.name} summaries over that span were not all` +
+      ` computed the same way, and this run named nothing to settle it` +
+      ` with.\n${lines.join("\n")}\nA deployment that changed its requests` +
+      ` prop leaves both questions in the bucket. Name the one you want on` +
+      ` the command line, ask about a span on one side of the change, or run` +
+      ` it with --query.`,
   );
 }
 

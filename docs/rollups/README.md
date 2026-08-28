@@ -234,6 +234,29 @@ for it.
 An entry takes whatever `RollupRequest` carries, minus the range and the dataset. A field added to
 the request arrives here on its own.
 
+`RollupSummaries` takes the same shape on its own `requests` prop. A site narrowing a question for
+both writes the narrowing once and passes the constant to each:
+
+```typescript
+const searches = { paths: ["/liju/search/", "/cidian/search/"], param: "term" };
+
+new RollupQueries(this, "RainlyticsRollups", {
+  table,
+  workgroup,
+  requests: { searches },
+});
+new RollupSummaries(this, "RainlyticsSummaries", {
+  table,
+  workgroup,
+  requests: { searches },
+});
+```
+
+A saved query and a stored summary that drift apart answer two questions under one name. The
+constant keeps them in step, and
+[reading a precomputed answer](#a-summary-answers-the-question-it-was-computed-with) is where the
+command line picks the same narrowing up.
+
 A fact that belongs to every question, such as the host of one site on a distribution serving
 several, is a variable spread into each entry. Every key has to name a rollup being saved, and a
 mistyped one fails at synthesis. The alternative is a deployed query still counting whatever it
@@ -550,7 +573,18 @@ count every combination of them. `RollupSummaries` computes the unfiltered form 
 and [`requests`](../summary-schedule/) is where a deployment adds a narrowed one under a name of its
 own.
 
-A run whose filters no stored summary matches is told what was stored:
+A run that names none of those options takes the ones the summaries were computed with. The
+deployment declared its narrowing once and the command reads that copy back. A shell alias never has
+to carry a second one. Standard error says which filters the run took:
+
+```text
+Took --path /liju/search/ /cidian/search/ from the summaries. Those options
+were left off this command line, and the answer covers the narrowing the
+deployment computes.
+```
+
+An option somebody typed stays theirs. A run whose filters no stored summary matches is told what
+was stored:
 
 ```text
 The stored pageviews summaries answer a different question.
@@ -560,9 +594,20 @@ on RollupSummaries is where a narrowed one is added. --query answers this run
 from Athena at the cost a query reports.
 ```
 
+A change to `requests` leaves both narrowings in the bucket. Over a span holding some of each, the
+command names the option that would settle it and stops:
+
+```text
+The stored pageviews summaries over that span were not all computed the same
+way, and this run named nothing to settle it with.
+  --path: some windows computed with /guides/, others with the whole distribution
+```
+
+Typing the one you want settles it. So does a span on one side of the change.
+
 `--limit` is the one option where the two only have to overlap. A summary computed with the top
-hundred paths holds the top twenty inside it. The reverse loses rows nobody counted, and it is
-refused.
+hundred paths holds the top twenty inside it. The reverse loses rows nobody counted. A run that
+typed the row count is refused, and a run that typed none takes the stored one.
 
 ### Several windows add up, and the ranking is approximate
 

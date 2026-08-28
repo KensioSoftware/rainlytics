@@ -14,16 +14,48 @@
 import type { SummaryQuestion } from "../rollup-summaries.js";
 import type { Rollup, RollupRequest } from "../rollups.js";
 
+/**
+ * The options that narrow a question, spelled as a reader types them.
+ *
+ * The list every reader of a narrowing walks. `questionDifferences` compares
+ * these fields, `summary-adoption.ts` takes the ones a command line left out,
+ * and `rollup-options.ts` records which of them arrived. An option added to a
+ * rollup command reaches all three from here.
+ *
+ * `--last` is left out. The window is the range a summary answers over, and a
+ * span is what a reader is choosing when they type it.
+ */
+export const narrowingOptions = [
+  "--host",
+  "--path",
+  "--include-bots",
+  "--param",
+  "--redirect-status",
+  "--limit",
+] as const;
+
+/** One option that narrows a question. */
+export type NarrowingOption = (typeof narrowingOptions)[number];
+
 /** One way a stored summary answers something else. */
 export interface QuestionDifference {
   /** The option a reader would change, as they would type it. */
-  readonly option: string;
+  readonly option: NarrowingOption;
 
   /** What this run asked for. */
   readonly asked: string;
 
   /** What the schedule computed. */
   readonly computed: string;
+}
+
+/** One filter the stored summaries of a span were not all computed with. */
+export interface StoredDisagreement {
+  /** The option that would settle it. */
+  readonly option: NarrowingOption;
+
+  /** The values found among the summaries, as a sentence names them. */
+  readonly computed: readonly string[];
 }
 
 /** The question one command line asks, as a summary would record it. */
@@ -96,7 +128,7 @@ export function questionDifferences(
 
 /** The difference between two values, where there is one. */
 function differing(
-  option: string,
+  option: NarrowingOption,
   asked: string,
   computed: string,
 ): readonly QuestionDifference[] {
