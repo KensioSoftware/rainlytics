@@ -81,6 +81,10 @@ incident.
 `recomputedWindows` moves that count. One computes each window once and never again. Higher numbers
 buy more grace at one Athena query each.
 
+Nothing backfills. A run reaches back as far as `recomputedWindows` and no further, so a window that
+closed before the construct was deployed has no summary and reports as `neverComputed` to whatever
+reads the bucket. Answering a question about one of those is a `rainlytics` query over raw.
+
 ```typescript
 new RollupSummaries(this, "RainlyticsSummaries", {
   table,
@@ -112,6 +116,9 @@ schedule's target input, so what the job will run can be read without running it
 
 A scheduled summary of one hour and a `rainlytics pageviews --last 1h` run over that hour therefore
 count it the same way. The [rollups](../rollups/) page has what each question counts.
+
+The query is fixed at deploy time. A package upgrade that changes what a question counts reaches the
+running job when the stack is deployed again, and the same deploy replaces the function's code.
 
 Each question also takes the narrowing `RollupQueries` takes, per question and by name:
 
