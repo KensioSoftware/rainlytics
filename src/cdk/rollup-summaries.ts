@@ -75,6 +75,7 @@ export class RollupSummaries extends Construct {
     this.schedules = new SummarySchedules(this, "Schedules", {
       lambda: this.lambda,
       lag: settled.lag,
+      namePrefix: settled.namePrefix,
       runs: summaryRuns({
         rollups: settled.rollups,
         granularities: settled.granularities,

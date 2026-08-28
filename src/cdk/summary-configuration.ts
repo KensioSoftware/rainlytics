@@ -8,6 +8,7 @@
 import type { RetentionDays } from "aws-cdk-lib/aws-logs";
 import type { Duration } from "aws-cdk-lib/core";
 
+import { savedQueryPrefix } from "../dataset.js";
 import type { Rollup } from "../rollups.js";
 import { rollups } from "../rollup-questions.js";
 import { defaultRecomputedWindows } from "../summary-runs.js";
@@ -20,8 +21,8 @@ import type { SavedRollupRequest } from "./rollup-queries.js";
 import type { SummaryBucketProps } from "./summary-bucket.js";
 import { defaultSummaryLag } from "./summary-lag.js";
 import {
-  assertOneGranularity,
   assertOneSummaryEach,
+  assertSomethingToCompute,
 } from "./summary-schedule-names.js";
 
 /** What the scheduled summaries need telling. */
@@ -88,6 +89,23 @@ export interface RollupSummariesProps extends SummaryBucketProps {
    * @default a month
    */
   readonly logRetention?: RetentionDays | undefined;
+
+  /**
+   * What each schedule's name begins with.
+   *
+   * A schedule's name is unique within its group, and every schedule here
+   * goes in the account's default group. Two Rainlytics deployments in one
+   * account and region therefore collide on `rainlytics-pageviews-hourly`,
+   * and the second of them fails at deploy time. A site measuring two
+   * distributions from one account gives one of them a prefix of its own.
+   *
+   * The same reasoning as `workgroupName` on `QueryWorkgroup` and
+   * `databaseName` on `LogTable`. One deployment per account reads well by
+   * default, and a second one says which it is.
+   *
+   * @default `rainlytics-`, being {@link savedQueryPrefix}
+   */
+  readonly schedulePrefix?: string | undefined;
 }
 
 /** The same, with every choice made. */
@@ -103,6 +121,9 @@ export interface SummaryConfiguration {
 
   /** How long after a window closes a run fires. */
   readonly lag: Duration;
+
+  /** What each schedule's name begins with. */
+  readonly namePrefix: string;
 }
 
 /**
@@ -121,14 +142,15 @@ export function summaryConfiguration(
   const computing = props.rollups ?? rollups;
   const granularities = props.granularities ?? summaryGranularities;
 
+  assertSomethingToCompute(computing, granularities);
   assertOneSummaryEach(computing);
   assertRequestedNames(computing, Object.keys(props.requests ?? {}));
-  assertOneGranularity(granularities);
 
   return {
     rollups: computing,
     granularities,
     windows: props.recomputedWindows ?? defaultRecomputedWindows,
     lag: props.lag ?? defaultSummaryLag,
+    namePrefix: props.schedulePrefix ?? savedQueryPrefix,
   };
 }

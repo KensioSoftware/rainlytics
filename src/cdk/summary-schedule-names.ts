@@ -46,14 +46,26 @@ export function assertOneSummaryEach(computing: readonly Rollup[]): void {
 }
 
 /**
- * Refuses a granularity list that would compute nothing.
+ * Refuses a set of questions or windows that would compute nothing.
  *
- * @throws {Error} for an empty list, which would deploy a function nothing
- *   invokes and a bucket nothing writes to.
+ * Both lists default to something when they are left out, and an empty one is
+ * not left out. `rollups: []` and `granularities: []` each deploy a function
+ * nothing invokes, a bucket nothing writes to and no schedules at all, and
+ * the stack reports success.
+ *
+ * @throws {Error} naming the empty list and what leaving it out would do.
  */
-export function assertOneGranularity(
+export function assertSomethingToCompute(
+  computing: readonly Rollup[],
   granularities: readonly SummaryGranularity[],
 ): void {
+  if (computing.length === 0) {
+    throw new Error(
+      `A deployment computing no questions computes nothing. Leave rollups` +
+        ` out for the ones Rainlytics ships, or name at least one.`,
+    );
+  }
+
   if (granularities.length === 0) {
     throw new Error(
       `A deployment computing no granularity computes nothing. Leave` +

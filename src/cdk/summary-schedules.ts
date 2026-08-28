@@ -13,7 +13,6 @@ import type { Duration } from "aws-cdk-lib/core";
 import { Construct } from "constructs";
 
 import type { SummaryRun } from "../functions/summary-run.js";
-import { savedQueryPrefix } from "../dataset.js";
 import type { SummaryGranularity } from "../summary-windows.js";
 import { summaryScheduleExpression } from "./summary-lag.js";
 import { scheduleId } from "./summary-schedule-names.js";
@@ -28,6 +27,9 @@ export interface SummarySchedulesProps {
 
   /** Every question on every cadence, one schedule each. */
   readonly runs: readonly SummaryRun[];
+
+  /** What each schedule's name begins with. */
+  readonly namePrefix: string;
 }
 
 /**
@@ -64,7 +66,7 @@ export class SummarySchedules extends Construct {
 
   private fire(run: SummaryRun, props: SummarySchedulesProps): CfnSchedule {
     return new CfnSchedule(this, scheduleId(run), {
-      name: scheduleName(run.question.name, run.granularity),
+      name: scheduleName(props.namePrefix, run.question.name, run.granularity),
       description:
         `Rainlytics ${run.question.name}, computed for each` +
         ` ${run.granularity === "hourly" ? "hour" : "day"} that closes.`,
@@ -84,13 +86,16 @@ export class SummarySchedules extends Construct {
 /**
  * What one schedule is called.
  *
- * The same `rainlytics-` prefix the saved queries take. Scheduler lists
- * schedules flat within a group, and the prefix gathers a deployment's own
- * into one place among whatever else somebody has scheduled there.
+ * Scheduler lists schedules flat within a group and a name is unique across
+ * that group, so the prefix does two jobs. It gathers a deployment's own
+ * schedules into one place among whatever else somebody has scheduled there,
+ * and it is what a second deployment in the same account and region changes
+ * to keep its schedules apart from the first one's.
  */
 function scheduleName(
+  prefix: string,
   question: string,
   granularity: SummaryGranularity,
 ): string {
-  return `${savedQueryPrefix}${question}-${granularity}`;
+  return `${prefix}${question}-${granularity}`;
 }

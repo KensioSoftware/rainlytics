@@ -90,9 +90,8 @@ Only the question's name reaches the key. Two narrowings of one question are two
 two names, the way `RollupQueries` [saves one named query per rollup
 name](../rollups/#the-same-sql-saved-in-the-console). A site that wants pageviews for one section as
 well as for the whole of it [writes a rollup of its own](../rollups/#writing-a-rollup-of-your-own)
-and gives it a name. Two questions scheduled under one name would overwrite each other, and
-`RollupSummaries` refuses that pair at synthesis. The narrowing in the document is what catches it
-afterwards.
+and gives it a name. Two questions scheduled under one name would overwrite each other, so
+`RollupSummaries` refuses the pair at synthesis, before either has written anything.
 
 Keys sort into the order the windows happened. The newest summary is the last one in a listing of
 the prefix above it. No reader parses a key. The dates in it are UTC, and the document carries the

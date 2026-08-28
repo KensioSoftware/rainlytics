@@ -78,6 +78,11 @@ describe("one run of the rollup summary job", () => {
     );
 
     await simAws.region("us-east-1").account().athena().engine().enable();
+
+    // What the previous case in this file replaced, put back before this one
+    // replaces it again. `Date` is faked because the job asks the process
+    // what time it is, the way it does on Lambda.
+    vi.useRealTimers();
     intercepted?.restoreAll();
     intercepted = new SimSdk({ simAws });
     intercepted.intercept(AthenaClient);
@@ -155,11 +160,11 @@ describe("one run of the rollup summary job", () => {
    * clock is moved to meet the simulation instead. Only `Date` is replaced,
    * because the Athena poll waits on a real timer.
    */
-  const atQuarterPast = (deployed: Deployed): void => {
+  const atQuarterPast = async (deployed: Deployed): Promise<void> => {
     const quarterPast = new Date("2026-08-23T09:15:00.000Z");
 
     vi.useFakeTimers({ toFake: ["Date"], now: quarterPast });
-    void deployed.simAws.clock().setTo(quarterPast);
+    await deployed.simAws.clock().setTo(quarterPast);
   };
 
   /** Whatever is under one key in the summaries bucket. */
@@ -195,7 +200,7 @@ describe("one run of the rollup summary job", () => {
     // Given an hour of traffic, and a job set to compute two windows.
     const deployed = await deployAnalytics();
     await putDelivered(deployed, anHour);
-    atQuarterPast(deployed);
+    await atQuarterPast(deployed);
 
     // When the job runs.
     await handler(aRun());
@@ -215,7 +220,7 @@ describe("one run of the rollup summary job", () => {
     // Given a query naming a column the table does not have.
     const deployed = await deployAnalytics();
     await putDelivered(deployed, anHour);
-    atQuarterPast(deployed);
+    await atQuarterPast(deployed);
 
     // When the job runs it.
     const running = handler(

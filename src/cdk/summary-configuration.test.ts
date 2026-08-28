@@ -73,6 +73,32 @@ describe("what a deployment of the summaries computes", () => {
     expect(sent.sql).toContain("SELECT");
   });
 
+  it("keeps a second deployment's schedules apart from the first one's", () => {
+    // Given a site measuring a second distribution from the same account. A
+    // schedule's name is unique within its group, so the two deployments
+    // would otherwise collide on `rainlytics-pageviews-hourly`.
+    const summaries = summariesIn({
+      rollups: [pageviews],
+      granularities: ["hourly"],
+      schedulePrefix: "docs-",
+    });
+
+    // Then the schedules are named for that deployment.
+    expect(summaries.schedules.map((schedule) => schedule.name)).toStrictEqual([
+      "docs-pageviews-hourly",
+    ]);
+  });
+
+  it("refuses a deployment that would compute nothing", () => {
+    // Given a site that passed an empty list of questions, which is not the
+    // same as leaving the prop out.
+    const building = (): unknown => summariesIn({ rollups: [] });
+
+    // Then it is refused at synthesis, rather than deploying a function
+    // nothing invokes and a bucket nothing writes to.
+    expect(building).toThrow(/computes nothing/u);
+  });
+
   it("refuses a request naming a question it is not computing", () => {
     // Given a narrowing keyed on a question nobody is computing, which is a
     // rollup name typed by hand.

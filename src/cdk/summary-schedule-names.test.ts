@@ -3,9 +3,10 @@ import { describe, expect, it } from "vitest";
 
 import { pageviews, rollups, searches } from "../rollup-questions.js";
 import type { Rollup } from "../rollups.js";
+import { summaryGranularities } from "../summary-windows.js";
 import {
-  assertOneGranularity,
   assertOneSummaryEach,
+  assertSomethingToCompute,
   scheduleId,
 } from "./summary-schedule-names.js";
 
@@ -37,11 +38,22 @@ describe("what a set of scheduled questions can be", () => {
   it("refuses a deployment computing no windows", () => {
     // Given a deployment given an empty list of granularities.
     const checking = (): void => {
-      assertOneGranularity([]);
+      assertSomethingToCompute(rollups, []);
     };
 
     // Then it is refused, rather than deploying a function nothing invokes.
-    expect(checking).toThrow(/computes nothing/u);
+    expect(checking).toThrow(/no granularity/u);
+  });
+
+  it("refuses a deployment computing no questions", () => {
+    // Given a deployment given an empty list of rollups. Both lists default
+    // to something when they are left out, and an empty one is not left out.
+    const checking = (): void => {
+      assertSomethingToCompute([], summaryGranularities);
+    };
+
+    // Then it is refused too, for the same reason.
+    expect(checking).toThrow(/no questions/u);
   });
 });
 

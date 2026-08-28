@@ -11,7 +11,7 @@
 // the job will run. `windowedSql` fills the window in.
 
 import type { SummaryQuestion } from "../rollup-summaries.js";
-import { assertRollupName } from "../rollups.js";
+import { assertRollupName, currentMonth, rollupRequest } from "../rollups.js";
 import type { SummaryGranularity } from "../summary-windows.js";
 import { summaryGranularities } from "../summary-windows.js";
 
@@ -63,14 +63,35 @@ export const summaryEnvironment = {
 export function deploymentFrom(
   environment: Readonly<Record<string, string | undefined>>,
 ): SummaryDeployment {
-  const windows = Number(required(environment, summaryEnvironment.windows));
-
   return {
     database: required(environment, summaryEnvironment.database),
     workgroup: required(environment, summaryEnvironment.workgroup),
     bucket: required(environment, summaryEnvironment.bucket),
-    windows,
+    windows: windowCount(required(environment, summaryEnvironment.windows)),
   };
+}
+
+/**
+ * How many windows the deployment asked for, as a number.
+ *
+ * Checked here rather than left to `recomputedWindows`, which would refuse it
+ * a moment later without naming the variable it came from. A log entry
+ * nobody is watching has one chance to say what is wrong with the
+ * deployment.
+ *
+ * @throws {Error} naming the variable and what it held.
+ */
+function windowCount(asked: string): number {
+  const windows = Number(asked);
+
+  if (!Number.isSafeInteger(windows) || windows < 1) {
+    throw new Error(
+      `${summaryEnvironment.windows} is a whole number of windows, at least` +
+        ` one, and this invocation had "${asked}".`,
+    );
+  }
+
+  return windows;
 }
 
 function required(
@@ -105,30 +126,61 @@ export function runFrom(payload: unknown): SummaryRun {
   const granularity = found["granularity"];
   const sql = found["sql"];
 
-  if (
-    typeof sql !== "string" ||
-    typeof question["name"] !== "string" ||
-    !isGranularity(granularity)
-  ) {
+  if (typeof sql !== "string" || !isGranularity(granularity)) {
     throw refusal(payload);
   }
 
+  return { question: questionFrom(question), granularity, sql };
+}
+
+/**
+ * The fields a question carries, read off a request rather than written out.
+ *
+ * `SummaryQuestion` is `RollupRequest` minus the two fields a summary settles
+ * for itself, and it is defined that way so that a filter added to the
+ * commands is a filter recorded in the document without anybody remembering.
+ * A list of names typed out here would undo that, and the copy that drifts is
+ * always the one nothing deploys. `rollupRequest` fills in every field that
+ * has a default, so its keys are the ones a payload has to carry. The two
+ * that have no default, `paths` and `host`, are optional in the type and are
+ * absent from a question that did not narrow.
+ */
+const questionFields: readonly string[] = Object.keys(
+  rollupRequest({ range: currentMonth }),
+).filter((field) => field !== "dataset" && field !== "range");
+
+/**
+ * The question one payload names, checked rather than cast.
+ *
+ * Scheduler sends whatever its target input holds. A payload short of a field
+ * would reach S3 as a summary describing a question nobody asked, and the
+ * reader comparing it against what somebody wanted would find a field
+ * missing rather than different.
+ *
+ * @throws {Error} for a question this cannot read.
+ */
+function questionFrom(
+  question: Readonly<Record<string, unknown>>,
+): SummaryQuestion {
+  if (typeof question["name"] !== "string") {
+    throw refusal(question);
+  }
+
+  // The key is built from the name, so a name no key can carry is refused
+  // with the message that says which names one can.
   assertRollupName(question["name"]);
 
-  /*
-   * The three fields the job itself reads are checked above. What is under
-   * `question` is recorded in the document and never acted on, and a list of
-   * its fields written out here would be a second statement of
-   * `RollupRequest`. `SummaryQuestion` is defined as that type minus two
-   * fields for exactly that reason, and the copy that drifts is always the
-   * one nothing deploys. The name is checked because the key is built from
-   * it.
-   */
-  return {
-    question: question as unknown as SummaryQuestion,
-    granularity,
-    sql,
-  };
+  const missing = questionFields.filter((field) => !(field in question));
+
+  if (missing.length > 0) {
+    throw new Error(
+      `The question "${question["name"]}" is missing ${missing.join(", ")}.` +
+        ` RollupSummaries writes every field a rollup request carries into a` +
+        ` schedule's target input, and a summary records them all.`,
+    );
+  }
+
+  return question as unknown as SummaryQuestion;
 }
 
 function asRecord(value: unknown): Readonly<Record<string, unknown>> {

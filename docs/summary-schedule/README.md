@@ -51,7 +51,7 @@ all landed by four minutes past the next hour, and a run a quarter past has elev
 over the slowest record in that sample.
 
 A run on the hour would compute every hour before its last records arrived. The tail of each hour
-would be missing and every summary would look complete, which is the failure this lag exists to
+would be missing and every summary would look complete. That is the failure the lag exists to
 avoid.
 
 `lag` moves it. A site that has watched its own delivery and wants fresher answers lowers it. A site
@@ -75,8 +75,7 @@ never would, and the summary would go on being quietly short for as long as it l
 
 So a run computes the window that has just closed and the one before it, newest first. Both are
 written to the keys they were written to before, and each replaces what was there. Recomputing a
-window is a re-run of the job rather than a merge, and a bug in a rollup is a re-run rather than an
-incident.
+window is a re-run of the job. A bug in a rollup is a re-run too.
 
 `recomputedWindows` moves that count. One computes each window once and never again. Higher numbers
 buy more grace at one Athena query each.
@@ -147,10 +146,10 @@ A query that does not succeed fails the run. The message names the question, the
 reason and the execution id, and it goes to the function's log group. The invocation counts on the
 function's `Errors` metric.
 
-The bytes-scanned cutoff is the failure worth expecting. It is the [workgroup's](../query-workgroup/)
-and it is there so one query cannot run up a bill nobody chose. A scheduled question reads one window
-and should be nowhere near the ceiling. A run that meets it has usually lost its partition predicate,
-which the message says.
+The bytes-scanned cutoff is the failure worth expecting. It is `bytesScannedCutoff` on the
+[workgroup](../query-workgroup/), and it is there so one query cannot run up a bill nobody chose. A
+scheduled question reads one window and should be nowhere near the ceiling. A run that meets it has
+usually lost its partition predicate, which the message says.
 
 Nobody is watching a scheduled run, and there are two places to look:
 
@@ -203,6 +202,26 @@ this stack reads the answers, such as a static site given read access to one pre
 | `summariesBucket`   | one is created             | Where the answers land.                     |
 | `timeout`           | 5 minutes                  | How long one run may take.                  |
 | `logRetention`      | a month                    | How long the function's logs are kept.      |
+| `schedulePrefix`    | `rainlytics-`              | What each schedule's name begins with.      |
+
+## Two deployments in one account
+
+A schedule's name is unique within its group, and every schedule here goes in the account's default
+group. A second Rainlytics deployment in the same account and Region therefore meets the first one's
+`rainlytics-pageviews-hourly` and fails at deploy time. `schedulePrefix` is how the second one says
+which it is:
+
+```typescript
+new RollupSummaries(this, "RainlyticsSummaries", {
+  table,
+  workgroup,
+  schedulePrefix: "docs-",
+});
+```
+
+The same holds for `workgroupName` on the [workgroup](../query-workgroup/) and `databaseName` on the
+[table](../log-table/). One deployment per account reads well by default, and a second one names
+itself.
 
 ## Questions of your own
 
