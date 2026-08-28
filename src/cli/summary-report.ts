@@ -35,6 +35,9 @@ export interface SummaryRead {
   /** How many objects were asked for, which is what the read cost. */
   readonly gets: number;
 
+  /** The filters this run took from the summaries rather than the line. */
+  readonly adopted: readonly string[];
+
   /** Whether the question answers with a ranked list. */
   readonly isRanked: boolean;
 
@@ -52,6 +55,7 @@ export interface SummaryRead {
 export function summaryReport(read: SummaryRead): string {
   return [
     coverageLine(read),
+    ...adoptedLines(read),
     freshnessLine(read),
     ...missingLines(read),
     ...rankingLines(read),
@@ -68,6 +72,30 @@ function coverageLine(read: SummaryRead): string {
     ` ${read.name} from ${read.bucket}, covering ${span.from} to` +
     ` ${span.until}.\n`
   );
+}
+
+/**
+ * The filters this run took from the summaries.
+ *
+ * Part of what answered rather than a report of its own, and this is the
+ * paragraph saying which question the rows below belong to. A reader who typed
+ * four words and got an answer about one section of their site has to be able
+ * to see where that section came from, and the line is what they copy onto the
+ * command line to ask a narrower question of the same summaries.
+ *
+ * Printed on the runs that answered. A run refused for a filter somebody typed
+ * needs the refusal and not a paragraph about the filters it would have taken.
+ */
+function adoptedLines(read: SummaryRead): readonly string[] {
+  if (read.adopted.length === 0) {
+    return [];
+  }
+
+  return [
+    `Took ${read.adopted.join(" ")} from the summaries. Those options were` +
+      ` left off this command line, and the answer covers the narrowing the` +
+      ` deployment computes.\n`,
+  ];
 }
 
 /** How old the newest of them is, and what the whole read cost. */

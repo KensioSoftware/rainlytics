@@ -17,6 +17,7 @@ import { summarySpan } from "../summary-windows.js";
 import { rainlyticsCommands } from "./command.js";
 import { runCli } from "./run.js";
 import { summaryRows } from "./summary-answer.js";
+import type { NarrowingOption } from "./summary-question.js";
 
 /*
  * A bucket of summaries put there by hand, and the command line reading it.
@@ -232,6 +233,155 @@ describe("reading a bucket of summaries", () => {
     expect(run.error).toContain("1 window in the range asked for has");
   });
 
+  it("takes every filter a narrowed question was computed with", async () => {
+    // Given summaries of a site's two search boxes, computed under the
+    // parameter that site's boxes use and the status its exact match
+    // answers with. That narrowing lives in the deployment's stack.
+    const deployed = await aBucket();
+    await putSummary(
+      deployed,
+      anHourOn("2026-08-24", 8),
+      [{ term: "happy", searches: "3" }],
+      {
+        question: {
+          ...question,
+          name: "searches",
+          paths: ["/liju/search/", "/cidian/search/"],
+          param: "term",
+          redirectStatuses: ["301", "302"],
+        },
+        columns: ["term", "searches"],
+      },
+    );
+
+    // When the question is asked with none of them typed.
+    const run = await cli([
+      "searches",
+      "--last",
+      "2h",
+      "--summaries",
+      deployed.bucket,
+    ]);
+
+    // Then all three come off the summary and standard error names them as
+    // the command line that would have asked. The deployment declared the
+    // list once, and nothing repeats it in a shell alias.
+    expect(run.code).toBe(0);
+    expect(run.rows).toStrictEqual([{ term: "happy", searches: "3" }]);
+    expect(run.error).toContain(
+      "Took --path /liju/search/ /cidian/search/ --param term" +
+        " --redirect-status 301,302 from the summaries",
+    );
+  });
+
+  it("cuts to the shallowest window where two were computed differently", async () => {
+    // Given two hours computed to different depths, which is what a change
+    // to the requests prop leaves behind. Only the row count moved.
+    const deployed = await aBucket();
+    await putSummary(
+      deployed,
+      anHourOn("2026-08-24", 7),
+      [{ path: "/", views: "2" }],
+      { question: { ...question, limit: 1 } },
+    );
+    await putSummary(
+      deployed,
+      anHourOn("2026-08-24", 8),
+      [
+        { path: "/", views: "1" },
+        { path: "/grammar/", views: "1" },
+      ],
+      { question: { ...question, limit: 5 } },
+    );
+
+    // When both are asked about with no row count typed.
+    const run = await cli([
+      "pageviews",
+      "--last",
+      "3h",
+      "--summaries",
+      deployed.bucket,
+    ]);
+
+    // Then the shallower window decides, and the two windows hold one answer
+    // between them rather than a disagreement. A row count is how much of a
+    // ranked answer is printed, and every window here reaches one row.
+    expect(run.code).toBe(0);
+    expect(run.rows).toStrictEqual([{ path: "/", views: "3" }]);
+    expect(run.error).toContain("Took --limit 1 from the summaries");
+  });
+
+  it("refuses a span its deployment computed two ways", async () => {
+    // Given two hours computed either side of a change to the requests
+    // prop. The bucket holds one narrowed hour and one unnarrowed one.
+    const deployed = await aBucket();
+    await putSummary(
+      deployed,
+      anHourOn("2026-08-24", 7),
+      [{ path: "/", views: "1" }],
+      { question: { ...question, paths: ["/grammar/"] } },
+    );
+    await putSummary(deployed, anHourOn("2026-08-24", 8), [
+      { path: "/", views: "1" },
+    ]);
+
+    // When both are asked about with nothing narrowing the run.
+    const run = await cli([
+      "pageviews",
+      "--last",
+      "3h",
+      "--summaries",
+      deployed.bucket,
+    ]);
+
+    // Then it names the option that would settle it and stops. Taking one of
+    // the two would answer half the span under a narrowing the other half
+    // was never computed with, and nothing in the rows would say which half.
+    expect(run.code).toBe(1);
+    expect(run.error).toContain("not all computed the same way");
+    expect(run.error).toContain(
+      "--path: some windows computed with /grammar/, others with the whole" +
+        " distribution",
+    );
+    expect(run.error).toContain("--query");
+  });
+
+  it("takes one filter and still refuses another that was typed", async () => {
+    // Given summaries computed for one site on the distribution, under one
+    // section of it.
+    const deployed = await aBucket();
+    await putSummary(
+      deployed,
+      anHourOn("2026-08-24", 8),
+      [{ path: "/grammar/", views: "1" }],
+      {
+        question: {
+          ...question,
+          host: "docs.example.com",
+          paths: ["/grammar/"],
+        },
+      },
+    );
+
+    // When a run names a different section and leaves the host out.
+    const run = await cli([
+      "pageviews",
+      "--last",
+      "2h",
+      "--path",
+      "/liju/",
+      "--summaries",
+      deployed.bucket,
+    ]);
+
+    // Then the section is refused and the host is not mentioned. A filter
+    // somebody typed is theirs whatever else the summaries could have
+    // supplied.
+    expect(run.code).toBe(1);
+    expect(run.error).toContain("--path: asked for /liju/");
+    expect(run.error).not.toContain("--host");
+  });
+
   it("names a bot filter the stored summaries were not computed with", async () => {
     // Given a summary computed with crawlers left out, which is the default
     // every schedule takes.
@@ -408,6 +558,7 @@ describe("reading a bucket of summaries", () => {
         dataset: defaultLogDataset,
       }),
       range: { from: new Date(now.getTime() - 10_800_000), to: now },
+      named: new Set<NarrowingOption>(),
       summaries: deployed.bucket,
       runsTheQuery: false,
       database: defaultLogDataset.databaseName,

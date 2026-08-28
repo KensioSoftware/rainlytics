@@ -567,15 +567,20 @@ describe("the named questions, answered from stored summaries", () => {
     expect(Number(ratio?.["hit_percent"])).toBe(100);
   });
 
-  it("refuses a row count the stored summary cannot reach", async () => {
-    // Given a deployment computing the top row alone.
+  it("takes the row count the summaries were computed with", async () => {
+    // Given a deployment computing the top row alone, and two pages looked
+    // at in the hour it computed.
     const deployed = await deployAnalytics({
       requests: { pageviews: { limit: 1 } },
     });
-    await putDelivered(deployed, anHour, [aRecord(anHour)]);
+    await putDelivered(deployed, anHour, [
+      aRecord(anHour),
+      aRecord(anHour),
+      aRecord(anHour, { "cs-uri-stem": "/grammar/" }),
+    ]);
     await untilTheScheduleFires(deployed);
 
-    // When a run asks for twenty.
+    // When a run names no row count.
     const run = await cli([
       "pageviews",
       "--last",
@@ -584,9 +589,148 @@ describe("the named questions, answered from stored summaries", () => {
       deployed.summariesBucketName,
     ]);
 
+    // Then the stored row count answers, and standard error says where it
+    // came from. Refusing this would have made every shell alias carry the
+    // number its deployment already declared.
+    expect(run.code).toBe(0);
+    expect(run.rows).toStrictEqual([{ path: "/", views: "2" }]);
+    expect(run.error).toContain("Took --limit 1 from the summaries");
+  });
+
+  it("keeps its own row count where the summaries go deeper", async () => {
+    // Given a deployment computing the top hundred paths, and two of them
+    // looked at in the hour it computed.
+    const deployed = await deployAnalytics({
+      requests: { pageviews: { limit: 100 } },
+    });
+    await putDelivered(deployed, anHour, [
+      aRecord(anHour),
+      aRecord(anHour, { "cs-uri-stem": "/grammar/" }),
+    ]);
+    await untilTheScheduleFires(deployed);
+
+    // When a run names no row count.
+    const run = await cli([
+      "pageviews",
+      "--last",
+      "2h",
+      "--summaries",
+      deployed.summariesBucketName,
+    ]);
+
+    // Then the command's own default of twenty answers and nothing is
+    // reported as taken. A row count decides how much of the answer is
+    // printed, and a deployment computing deeper does not make a bare
+    // command print a hundred rows.
+    expect(run.code).toBe(0);
+    expect(run.rows).toStrictEqual([
+      { path: "/", views: "1" },
+      { path: "/grammar/", views: "1" },
+    ]);
+    expect(run.error).not.toContain("--limit");
+  });
+
+  it("refuses a row count somebody typed that the summary cannot reach", async () => {
+    // Given the same deployment computing the top row alone.
+    const deployed = await deployAnalytics({
+      requests: { pageviews: { limit: 1 } },
+    });
+    await putDelivered(deployed, anHour, [aRecord(anHour)]);
+    await untilTheScheduleFires(deployed);
+
+    // When a run asks for twenty of them.
+    const run = await cli([
+      "pageviews",
+      "--last",
+      "2h",
+      "--limit",
+      "20",
+      "--summaries",
+      deployed.summariesBucketName,
+    ]);
+
     // Then it says so. Nineteen rows nobody counted cannot be recovered from
-    // a stored answer holding one.
+    // a stored answer holding one, and a row count somebody typed is theirs
+    // rather than a gap to fill.
     expect(run.code).toBe(1);
     expect(run.error).toContain("--limit");
+  });
+
+  it("takes the sections a deployment narrowed to", async () => {
+    // Given a deployment that computes pageviews under one section, and
+    // traffic on both sides of that narrowing.
+    const deployed = await deployAnalytics({
+      requests: { pageviews: { paths: ["/grammar/"] } },
+    });
+    await putDelivered(deployed, anHour, [
+      aRecord(anHour),
+      aRecord(anHour, { "cs-uri-stem": "/grammar/" }),
+    ]);
+    await untilTheScheduleFires(deployed);
+
+    // When the question is asked with no --path.
+    const run = await cli([
+      "pageviews",
+      "--last",
+      "2h",
+      "--summaries",
+      deployed.summariesBucketName,
+    ]);
+
+    // Then the narrowed answer comes back and standard error names the
+    // filter it took. The deployment declared that list once, and nobody has
+    // to type it again to read what it computed.
+    expect(run.code).toBe(0);
+    expect(run.rows).toStrictEqual([{ path: "/grammar/", views: "1" }]);
+    expect(run.error).toContain("Took --path /grammar/ from the summaries");
+  });
+
+  it("takes a bot filter as the flag that would have set it", async () => {
+    // Given a deployment counting crawlers, and an hour holding one.
+    const deployed = await deployAnalytics({
+      requests: { pageviews: { includeBots: true } },
+    });
+    await putDelivered(deployed, anHour, [
+      aRecord(anHour),
+      aRecord(anHour, { "cs(User-Agent)": "ClaudeBot/1.0" }),
+    ]);
+    await untilTheScheduleFires(deployed);
+
+    // When the question is asked with no --include-bots.
+    const run = await cli([
+      "pageviews",
+      "--last",
+      "2h",
+      "--summaries",
+      deployed.summariesBucketName,
+    ]);
+
+    // Then the crawler is in the count and the flag is named on its own. A
+    // flag takes no value, and the line is what a reader would have typed.
+    expect(run.code).toBe(0);
+    expect(run.rows).toStrictEqual([{ path: "/", views: "2" }]);
+    expect(run.error).toContain("Took --include-bots from the summaries");
+  });
+
+  it("says nothing about filters where the command line matched", async () => {
+    // Given a deployment left to the defaults. That is what
+    // RollupSummaries computes where nobody narrows it.
+    const deployed = await deployAnalytics();
+    await putDelivered(deployed, anHour, [aRecord(anHour)]);
+    await untilTheScheduleFires(deployed);
+
+    // When the question is asked with nothing narrowing it either.
+    const run = await cli([
+      "pageviews",
+      "--last",
+      "2h",
+      "--summaries",
+      deployed.summariesBucketName,
+    ]);
+
+    // Then standard error carries no line about what was taken. A run that
+    // asked what the bucket holds took nothing from it.
+    expect(run.code).toBe(0);
+    expect(run.error).not.toContain("from the summaries");
   });
 });

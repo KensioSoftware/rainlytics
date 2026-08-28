@@ -50,11 +50,24 @@ per window. Standard error says which windows were read and how old they are.
 --query runs the question through Athena instead.
 
 A summary answers the question it was computed with. --path, --host,
---include-bots and --param each change the answer, and a schedule cannot
-compute every combination of them. RollupSummaries computes the unfiltered
-form, and its \`requests\` prop is where a deployment adds a narrowed one. A
-run whose filters no stored summary matches says what was stored and stops,
-so nothing quietly falls back to a query nobody chose.
+--include-bots, --param and --redirect-status each decide which requests were
+counted, and a schedule cannot compute every combination of them.
+RollupSummaries computes the unfiltered form, and its \`requests\` prop is where
+a deployment adds a narrowed one. A run whose filters no stored summary
+matches says what was stored and stops, so nothing quietly falls back to a
+query nobody chose.
+
+A run that names none of those five takes the ones the summaries were computed
+with, and standard error says which. The deployment declared its narrowing on
+RollupSummaries and this command reads that copy back. A shell alias never has
+to carry a second one. An option somebody typed is still theirs, and still
+refused where no stored summary matches it.
+
+--limit is apart from those five. A row count decides how much of a ranked
+answer is printed and leaves what was counted where it was, so a deployment
+computing the top hundred still answers this command's own default. A summary
+holding fewer rows than that cuts the answer down and says so, and a row count
+somebody typed is refused instead.
 
 A range is covered by whole UTC windows, days wherever a whole day fits and
 hours at the two edges. The part hours at either end have no stored window, so

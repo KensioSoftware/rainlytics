@@ -19,6 +19,8 @@ import {
   summaryBucketFrom,
 } from "./option-values.js";
 import { defaultLimit, defaultParam } from "./rollup-help.js";
+import type { NarrowingOption } from "./summary-question.js";
+import { narrowingOptions } from "./summary-question.js";
 
 /** What one rollup was asked for, read off the command line. */
 export interface RollupAsked {
@@ -34,6 +36,20 @@ export interface RollupAsked {
    */
   readonly range: TimeRange;
 
+  /**
+   * The narrowing options this command line actually named.
+   *
+   * Read before the defaults go in, and this is the only place the two can
+   * still be told apart. `rollupRequest` fills in a value for every field of
+   * every question. A `RollupRequest` carrying `limit: 20` says nothing about
+   * whether anybody typed `--limit 20`.
+   *
+   * `summary-adoption.ts` is what needs the difference. A filter nobody named
+   * is one the stored summaries can supply, and a filter somebody named is one
+   * they have to match.
+   */
+  readonly named: ReadonlySet<NarrowingOption>;
+
   /** The bucket holding the precomputed answers, where one is known. */
   readonly summaries: string | undefined;
 
@@ -48,6 +64,21 @@ export interface RollupAsked {
 
   /** The region to ask, or undefined to leave it to the SDK's chain. */
   readonly region: string | undefined;
+}
+
+/**
+ * The narrowing options that arrived on one command line.
+ *
+ * `narrowingOptions` spells each one as a reader types it, and the parser keys
+ * on the long name without the dashes. An option nobody gave is absent from
+ * the values, whatever default the request will carry for it.
+ */
+function namedOn(context: CommandContext): ReadonlySet<NarrowingOption> {
+  return new Set(
+    narrowingOptions.filter(
+      (option) => context.options[option.slice(2)] !== undefined,
+    ),
+  );
 }
 
 /**
@@ -67,6 +98,7 @@ export function requestFrom(
   return {
     database,
     range,
+    named: namedOn(context),
     workgroup: chosen(context.options["workgroup"]) ?? defaultWorkgroupName,
     region: chosen(context.options["region"]),
     summaries: summaryBucketFrom(context.options["summaries"]),
