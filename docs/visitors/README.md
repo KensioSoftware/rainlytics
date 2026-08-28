@@ -105,8 +105,9 @@ somebody new, and makes every day before it uncountable. The date is what rotate
 ### The salt reaches Athena as text
 
 Athena takes no secret of its own. The salt goes into the statement as a quoted literal, and a copy
-of it then lives wherever Athena keeps its query history (45 days, behind `athena:GetQueryExecution`
-on the workgroup). CloudTrail
+of it then lives wherever Athena keeps its
+[query history](https://docs.aws.amazon.com/athena/latest/ug/querying-keeping-query-history.html)
+(45 days, behind `athena:GetQueryExecution` on the workgroup). CloudTrail
 [records the query string as `***OMITTED***`](https://docs.aws.amazon.com/athena/latest/ug/monitor-with-cloudtrail.html)
 for `StartQueryExecution`, and the statement reaches S3 nowhere.
 

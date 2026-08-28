@@ -51,20 +51,22 @@ export function visitorRows(request: RollupRequest): string {
 /**
  * How many visitors one request's narrowing saw, as SQL.
  *
- * Written under the {@link summarisedWindow} range like the question beside
- * it, so both carry `windowPlaceholder` and the job fills both in for the
- * window it is computing. The salt goes in the same way, through
- * {@link visitorSaltPlaceholder}.
+ * Written under the `summarisedWindow` range like the question beside it, so
+ * both carry `windowPlaceholder` and the job fills both in for the window it
+ * is computing. The salt goes in the same way, through
+ * `visitorSaltPlaceholder`.
  *
  * The narrowing is the request's own. A summary for `pageviews` over
  * `/blog/` carries the visitors to `/blog/`, and the number answers the
  * question the summary answers.
  *
- * `count(DISTINCT ...)` and not `approx_distinct`. Trino's approximation
- * carries a standard error around 2.3%, and a headline number that moves by
- * that much between two runs of the same window is a number nobody can
- * compare week against week. Exact counting costs memory in proportion to the
- * distinct digests in one window, which for a site of this size is thousands.
+ * `count(DISTINCT ...)` and not `approx_distinct`. Trino's approximation is
+ * a sketch with a standard error around 2.3%, and it is deterministic over
+ * one set of rows, so a re-run reproduces it. What it cannot do is answer a
+ * question about itself. A reader who counts a day over raw and gets a
+ * different number has learned nothing about which of the two is wrong.
+ * Exact counting holds the distinct digests of one window in memory, which
+ * for a site of this size is thousands.
  *
  * ```typescript
  * visitorCountSql(rollupRequest({ range: summarisedWindow }));
