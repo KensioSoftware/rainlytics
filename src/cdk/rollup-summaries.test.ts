@@ -401,12 +401,15 @@ describe("computing rollup summaries on a schedule", () => {
 
   it("counts the visitors the closed hour saw", async () => {
     // Given an hour holding two views from one address and one from another.
-    const returning = faker.internet.ipv4();
+    // Both are written out from the documentation ranges rather than drawn,
+    // because the number this asserts is how many of them there are.
+    const returning = "203.0.113.7";
+    const passingThrough = "198.51.100.24";
     const deployed = await deployAnalytics();
     await putDelivered(deployed, theClosedHour, [
       aRecord(theClosedHour, { "c-ip": returning }),
       aRecord(theClosedHour, { "c-ip": returning }),
-      aRecord(theClosedHour, { "c-ip": faker.internet.ipv4() }),
+      aRecord(theClosedHour, { "c-ip": passingThrough }),
     ]);
 
     // When the schedule fires.
