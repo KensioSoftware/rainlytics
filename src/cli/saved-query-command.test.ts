@@ -8,6 +8,7 @@ import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { type App, CfnOutput, Stack } from "aws-cdk-lib/core";
 import { describe, expect, it } from "vitest";
 
+import { readingAthenaCaller } from "#test/reading-athena-caller.js";
 import { deployStacks, simStartedAt } from "#test/simulated-deployment.js";
 
 import { CloudFrontLogDelivery } from "../cdk/log-delivery.js";
@@ -372,6 +373,34 @@ describe("rainlytics saved-query", () => {
     // Then the message says where it looked, which Athena's own never does.
     expect(run.code).toBe(1);
     expect(run.error).toContain("Athena was asked in eu-west-1");
+  });
+
+  it("names the actions a saved query takes, where the caller has none", async () => {
+    // Given a saved query, and an identity allowed to read Athena and to run
+    // nothing.
+    const deployed = await deployAnalytics({
+      rollups: [...rollups, countries],
+    });
+    await putDelivered(deployed, [aRecord()]);
+    const reader = await readingAthenaCaller(deployed.simAws);
+
+    // When it runs the saved query by name.
+    const run = await deployed.simAws.runAs(reader, async () =>
+      cli(["saved-query", "countries"]),
+    );
+
+    // Then the four actions are named. Listing the saved queries is a read,
+    // so this identity finds the query and is stopped at running it.
+    expect(run.code).toBe(1);
+    expect(run.error).toContain(
+      "Running a query takes athena:StartQueryExecution and" +
+        " athena:StopQueryExecution",
+    );
+    expect(run.error).toContain("s3:PutObject and s3:AbortMultipartUpload");
+
+    // And the summaries are offered here too, since a site's own question and
+    // the five shipped ones run the same way.
+    expect(run.error).toContain("--summaries");
   });
 
   it("refuses to run with no name at all", async () => {

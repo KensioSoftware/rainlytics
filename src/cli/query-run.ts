@@ -7,7 +7,8 @@
 // drift is one command reporting a price and another quietly not.
 
 import { runAthenaQuery } from "../athena/athena-query.js";
-import type { AthenaQuery } from "../athena/athena-outcome.js";
+import type { AthenaOutcome, AthenaQuery } from "../athena/athena-outcome.js";
+import { cannotRunQueries, isDenied } from "./access-refusals.js";
 import type { UsageError } from "./failure.js";
 import type { CliIo } from "./io.js";
 import type { CommandResult } from "./output/result.js";
@@ -45,6 +46,30 @@ export function queryFailure(
 }
 
 /**
+ * Runs the query, explaining a permission the caller is missing.
+ *
+ * The command line is where this belongs. `refusalIn` is shared with the
+ * scheduled job, and the job has no summary to offer somebody it cannot query
+ * for.
+ *
+ * Anything else comes back as it was thrown. Athena refuses a query for
+ * plenty of reasons this has nothing to say about.
+ *
+ * @throws {Error} for a query that could not run.
+ */
+async function ranQuery(query: AthenaQuery): Promise<AthenaOutcome> {
+  try {
+    return await runAthenaQuery(query);
+  } catch (error) {
+    if (isDenied(error)) {
+      throw cannotRunQueries(error, query.workgroup);
+    }
+
+    throw error;
+  }
+}
+
+/**
  * Runs one query, reports it, and answers with its rows.
  *
  * The report goes to standard error whether the query succeeded or not. A
@@ -58,7 +83,7 @@ export async function queryRows(
   query: AthenaQuery,
   io: CliIo,
 ): Promise<CommandResult> {
-  const outcome = await runAthenaQuery(query);
+  const outcome = await ranQuery(query);
 
   io.error(whereItRan(outcome, query.workgroup));
   io.error(

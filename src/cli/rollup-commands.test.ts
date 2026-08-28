@@ -8,6 +8,7 @@ import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { type App, CfnOutput, Stack } from "aws-cdk-lib/core";
 import { describe, expect, it } from "vitest";
 
+import { readingAthenaCaller } from "#test/reading-athena-caller.js";
 import { deployStacks } from "#test/simulated-deployment.js";
 
 import { CloudFrontLogDelivery } from "../cdk/log-delivery.js";
@@ -812,6 +813,30 @@ describe("the named questions, run through Athena", () => {
     expect(run.code).toBe(1);
     expect(run.error).toContain("WorkGroup rainlytics is not found");
     expect(run.error).toContain("Athena was asked in eu-west-1");
+  });
+
+  it("names the actions --query takes, where the caller has none", async () => {
+    // Given an identity allowed to read Athena and to run nothing.
+    const deployed = await deployAnalytics();
+    await anHourOfTraffic(deployed);
+    const reader = await readingAthenaCaller(deployed.simAws);
+
+    // When it asks a named question for a fresher answer than the schedule
+    // computed.
+    const run = await deployed.simAws.runAs(reader, async () =>
+      cli(["pageviews", "--query", "--last", "24h"]),
+    );
+
+    // Then the four actions are named, and so is the question this identity
+    // can answer without them. Dropping --query costs it a GET.
+    expect(run.code).toBe(1);
+    expect(run.error).toContain(
+      "Running a query takes athena:StartQueryExecution and" +
+        " athena:StopQueryExecution",
+    );
+    expect(run.error).toContain("s3:PutObject and s3:AbortMultipartUpload");
+    expect(run.error).toContain("(pageviews, referrers, status-codes,");
+    expect(run.error).toContain("summary on s3:GetObject alone");
   });
 
   it("refuses a span it cannot read", async () => {

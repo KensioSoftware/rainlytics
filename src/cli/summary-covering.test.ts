@@ -4,6 +4,8 @@ import { SimAws, SimFixedClock } from "@kensio/yulin";
 import { SimSdk } from "@kensio/yulin/sdk";
 import { describe, expect, it, vi } from "vitest";
 
+import { readingAthenaCaller } from "#test/reading-athena-caller.js";
+
 import type { RollupSummary, SummaryRow } from "../rollup-summaries.js";
 import { summaryKey, summarySchemaVersion } from "../rollup-summaries.js";
 import type { Rollup } from "../rollups.js";
@@ -443,5 +445,34 @@ describe("reading a bucket of summaries", () => {
     expect(deployed.bucket).not.toBe(missing);
     expect(run.code).toBe(1);
     expect(run.error).toContain(missing);
+  });
+
+  it("names the action reading a summary takes, where the caller has none", async () => {
+    // Given an hour of summaries, and an identity whose role does not reach
+    // the bucket holding them.
+    const deployed = await aBucket();
+    await putSummary(deployed, anHourOn("2026-08-23", 22), [
+      { path: "/", views: "3" },
+    ]);
+    const reader = await readingAthenaCaller(deployed.simAws);
+
+    // When it asks for the hour.
+    const run = await deployed.simAws.runAs(reader, async () =>
+      cli(["pageviews", "--last", "12h", "--summaries", deployed.bucket]),
+    );
+
+    // Then the action and the bucket are named together. S3 says which of
+    // them it refused and neither of the two the pipeline has.
+    expect(run.code).toBe(1);
+    expect(run.error).toContain(
+      `S3 was asked for the summaries in ${deployed.bucket}.`,
+    );
+    expect(run.error).toContain(
+      "Reading one takes s3:GetObject on that bucket",
+    );
+
+    // And the two options for a bucket somewhere else are left out. S3 found
+    // this one and would not read it.
+    expect(run.error).not.toContain("Name another bucket with --summaries");
   });
 });
