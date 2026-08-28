@@ -84,7 +84,8 @@ with `Provided suffixPath is invalid`.
 `c-ip` is one of the twelve. Rainlytics counts unique visitors as a hash of the viewer's address and
 their user agent, under a salt that rotates every day, and a scheduled rollup computes that hash
 from the address the log already holds. The reasoning is on
-[#53](https://github.com/KensioSoftware/rainlytics/issues/53), in the comments.
+[#53](https://github.com/KensioSoftware/rainlytics/issues/53), in the comments, and
+[Counting visitors](../visitors/) has what the number means and where the salt lives.
 
 The raw store is therefore a record of people as well as of requests. Hashing downstream leaves the
 addresses where they landed. CloudFront writes an object once and leaves it alone, and the addresses

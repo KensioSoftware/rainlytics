@@ -185,7 +185,8 @@ downloaded, piped through `jq` or copied into a bucket of somebody's own carries
 
 It changes when a field changes meaning or leaves. A field added and left optional keeps it where it
 is. A reader that has never heard of that field ignores it, and one that has can tell absent from
-present. `visitors` is that case, and it arrives without a version bump.
+present. `visitors` arrived that way in
+[#74](https://github.com/KensioSoftware/rainlytics/issues/74), without a version bump.
 
 A version bump writes a new prefix and leaves the old one where it is. Both can be written at once
 while a deployment catches up, and whatever lifecycle rule covers the bucket removes the old prefix
@@ -195,7 +196,9 @@ in its own time.
 
 Rainlytics counts unique visitors with a daily-rotating hash of the viewer address
 ([#53](https://github.com/KensioSoftware/rainlytics/issues/53)). The salt changes every day, so one
-person carries one identifier today and a different one tomorrow.
+person carries one identifier today and a different one tomorrow. [Counting
+visitors](../visitors/) has what the number stands for, where the salt lives, and the one command an
+operator runs to create the secret behind it.
 
 A day of them counts. Two days added together count everybody who came back twice over, and a month
 of them is a figure about nothing. Somebody reading thirty daily summaries with `jq` is one line away
@@ -211,12 +214,12 @@ So the count is an object:
 `additive` says the same thing to somebody reading the JSON who never sees the type. Both halves say
 it because the two readers are different people.
 
-The field is absent until [#74](https://github.com/KensioSoftware/rainlytics/issues/74) computes an
-identifier, and absent from every question that counts something else. `{ "distinct": 0, "additive":
-false }` is a different answer, being a window that nobody visited.
+`pageviews` carries the field and every question that counts something else leaves it out.
+`{ "distinct": 0, "additive": false }` is a different answer, being a window that nobody visited.
 
-A count over a week or a month is a query over raw, and only where a salt older than a day can still
-be reached. #74 decides where the salt lives.
+A count over a week or a month is a query over raw, under the salt that span was counted with. One
+secret stands for a deployment and the date is what rotates, so the salt of any past day is still
+derivable.
 
 ## Reading one back
 

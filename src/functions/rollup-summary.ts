@@ -16,10 +16,13 @@ import { recomputedWindows, windowedSql } from "../summary-runs.js";
 import type { SummaryWindow } from "../summary-windows.js";
 import { summaryDocument } from "./summary-document.js";
 import { summaryFailure } from "./summary-failure.js";
-import type { SummaryDeployment, SummaryRun } from "./summary-run.js";
-import { deploymentFrom, runFrom } from "./summary-run.js";
+import type { SummaryDeployment } from "./summary-deployment.js";
+import { deploymentFrom } from "./summary-deployment.js";
+import type { SummaryRun } from "./summary-run.js";
+import { runFrom } from "./summary-run.js";
 import type { SummaryStore } from "./summary-store.js";
 import { openSummaryStore } from "./summary-store.js";
+import { runSecret, visitorsIn } from "./summary-visitors.js";
 
 /**
  * One firing of one schedule.
@@ -34,6 +37,9 @@ import { openSummaryStore } from "./summary-store.js";
 export async function handler(event: unknown): Promise<void> {
   const deployment = deploymentFrom(process.env);
   const run = runFrom(event);
+  // Before anything is queried. A run whose salt is unreachable fails saying
+  // so rather than after paying Athena for a window it will not write.
+  const secret = await runSecret(run, deployment);
   const store = await openSummaryStore(deployment.bucket);
 
   try {
@@ -44,7 +50,7 @@ export async function handler(event: unknown): Promise<void> {
     )) {
       // One at a time, which `computeWindow` explains.
       // oxlint-disable-next-line eslint/no-await-in-loop
-      await computeWindow(run, window, deployment, store);
+      await computeWindow(run, window, deployment, store, secret);
     }
   } finally {
     store.close();
@@ -66,6 +72,7 @@ async function computeWindow(
   window: SummaryWindow,
   deployment: SummaryDeployment,
   store: SummaryStore,
+  secret: string | undefined,
 ): Promise<void> {
   const outcome = await runAthenaQuery({
     sql: windowedSql(run.sql, window),
@@ -81,8 +88,13 @@ async function computeWindow(
     );
   }
 
+  // After the question and not beside it, for the reason above. Two queries
+  // of one window in front of the workgroup at once is the same competition
+  // with whoever is asking a question at their terminal.
+  const visitors = await visitorsIn(run, window, deployment, secret);
+
   await store.write(
     summaryKey(run.question, window),
-    summaryDocument(run.question, window, outcome, new Date()),
+    summaryDocument(run.question, window, outcome, new Date(), visitors),
   );
 }

@@ -85,6 +85,41 @@ export function catalogStatements(
 }
 
 /**
+ * Reading the parameter holding the visitor salt secret.
+ *
+ * `GetParameter` on the one parameter, and nothing on KMS. The parameter is a
+ * `SecureString` under the `aws/ssm` managed key, whose own policy admits the
+ * account's principals when the request reached KMS through Systems Manager.
+ * A site naming a customer key of its own grants `kms:Decrypt` on it as well,
+ * the way a customer-encrypted log bucket hands out its own.
+ *
+ * Granted whether or not any of this deployment's questions count visitors. A
+ * statement naming a parameter nobody reads costs nothing, and a question
+ * gaining a visitor count later is then a template change rather than a run
+ * that fails on a permission.
+ */
+export function visitorSaltStatements(
+  scope: Construct,
+  parameter: string,
+): readonly PolicyStatement[] {
+  return [
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ["ssm:GetParameter"],
+      resources: [
+        Stack.of(scope).formatArn({
+          service: "ssm",
+          resource: "parameter",
+          // A parameter name opens with a slash and its ARN does not repeat
+          // one. `/rainlytics/visitor-salt` is `...:parameter/rainlytics/...`.
+          resourceName: parameter.replace(/^\//u, ""),
+        }),
+      ],
+    }),
+  ];
+}
+
+/**
  * Reading the delivered log objects.
  *
  * `ListBucket` alongside `GetObject` because Athena lists the prefixes a

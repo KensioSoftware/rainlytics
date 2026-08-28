@@ -11,6 +11,7 @@ import {
 } from "../rollups.js";
 import type { LogDataset } from "../dataset.js";
 import type { SummaryGranularity } from "../summary-windows.js";
+import { visitorCountSql } from "../visitor-counts.js";
 import type { SavedRollupRequest } from "./rollup-queries.js";
 
 /** What the runs of one deployment are built from. */
@@ -65,6 +66,12 @@ function runFor(
     question: { name: rollup.name, ...withoutRange(request) },
     granularity,
     sql: rollupSql(rollup, request),
+    // Built from the same request as the question, so the count covers the
+    // rows the question covers. A question that counts something else carries
+    // no key here at all, and its summaries carry no `visitors` field.
+    ...(rollup.countsVisitors === true
+      ? { visitorSql: visitorCountSql(request) }
+      : {}),
   };
 }
 

@@ -1,4 +1,3 @@
-import { faker } from "@faker-js/faker";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -6,75 +5,8 @@ import {
   defaultRedirectStatuses,
   rollupRequest,
 } from "../rollups.js";
-import { deploymentFrom, runFrom, summaryEnvironment } from "./summary-run.js";
-
-describe("where the job reads and writes", () => {
-  const anEnvironment = (): Record<string, string> => ({
-    [summaryEnvironment.database]: faker.word.noun(),
-    [summaryEnvironment.workgroup]: faker.word.noun(),
-    [summaryEnvironment.bucket]: faker.string.uuid(),
-    [summaryEnvironment.windows]: "2",
-  });
-
-  it("is read out of the environment the construct set", () => {
-    // Given a function deployed with everything it needs.
-    const environment = anEnvironment();
-
-    // When the job reads it.
-    const deployment = deploymentFrom(environment);
-
-    // Then it knows the table, the workgroup and the bucket.
-    expect(deployment).toStrictEqual({
-      database: environment[summaryEnvironment.database],
-      workgroup: environment[summaryEnvironment.workgroup],
-      bucket: environment[summaryEnvironment.bucket],
-      windows: 2,
-    });
-  });
-
-  it("refuses an invocation missing one of them", () => {
-    // Given an environment with the bucket left out.
-    const environment = Object.fromEntries(
-      Object.entries(anEnvironment()).filter(
-        ([name]) => name !== summaryEnvironment.bucket,
-      ),
-    );
-
-    // When the job reads it.
-    const reading = (): unknown => deploymentFrom(environment);
-
-    // Then it says which variable was missing. A default here would write
-    // summaries somewhere nobody reads, and the run would report success.
-    expect(reading).toThrow(summaryEnvironment.bucket);
-  });
-
-  it("refuses a window count that is not a whole number of windows", () => {
-    // Given a deployment whose window count was set to something else.
-    const environment = {
-      ...anEnvironment(),
-      [summaryEnvironment.windows]: "two",
-    };
-
-    // When the job reads it.
-    const reading = (): unknown => deploymentFrom(environment);
-
-    // Then the message names the variable. Left to the window arithmetic, it
-    // would be refused a moment later without saying where the value came
-    // from, and a log nobody is watching has one chance to say so.
-    expect(reading).toThrow(summaryEnvironment.windows);
-    expect(reading).toThrow(/"two"/u);
-  });
-
-  it("refuses a variable that is there and empty", () => {
-    // Given a bucket name set to nothing at all.
-    const environment = { ...anEnvironment(), [summaryEnvironment.bucket]: "" };
-
-    // Then it is refused like a missing one.
-    expect(() => deploymentFrom(environment)).toThrow(
-      summaryEnvironment.bucket,
-    );
-  });
-});
+import { visitorSaltPlaceholder } from "../visitor-identity.js";
+import { runFrom } from "./summary-run.js";
 
 describe("what one firing of a schedule asks for", () => {
   const aQuestion = (): Readonly<Record<string, unknown>> => ({
@@ -153,6 +85,31 @@ describe("what one firing of a schedule asks for", () => {
     expect(() =>
       runFrom(aPayload({ question: { ...question, name: "searches" } })),
     ).not.toThrow();
+  });
+
+  it("carries the visitor count where the question asks for one", () => {
+    // Given a schedule for a question that counts visitors.
+    const visitorSql = `SELECT count(*)\n  WHERE ${visitorSaltPlaceholder}\n`;
+
+    // Then the run has the second query to run beside the first.
+    expect(runFrom(aPayload({ visitorSql })).visitorSql).toBe(visitorSql);
+  });
+
+  it("has none where the question counts something else", () => {
+    // Given a schedule carrying one query.
+    const run = runFrom(aPayload());
+
+    // Then nothing counts visitors, and the summaries it writes carry no
+    // `visitors` field at all.
+    expect(run.visitorSql).toBeUndefined();
+  });
+
+  it("refuses a visitor count that is not SQL", () => {
+    // Given a payload written by something other than the construct.
+    const reading = (): unknown => runFrom(aPayload({ visitorSql: 41 }));
+
+    // Then it is refused, rather than reaching Athena as the text "41".
+    expect(reading).toThrow(/cannot read/u);
   });
 
   it("refuses a question named something no key can carry", () => {

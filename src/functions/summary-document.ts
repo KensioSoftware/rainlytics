@@ -9,6 +9,7 @@ import type {
   RollupSummary,
   SummaryQuestion,
   SummaryRow,
+  VisitorCount,
 } from "../rollup-summaries.js";
 import { summarySchemaVersion } from "../rollup-summaries.js";
 import type { SummaryWindow } from "../summary-windows.js";
@@ -24,12 +25,18 @@ import { summarySpan } from "../summary-windows.js";
  *
  * The columns come from what Athena declared rather than from the rows, so an
  * empty answer still names what it was looking for.
+ *
+ * The visitor count comes from a second query and is left out where the
+ * question counts something else. Absent and `{ distinct: 0 }` are different
+ * answers, and the key is missing rather than null so that a reader can tell
+ * them apart.
  */
 export function summaryDocument(
   question: SummaryQuestion,
   window: SummaryWindow,
   outcome: AthenaOutcome,
   computedAt: Date,
+  visitors?: VisitorCount,
 ): RollupSummary {
   return {
     schemaVersion: summarySchemaVersion,
@@ -38,6 +45,7 @@ export function summaryDocument(
     computedAt: computedAt.toISOString(),
     columns: outcome.columns.map((column) => column.name),
     rows: outcome.rows.map((row) => storedRow(row)),
+    ...(visitors === undefined ? {} : { visitors }),
   };
 }
 

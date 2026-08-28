@@ -19,8 +19,14 @@ import type { Rollup, RollupRequest } from "./rollups.js";
 import { matchedPath, rowsFor } from "./rollups.js";
 import { oneOf } from "./sql-text.js";
 
-/** The `text/html` responses a person actually looked at. */
-const aPageView = [
+/**
+ * The `text/html` responses a person actually looked at.
+ *
+ * Exported for `visitor-counts.ts`, which counts visitors over exactly these
+ * rows. A copy there would be a second definition of what a pageview is, and
+ * a summary reporting more visitors than views is how the drift would show.
+ */
+export const aPageView: readonly string[] = [
   "cs_method = 'GET'",
   "sc_content_type LIKE 'text/html%'",
   "sc_status IN ('200', '304')",
@@ -65,6 +71,7 @@ export const pageviews: Rollup = {
   summary: "Count views by path.",
   isRanked: true,
   totals: pageviewTotals,
+  countsVisitors: true,
   description: `\
 Counts the pages people looked at, most looked at first.
 

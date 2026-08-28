@@ -3,12 +3,14 @@
 // A schedule carries the question in its target input and the deployment
 // carries the rest in the function's environment. The split follows what
 // changes: a question is one schedule's own, and the table, the workgroup and
-// the bucket belong to the whole deployment.
+// the bucket belong to the whole deployment. `summary-deployment.ts` is the
+// other half.
 //
 // The SQL travels with the question rather than being built here. It is
 // written once at synthesis by the builder every other reader uses, which is
 // what puts it in the CloudFormation template where somebody can read what
-// the job will run. `windowedSql` fills the window in.
+// the job will run. `windowedSql` fills the window in and `saltedSql` the
+// salt.
 
 import type { SummaryQuestion } from "../rollup-summaries.js";
 import { assertRollupName, currentMonth, rollupRequest } from "../rollups.js";
@@ -25,89 +27,16 @@ export interface SummaryRun {
 
   /** Its SQL, carrying `windowPlaceholder` where the window goes. */
   readonly sql: string;
-}
 
-/** Where the job reads and writes, as the deployment set it. */
-export interface SummaryDeployment {
-  /** The Glue database an unqualified table name resolves against. */
-  readonly database: string;
-
-  /** The workgroup, carrying the cutoff and the results location. */
-  readonly workgroup: string;
-
-  /** The bucket summaries are written to. */
-  readonly bucket: string;
-
-  /** How many closed windows each run computes, newest first. */
-  readonly windows: number;
-}
-
-/** The environment variables the construct sets on the function. */
-export const summaryEnvironment = {
-  database: "RAINLYTICS_DATABASE",
-  workgroup: "RAINLYTICS_WORKGROUP",
-  bucket: "RAINLYTICS_SUMMARY_BUCKET",
-  windows: "RAINLYTICS_WINDOWS",
-} as const;
-
-/**
- * The deployment, read out of the environment.
- *
- * Every value is required. A function missing one was deployed by something
- * other than the construct, and a job that carried on with a default would
- * write summaries to a bucket nobody reads or query a table nobody delivers
- * to. Both look healthy from where the job stands.
- *
- * @throws {Error} naming the variable that was missing.
- */
-export function deploymentFrom(
-  environment: Readonly<Record<string, string | undefined>>,
-): SummaryDeployment {
-  return {
-    database: required(environment, summaryEnvironment.database),
-    workgroup: required(environment, summaryEnvironment.workgroup),
-    bucket: required(environment, summaryEnvironment.bucket),
-    windows: windowCount(required(environment, summaryEnvironment.windows)),
-  };
-}
-
-/**
- * How many windows the deployment asked for, as a number.
- *
- * Checked here rather than left to `recomputedWindows`, which would refuse it
- * a moment later without naming the variable it came from. A log entry
- * nobody is watching has one chance to say what is wrong with the
- * deployment.
- *
- * @throws {Error} naming the variable and what it held.
- */
-function windowCount(asked: string): number {
-  const windows = Number(asked);
-
-  if (!Number.isSafeInteger(windows) || windows < 1) {
-    throw new Error(
-      `${summaryEnvironment.windows} is a whole number of windows, at least` +
-        ` one, and this invocation had "${asked}".`,
-    );
-  }
-
-  return windows;
-}
-
-function required(
-  environment: Readonly<Record<string, string | undefined>>,
-  name: string,
-): string {
-  const found = environment[name];
-
-  if (found === undefined || found === "") {
-    throw new Error(
-      `The rollup summary job needs ${name} in its environment, and this` +
-        ` invocation had none. RollupSummaries sets it.`,
-    );
-  }
-
-  return found;
+  /**
+   * The visitor count's SQL, where the question carries one.
+   *
+   * Absent from every question that counts something else, which is what
+   * leaves `RollupSummary.visitors` absent from their summaries. It carries
+   * `windowPlaceholder` like the question above it and
+   * `visitorSaltPlaceholder` as well, and the job fills both in.
+   */
+  readonly visitorSql?: string | undefined;
 }
 
 /**
@@ -125,12 +54,22 @@ export function runFrom(payload: unknown): SummaryRun {
   const question = asRecord(found["question"]);
   const granularity = found["granularity"];
   const sql = found["sql"];
+  const visitorSql = found["visitorSql"];
 
-  if (typeof sql !== "string" || !isGranularity(granularity)) {
+  if (
+    typeof sql !== "string" ||
+    !isGranularity(granularity) ||
+    !isOptionalSql(visitorSql)
+  ) {
     throw refusal(payload);
   }
 
-  return { question: questionFrom(question), granularity, sql };
+  return {
+    question: questionFrom(question),
+    granularity,
+    sql,
+    ...(visitorSql === undefined ? {} : { visitorSql }),
+  };
 }
 
 /**
@@ -189,6 +128,11 @@ function asRecord(value: unknown): Readonly<Record<string, unknown>> {
   }
 
   return value as Readonly<Record<string, unknown>>;
+}
+
+/** Whether a payload's visitor SQL is SQL or is absent, and never anything else. */
+function isOptionalSql(value: unknown): value is string | undefined {
+  return value === undefined || typeof value === "string";
 }
 
 function isGranularity(value: unknown): value is SummaryGranularity {
