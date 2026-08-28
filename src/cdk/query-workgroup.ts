@@ -1,11 +1,20 @@
 import { CfnWorkGroup } from "aws-cdk-lib/aws-athena";
+import type { IGrantable } from "aws-cdk-lib/aws-iam";
 import type { Bucket } from "aws-cdk-lib/aws-s3";
 import type { Duration, RemovalPolicy, Size } from "aws-cdk-lib/core";
 import { Construct } from "constructs";
 
 import { defaultWorkgroupName } from "../dataset.js";
+import type { LogTable } from "./log-table.js";
 import { assertUsableCutoff, defaultBytesScannedCutoff } from "./query-cost.js";
 import { queryResultsBucket } from "./query-results-bucket.js";
+import {
+  athenaStatements,
+  catalogStatements,
+  logReadStatements,
+  resultsStatements,
+  savedQueryStatements,
+} from "./summary-permissions.js";
 
 /** What a Rainlytics query workgroup can be told. */
 export interface QueryWorkgroupProps {
@@ -147,5 +156,41 @@ export class QueryWorkgroup extends Construct {
         },
       },
     });
+  }
+
+  /**
+   * Lets an identity run Rainlytics queries against one table.
+   *
+   * ```typescript
+   * queries.grantQuerying(role, table);
+   * ```
+   *
+   * Athena is only a third of it. A query is planned from the Glue catalog,
+   * reads the log objects and writes its answer to the results bucket, and
+   * all three happen as whoever started the query rather than as Athena. So
+   * this covers the workgroup, the catalog, the database, the table, the log
+   * bucket and the results bucket, and the grantee holds no permission on any
+   * resource outside this deployment.
+   *
+   * The table is passed rather than read off the workgroup because a
+   * workgroup is not tied to one. Two tables queried in one workgroup are two
+   * calls, and a grantee that should reach only one of them gets only one.
+   *
+   * Either bucket encrypted with a customer key hands out its own
+   * `kms:Decrypt` here as well.
+   *
+   * `docs/query-workgroup/` writes the same permissions out as a policy, for
+   * an identity built outside CDK.
+   */
+  grantQuerying(grantee: IGrantable, table: LogTable): void {
+    for (const statement of [
+      ...athenaStatements(this, this.workgroupName),
+      ...savedQueryStatements(this, this.workgroupName),
+      ...catalogStatements(this, table.dataset),
+      ...logReadStatements(table.logBucket, grantee),
+      ...resultsStatements(this.resultsBucket, grantee),
+    ]) {
+      grantee.grantPrincipal.addToPrincipalPolicy(statement);
+    }
   }
 }

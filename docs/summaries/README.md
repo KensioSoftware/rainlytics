@@ -231,6 +231,24 @@ fresher answer.
 rainlytics pageviews --last 7d --summaries rainlytics-summaries-1a2b
 ```
 
+### What a reader has to be allowed
+
+`s3:GetObject` on the bucket's objects, and nothing else. Every key comes from the question and the
+window, and nothing lists the bucket.
+
+A caller holding the AWS managed `ReadOnlyAccess` policy reads summaries with no policy change.
+That read came back `allowed` from `aws iam simulate-principal-policy` on 2026-08-28, against an
+`AWSReservedSSO_ReadOnly` role carrying `ReadOnlyAccess`. Running a query is the other case, and
+the [query workgroup](../query-workgroup/) page has the four actions that policy denies.
+
+An identity built narrower than that takes the read from CDK:
+
+```typescript
+summaries.grantReadingSummaries(role);
+```
+
+A bucket kept under a customer key hands out its own `kms:Decrypt` through the same call.
+
 ### Which windows a range covers
 
 A range arrives from `--last` and lands wherever the clock happens to be. The windows on S3 sit on

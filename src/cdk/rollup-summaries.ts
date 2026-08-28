@@ -1,3 +1,4 @@
+import type { IGrantable } from "aws-cdk-lib/aws-iam";
 import { Construct } from "constructs";
 
 import type { RollupSummariesProps } from "./summary-configuration.js";
@@ -5,6 +6,7 @@ import { summaryConfiguration } from "./summary-configuration.js";
 import type { SummariesBucket } from "./summary-bucket.js";
 import { summariesBucket } from "./summary-bucket.js";
 import { SummaryFunction } from "./summary-function.js";
+import { summaryReadStatements } from "./summary-permissions.js";
 import { summaryRuns } from "./summary-questions.js";
 import { SummarySchedules } from "./summary-schedules.js";
 import type { IFunction } from "aws-cdk-lib/aws-lambda";
@@ -86,5 +88,28 @@ export class RollupSummaries extends Construct {
         ...(props.requests === undefined ? {} : { requests: props.requests }),
       }),
     }).schedules;
+  }
+
+  /**
+   * Lets an identity read the summaries this deployment writes.
+   *
+   * ```typescript
+   * summaries.grantReadingSummaries(role);
+   * ```
+   *
+   * One `s3:GetObject` on the bucket's objects, which is the whole of what
+   * `rainlytics pageviews --last 7d` and its four siblings send. A reader
+   * builds the key it wants out of the question and the window, so nothing
+   * lists the bucket.
+   *
+   * `ReadOnlyAccess` already allows that read, so an identity holding it
+   * needs no grant here. This is for one built narrower than that, and for
+   * a bucket under a customer key, whose `kms:Decrypt` is handed out here as
+   * well.
+   */
+  grantReadingSummaries(grantee: IGrantable): void {
+    for (const statement of summaryReadStatements(this.bucket, grantee)) {
+      grantee.grantPrincipal.addToPrincipalPolicy(statement);
+    }
   }
 }

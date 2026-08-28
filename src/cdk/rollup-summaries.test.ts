@@ -3,12 +3,15 @@ import { text } from "node:stream/consumers";
 import { gzipSync } from "node:zlib";
 
 import { faker } from "@faker-js/faker";
+import { Match, Template } from "aws-cdk-lib/assertions";
 import { Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
+import { Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
+import { Key } from "aws-cdk-lib/aws-kms";
 import { RetentionDays } from "aws-cdk-lib/aws-logs";
-import { Bucket } from "aws-cdk-lib/aws-s3";
+import { Bucket, BucketEncryption } from "aws-cdk-lib/aws-s3";
 import {
-  type App,
+  App,
   CfnOutput,
   Duration,
   RemovalPolicy,
@@ -464,5 +467,105 @@ describe("computing rollup summaries on a schedule", () => {
     // Given nothing but the fixed clock these cases count their hours from.
     // Then the windows written out above are the ones a run would meet.
     expect(simStartedAt.toISOString()).toBe("2026-08-23T09:00:00.000Z");
+  });
+
+  describe("what an identity granted reading summaries can reach", () => {
+    /**
+     * A deployment in one stack, with a role handed the read grant.
+     *
+     * Synthesised rather than deployed. IAM is the part of this a simulated
+     * account cannot prove, for the reason `summary-permissions.test.ts`
+     * gives, so this case reads the policy the grant wrote.
+     */
+    const grantedTo = (
+      summariesBucket: (stack: Stack) => Bucket | undefined = () => undefined,
+    ): Stack => {
+      const stack = new Stack(new App(), "AnalyticsStack", {
+        env: { account: "123456789012", region: "us-east-1" },
+      });
+      const logs = new LogBucket(stack, "RainlyticsLogs", {
+        bucketName: `rainlytics-logs-${faker.string.uuid()}`,
+      });
+      const delivery = new CloudFrontLogDelivery(stack, "Delivery", {
+        distributionId: "E1EXAMPLE1234",
+        logBucket: logs.bucket,
+      });
+      const passed = summariesBucket(stack);
+      const summaries = new RollupSummaries(stack, "RainlyticsSummaries", {
+        table: new LogTable(stack, "RainlyticsTable", {
+          deliveries: [delivery],
+        }),
+        workgroup: new QueryWorkgroup(stack, "RainlyticsQueries"),
+        rollups: [viewsOnly],
+        granularities: ["hourly"],
+        ...(passed === undefined ? {} : { summariesBucket: passed }),
+      });
+
+      summaries.grantReadingSummaries(
+        new Role(stack, "Reader", {
+          assumedBy: new ServicePrincipal("lambda.amazonaws.com"),
+        }),
+      );
+
+      return stack;
+    };
+
+    /**
+     * Every action the reader's own policy allows.
+     *
+     * The reader's alone. The stack also holds the scheduled job, whose role
+     * reads and writes far more than a reader does, and a case that gathered
+     * both would pass on the job's permissions.
+     */
+    const allowed = (stack: Stack): readonly string[] => {
+      const policies = Template.fromStack(stack).findResources(
+        "AWS::IAM::Policy",
+        { Properties: { Roles: [{ Ref: Match.stringLikeRegexp("^Reader") }] } },
+      ) as Record<
+        string,
+        {
+          Properties: {
+            PolicyDocument: { Statement: { Action: string | string[] }[] };
+          };
+        }
+      >;
+
+      return Object.values(policies).flatMap((policy) =>
+        policy.Properties.PolicyDocument.Statement.flatMap((statement) =>
+          [statement.Action].flat(),
+        ),
+      );
+    };
+
+    it("reads the objects and nothing else", () => {
+      // Given a role a site handed the read grant.
+      const stack = grantedTo();
+
+      // When the actions the grant wrote are read back.
+      const actions = allowed(stack);
+
+      // Then it can fetch a summary. Every key a reader wants is built from
+      // the question and the window, so this is the whole of the read path.
+      expect(actions).toContain("s3:GetObject");
+      // And it cannot write one. A reader that could put an object could
+      // answer a question with a figure nothing computed.
+      expect(actions).not.toContain("s3:PutObject");
+    });
+
+    it("decrypts a summaries bucket a site keeps under its own key", () => {
+      // Given a site passing a bucket encrypted with a customer key rather
+      // than letting the construct create one under S3-managed encryption.
+      const stack = grantedTo(
+        (inStack) =>
+          new Bucket(inStack, "OwnSummaries", {
+            encryption: BucketEncryption.KMS,
+            encryptionKey: new Key(inStack, "SummaryKey"),
+          }),
+      );
+
+      // Then the reader can decrypt what it reads. S3 answers a GetObject
+      // under a key the caller cannot use with an AccessDenied from KMS.
+      expect(allowed(stack)).toContain("kms:Decrypt");
+    });
   });
 });

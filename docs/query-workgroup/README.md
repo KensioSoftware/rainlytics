@@ -173,17 +173,68 @@ a role narrower than `AdministratorAccess`.
 
 ## Permissions for running a query
 
-The deploy role has no part in this one. Whoever runs the query carries it, and Athena reads the
-source data and writes the results as them, so both buckets belong here alongside the workgroup.
+The deploy role has no part in this one. Whoever runs the query carries it. Athena plans the query,
+reads the log objects and writes the answer as that caller, and the catalog and both buckets
+therefore belong here alongside the workgroup.
+
+### The four actions `ReadOnlyAccess` denies
+
+A caller already holding the AWS managed `ReadOnlyAccess` policy is four actions short of running a
+query.
+
+- `athena:StartQueryExecution` on the workgroup
+- `athena:StopQueryExecution` on the workgroup
+- `s3:PutObject` on the results bucket
+- `s3:AbortMultipartUpload` on the results bucket
+
+Measured on 2026-08-28 with `aws iam simulate-principal-policy`, against an `AWSReservedSSO_ReadOnly`
+role carrying `ReadOnlyAccess`. Every other action on this page came back `allowed`, including
+`athena:GetWorkGroup`, `athena:ListNamedQueries`, `athena:BatchGetNamedQuery`, the three Glue reads
+and the S3 reads on both buckets.
+
+Those four cannot be dropped. A query is a job somebody starts, and its answer is an object Athena
+writes under the caller's own identity. Both of those are writes, and Athena SQL has no read-only
+path. Reading a [precomputed summary](../summaries/) does, which is the read path the named commands
+use.
+
+### Granting it from CDK
+
+```typescript
+const queries = new QueryWorkgroup(this, "RainlyticsQueries");
+const table = new LogTable(this, "RainlyticsTable", { deliveries: [delivery] });
+
+queries.grantQuerying(role, table);
+```
+
+One line per identity. It attaches the Athena actions on this workgroup, the Glue reads on the
+catalog, the database and the table, the reads on the log bucket, and the reads and writes on the
+results bucket. Every ARN it names belongs to this deployment, and a bucket encrypted with a
+customer key hands out its own `kms:Decrypt` through the same call.
+
+The table is passed because a workgroup is not tied to one. Two tables queried in the same workgroup
+are two calls, and an identity that should reach only one of them gets one.
+
+Reading the summaries is a second call, covered on the [summaries](../summaries/) page:
+
+```typescript
+summaries.grantReadingSummaries(role);
+```
+
+### The same policy written out
+
+For an identity built outside CDK. This is the list `grantQuerying` attaches.
 
 ```typescript
 new PolicyStatement({
   sid: "RunningRainlyticsQueries",
   actions: [
     "athena:StartQueryExecution",
+    "athena:StopQueryExecution",
     "athena:GetQueryExecution",
     "athena:GetQueryResults",
-    "athena:StopQueryExecution",
+    "athena:GetWorkGroup",
+    "athena:ListNamedQueries",
+    "athena:BatchGetNamedQuery",
   ],
   resources: [`arn:aws:athena:${region}:${account}:workgroup/${workgroupName}`],
 });
@@ -195,12 +246,17 @@ With `glue:GetDatabase`, `glue:GetTable` and `glue:GetPartitions` on the
 `s3:ListBucket`, `s3:GetBucketLocation`, `s3:ListBucketMultipartUploads`,
 `s3:ListMultipartUploadParts` and `s3:AbortMultipartUpload`.
 
-The multipart actions earn their place. Athena uploads a large result in parts, and this is the
-list AWS documents for a query results bucket. `s3:GetObject` on results is what reads
-the answer back, which `GetQueryResults` does on the caller's behalf.
+Athena reads the workgroup's own configuration on the way to running a query in it, and refuses the
+query without `athena:GetWorkGroup`. The two named-query actions are what `rainlytics saved-query`
+runs on. Athena answers `ListNamedQueries` with ids alone, and a name is found by reading them.
 
-This list comes from AWS's documentation rather than from a deploy. Nobody has yet run a Rainlytics
-query under a policy narrower than the one their SSO role already carries.
+The multipart actions earn their place. Athena uploads a large result in parts, and this is the list
+AWS documents for a query results bucket. `s3:GetObject` on results is what reads the answer back,
+and `GetQueryResults` does that on the caller's behalf.
+
+The four in the delta above were measured. The rest of the list comes from AWS's documentation and
+from what the `rainlytics` command sends. Nobody has yet run a Rainlytics query under a policy
+narrower than the one their SSO role already carries.
 
 <!-- card
 ```typescript
