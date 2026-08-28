@@ -50,7 +50,7 @@ export async function visitorSecret(parameter: string): Promise<string> {
     // Whatever SSM said, under the sentence that says which parameter was
     // wanted. `ParameterNotFound` on its own reads as a bare name, and a
     // scheduled job fails in a log group nobody is watching.
-    throw missing(parameter, `could not be read (${thrownName(error)})`);
+    throw refused(parameter, `could not be read (${thrownName(error)})`);
   } finally {
     client.destroy();
   }
@@ -58,7 +58,7 @@ export async function visitorSecret(parameter: string): Promise<string> {
   const value = found.Parameter?.Value ?? "";
 
   if (value.trim() === "") {
-    throw missing(parameter, "holds nothing");
+    throw refused(parameter, "holds nothing");
   }
 
   return value;
@@ -86,11 +86,11 @@ export function visitorSalt(secret: string, window: SummaryWindow): string {
     .digest("hex");
 }
 
-/** What a parameter this cannot use is reported as. */
-function missing(parameter: string, what: string): Error {
+/** What a parameter this cannot count under is reported as. */
+function refused(parameter: string, what: string): Error {
   return new Error(
-    `The visitor salt is in the SSM parameter "${parameter}", and this` +
-      ` deployment's ${what}. Create it with:\n` +
+    `The visitor salt secret ${what}. Rainlytics reads it from the SSM` +
+      ` parameter "${parameter}". Create one with:\n` +
       `  aws ssm put-parameter --name ${parameter} --type SecureString` +
       ` --value "$(openssl rand -hex 32)"\n` +
       `See docs/visitors/ for what it is for and why nothing creates it for` +
