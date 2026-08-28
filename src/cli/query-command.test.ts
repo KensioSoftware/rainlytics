@@ -8,6 +8,7 @@ import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { type App, CfnOutput, Size, Stack } from "aws-cdk-lib/core";
 import { describe, expect, it } from "vitest";
 
+import { readingAthenaCaller } from "#test/reading-athena-caller.js";
 import { deployStacks, simStartedAt } from "#test/simulated-deployment.js";
 
 import { CloudFrontLogDelivery } from "../cdk/log-delivery.js";
@@ -17,6 +18,7 @@ import { QueryWorkgroup } from "../cdk/query-workgroup.js";
 import { partitionPrefix } from "../partitions.js";
 import { rainlyticsCommands } from "./command.js";
 import { runCli } from "./run.js";
+import { summaryBucketVariable } from "./summary-help.js";
 
 describe("rainlytics query", () => {
   /**
@@ -372,6 +374,42 @@ describe("rainlytics query", () => {
     // so pricing one would be inventing a cost.
     expect(run.error).toContain("does not charge for a query that failed");
     expect(run.error).not.toContain("About $");
+  });
+
+  it("names the actions a query takes, where the caller has none", async () => {
+    // Given an identity allowed to read Athena and to run nothing, which is
+    // what an SSO read-only role carries.
+    const deployed = await deployAnalytics();
+    await twoPageViews(deployed);
+    const reader = await readingAthenaCaller(deployed.simAws);
+
+    // When it asks a question.
+    const run = await deployed.simAws.runAs(reader, async () =>
+      cli(["query", anHourQuery]),
+    );
+
+    // Then the four actions running a query takes are named, against the
+    // workgroup and the results bucket they apply to. Whoever meets this has
+    // a policy to write and nothing else to go on.
+    expect(run.code).toBe(1);
+    expect(run.error).toContain(
+      "Running a query takes athena:StartQueryExecution and" +
+        " athena:StopQueryExecution on the rainlytics workgroup, and" +
+        " s3:PutObject and s3:AbortMultipartUpload on the bucket that" +
+        " workgroup writes results to.",
+    );
+
+    // And the summaries are offered, since reading one takes a GET and this
+    // identity has every read there is. A refusal that stopped at the policy
+    // would leave an answer on the table.
+    expect(run.error).toContain("summary on s3:GetObject alone");
+    expect(run.error).toContain(
+      `--summaries, or put it in ${summaryBucketVariable}`,
+    );
+
+    // And the region is left out of it. This query went where it meant to,
+    // and asking somewhere else changes nothing.
+    expect(run.error).not.toContain("Name another with --region");
   });
 
   it("refuses SQL the shell took apart", async () => {

@@ -51,6 +51,10 @@ export async function resolvedRegion(
  * was missing. Matching on a service's prose goes quiet the day the prose
  * changes, and credentials, permissions and endpoint failures are all worth
  * locating too.
+ *
+ * What the SDK threw is kept as the cause. A caller that tells one refusal
+ * from another needs the error's name and the sentence it came with, and both
+ * are gone by the time this has flattened them into a message.
  */
 export function refusalIn(thrown: unknown, region: string | undefined): Error {
   const said = messageOf(thrown);
@@ -59,5 +63,6 @@ export function refusalIn(thrown: unknown, region: string | undefined): Error {
     region === undefined
       ? said
       : `${said} Athena was asked in ${region}. Name another with --region.`,
+    { cause: thrown },
   );
 }

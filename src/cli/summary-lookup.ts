@@ -15,6 +15,7 @@ import type * as S3 from "@aws-sdk/client-s3";
 import type { SummaryLookup } from "../rollup-summaries.js";
 import { neverComputed } from "../rollup-summaries.js";
 import { messageOf } from "../thrown-message.js";
+import { cannotReadSummaries, isDenied } from "./access-refusals.js";
 
 /** Where the summaries a command reads are kept. */
 export interface SummaryLocation {
@@ -107,8 +108,16 @@ function isMissing(error: unknown): boolean {
  * S3 names the problem and never the bucket, and a reader meeting
  * `Access Denied` has no way to tell which of the two buckets in the pipeline
  * it was about.
+ *
+ * A refused permission is answered with the action it names. `--summaries`
+ * and `--region` find a bucket somewhere else, and S3 has already found this
+ * one.
  */
 function refusalFor(thrown: unknown, where: SummaryLocation): Error {
+  if (isDenied(thrown)) {
+    return cannotReadSummaries(thrown, where.bucket);
+  }
+
   return new Error(
     `${messageOf(thrown)} S3 was asked for the summaries in` +
       ` ${where.bucket}. Name another bucket with --summaries, or the region` +

@@ -43,6 +43,33 @@ chain, which is the same one the AWS CLI reads:
 Whatever that chain resolves to is what the queries run as, and CloudTrail records them under that
 identity.
 
+## Permissions
+
+The identity that chain resolves to needs the permissions for what the command does, and the two
+halves of the command surface need different ones.
+
+A named question reads a precomputed summary. That takes `s3:GetObject` on the summaries bucket,
+which an SSO read-only role already carries.
+
+`query`, `saved-query` and `--query` run Athena, which takes four more. Those are
+`athena:StartQueryExecution` and `athena:StopQueryExecution` on the workgroup, and `s3:PutObject`
+and `s3:AbortMultipartUpload` on the bucket that workgroup writes results to. A read-only role has
+none of the four, and a command refused for want of them says so:
+
+```text
+rainlytics: User: arn:aws:sts::000000000000:assumed-role/AWSReservedSSO_ReadOnly/... is not
+authorized to perform: athena:StartQueryExecution on resource:
+arn:aws:athena:eu-west-1:000000000000:workgroup/rainlytics
+Running a query takes athena:StartQueryExecution and athena:StopQueryExecution on the rainlytics
+workgroup, and s3:PutObject and s3:AbortMultipartUpload on the bucket that workgroup writes results
+to. A named question (pageviews, referrers, status-codes, cache-hit-ratio or searches) answers from
+a precomputed summary on s3:GetObject alone. Name the bucket holding those with --summaries, or put
+it in RAINLYTICS_SUMMARY_BUCKET.
+```
+
+The [query workgroup](../query-workgroup/) page has the whole policy, including the reads a
+read-only role already allows.
+
 ## Region
 
 Every command that reaches Athena takes `--region`, alongside `--database` and `--workgroup`:
