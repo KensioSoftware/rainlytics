@@ -38,7 +38,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && tsc -p tsconfig.lambda.json",
     "prepack": "pnpm build",
     "build:check": "tsc -p tsconfig.json --noEmit",
     "fmt": "oxlint --fix . && oxfmt .",
@@ -46,8 +46,8 @@
     "lint:ci": "oxlint --format=github . && oxfmt --check .",
     "docs:check": "./scripts/sh/docs-check.sh",
     "fta": "./scripts/sh/fta.sh",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
+    "test": "pnpm build && vitest run",
+    "test:coverage": "pnpm build && vitest run --coverage",
     "pack:check": "./scripts/sh/pack-check.sh",
     "check": "pnpm fmt && pnpm lint && pnpm docs:check && pnpm fta && pnpm build:check && pnpm pack:check && pnpm test:coverage"
   },
@@ -64,6 +64,7 @@
     }
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1119.0",
     "@faker-js/faker": "^10.6.0",
     "@kensio/smartass": "^1.37.5",
     "@kensio/yulin": "^1.20.12",

@@ -13,8 +13,8 @@
 import type * as Athena from "@aws-sdk/client-athena";
 
 import { defaultLogDataset } from "../dataset.js";
-import type { AthenaClient, AthenaModule } from "./athena-outcome.js";
-import { refusalIn, resolvedRegion } from "./athena-region.js";
+import type { AthenaClient, AthenaModule } from "../athena/athena-outcome.js";
+import { refusalIn, resolvedRegion } from "../athena/athena-region.js";
 
 /** One query as Athena holds it in a workgroup. */
 export interface SavedQuery {

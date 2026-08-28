@@ -60,8 +60,27 @@ export const currentMonth = "the current month";
  */
 export const defaultRedirectStatuses: readonly string[] = ["302", "303", "307"];
 
+/**
+ * The window a scheduled summary is being computed for.
+ *
+ * A second standing range, alongside {@link currentMonth}, and it stands for
+ * something the query text cannot know. `RollupSummaries` writes one query per
+ * question at deploy time and the job runs it once an hour, against a
+ * different window each time. Under this range the partition predicate comes
+ * out as `windowPlaceholder`, and `windowedSql` in `summary-runs.ts` puts the
+ * window in on the way to Athena.
+ *
+ * The rest of the query is written by the builder every other reader uses. A
+ * scheduled job and a `rainlytics` command asking the same question over the
+ * same span therefore send the same SQL.
+ */
+export const summarisedWindow = "the window being summarised";
+
 /** How far back a rollup looks, or the standing range a saved copy uses. */
-export type RollupRange = TimeRange | typeof currentMonth;
+export type RollupRange =
+  | TimeRange
+  | typeof currentMonth
+  | typeof summarisedWindow;
 
 /** What a rollup needs telling before its SQL can be written. */
 export interface RollupRequest {
@@ -237,5 +256,10 @@ export function assertRollupName(name: string): void {
   }
 }
 
-export { matchedPath, rowsFor } from "./rollup-rows.js";
+export {
+  matchedPath,
+  partitionPredicate,
+  rowsFor,
+  windowPlaceholder,
+} from "./rollup-rows.js";
 export { quoted } from "./sql-text.js";

@@ -59,6 +59,11 @@ expected=(
   # PATH without ever checking the target is there. A missing one shows up as
   # "rainlytics: command not found" after an install that reported success.
   "package/${bin_path#./}"
+  # The Lambda deployment package `RollupSummaries` stages as a CDK asset,
+  # which is a fourth list. Nothing in `exports` or `bin` reaches it, and the
+  # construct finds it by path. A missing one is a synthesis failure in a
+  # consumer's own CDK app, long after this published.
+  package/dist/lambda/functions/rollup-summary.js
 )
 
 missing=()

@@ -48,10 +48,15 @@ export default defineConfig({
       },
     },
     restoreMocks: true,
-    // The two halves of undoing a test's mocks, and they cover different
-    // things: `restoreMocks` puts back what `vi.spyOn` replaced, while a global
-    // replaced by `vi.stubGlobal` is only put back by `vi.unstubAllGlobals`,
-    // which this option is what schedules.
+    /*
+     * Three ways of undoing what a test replaced, and they cover different
+     * things. `restoreMocks` puts back what `vi.spyOn` replaced. A
+     * global replaced by `vi.stubGlobal` is only put back by
+     * `vi.unstubAllGlobals`, and an environment variable set with
+     * `vi.stubEnv` only by `vi.unstubAllEnvs`. These two options are what
+     * schedule those.
+     */
     unstubGlobals: true,
+    unstubEnvs: true,
   },
 });

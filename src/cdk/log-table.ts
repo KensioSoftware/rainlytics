@@ -14,6 +14,7 @@ import {
   partitionLocationTemplate,
   partitionProjection,
 } from "../partitions.js";
+import type { LogDeliveryBucket } from "./delivery-bucket.js";
 import type { CloudFrontLogDelivery } from "./log-delivery.js";
 import { agreedDelivery } from "./log-table-deliveries.js";
 import { logTableFormat } from "./log-table-format.js";
@@ -104,6 +105,16 @@ export class LogTable extends Construct {
   /** Where the table reads from, being the bucket and the delivery prefix. */
   readonly location: string;
 
+  /**
+   * The bucket holding the objects, as the deliveries agreed on it.
+   *
+   * Here because whatever queries the table has to be allowed to read what is
+   * under it. Athena reads the objects as whoever ran the query, so a
+   * scheduled job needs the bucket rather than only the `s3://` location the
+   * table declares.
+   */
+  readonly logBucket: LogDeliveryBucket;
+
   constructor(scope: Construct, id: string, props: LogTableProps) {
     super(scope, id);
 
@@ -117,6 +128,7 @@ export class LogTable extends Construct {
     assertQueryableName("database", this.dataset.databaseName);
     assertQueryableName("table", this.dataset.tableName);
 
+    this.logBucket = delivery.logBucket;
     this.location = `s3://${delivery.logBucket.bucketName}/${delivery.prefix}/`;
 
     const fields = deliveredLogFieldsNamed(delivery.fields);

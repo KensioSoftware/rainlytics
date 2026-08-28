@@ -13,7 +13,7 @@ import {
   bytesBilledMinimum,
   queryChargeInDollars,
 } from "../athena-pricing.js";
-import type { AthenaOutcome } from "./athena-outcome.js";
+import type { AthenaOutcome } from "../athena/athena-outcome.js";
 
 /**
  * Where one query ran, for standard error.
