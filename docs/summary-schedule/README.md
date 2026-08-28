@@ -276,6 +276,10 @@ new PolicyStatement({
 `schedulePrefix` (`rainlytics-` unless it was passed). The wildcard therefore covers one
 deployment's schedules and leaves whatever else the account has scheduled alone.
 
+It matches on the prefix and nothing else. A second deployment that called itself `rainlytics-docs-`
+would sit inside a statement quoting `rainlytics-*`, and the first deployment's role could update
+and delete its schedules. Give the second one a prefix that is not the opening of the first one's.
+
 The function, its log group and the two roles:
 
 ```typescript
@@ -288,18 +292,23 @@ new PolicyStatement({
     "lambda:UpdateFunctionConfiguration",
     "lambda:DeleteFunction",
   ],
-  resources: [`arn:aws:lambda:${region}:${account}:function:*`],
+  resources: [`arn:aws:lambda:${region}:${account}:function:${stackName}-*`],
 });
 
 new PolicyStatement({
   sid: "TheRainlyticsSummaryLogs",
   actions: [
     "logs:CreateLogGroup",
-    "logs:DescribeLogGroups",
     "logs:PutRetentionPolicy",
     "logs:DeleteLogGroup",
   ],
-  resources: [`arn:aws:logs:${region}:${account}:log-group:*`],
+  resources: [`arn:aws:logs:${region}:${account}:log-group:${stackName}-*`],
+});
+
+new PolicyStatement({
+  sid: "TheRainlyticsSummaryLogGroups",
+  actions: ["logs:DescribeLogGroups"],
+  resources: ["*"],
 });
 
 new PolicyStatement({
@@ -319,14 +328,20 @@ new PolicyStatement({
 });
 ```
 
+`logs:DescribeLogGroups` is the one that has to be `*`. CloudFormation reads a log group back with
+it, and IAM gives the action no resource type at all, so a statement naming a log group authorises
+it for no request. The other three actions are scoped to the group.
+
 `iam:PassRole` is the one that looks like surplus. `lambda:CreateFunction` hands Lambda the role the
 function runs as, and `scheduler:CreateSchedule` hands Scheduler the role it invokes through. A
 policy that creates both roles and stops there fails on the first of those two calls.
 `iam:AttachRolePolicy` is for `AWSLambdaBasicExecutionRole`, the managed policy CDK attaches to
 every function's role.
 
-A role left unnamed is named by CloudFormation after the stack and the logical id, so the
-truncation trap on the [log bucket](../log-bucket/) page applies to the prefix above as well.
+The function, its log group and both roles are left unnamed, and CloudFormation names each of them
+after the stack and the logical id. That is where `${stackName}-*` comes from above, and the
+truncation trap on the [log bucket](../log-bucket/) page applies to all three. Check the prefix
+against the names a deploy created rather than against the stack name alone.
 
 The created bucket takes the S3 permissions on that same page against its own ARN, its bucket policy
 included (`enforceSSL` writes one). A deployment passing `summariesBucket` creates no bucket and
@@ -355,9 +370,18 @@ One run sends:
   configuration on the way to running a query in it).
 - `glue:GetDatabase`, `glue:GetTable` and `glue:GetPartitions` on the catalog, the database and the
   table.
-- `s3:` on three buckets. Reads on the log bucket, reads and writes on the workgroup's results
-  bucket, and a put on the summaries bucket.
+- `s3:GetObject`, `s3:GetBucketLocation` and `s3:ListBucket` on the log bucket and its objects.
+  Athena lists the prefixes a partition predicate selected before it reads anything in them.
+- On the workgroup's results bucket and its objects, what CDK's `grantReadWrite` writes.
+  `s3:GetObject*`, `s3:GetBucket*`, `s3:List*`, `s3:DeleteObject*`, `s3:PutObject` with its
+  `LegalHold`, `Retention`, `Tagging` and `VersionTagging` variants, and `s3:Abort*`. Athena writes
+  each query's output there as the caller and reads it back to answer `GetQueryResults`.
+- The same `PutObject` family and `s3:Abort*` again on the summaries bucket's objects, from
+  `grantPut`.
 - `ssm:GetParameter` on the visitor salt parameter.
+
+Those are the statements on the deployed role read back off a synthesised template, rather than a
+list inferred from the code.
 
 An account that allows the deploy prefixes and stops there deploys cleanly and fails on the first
 schedule that fires. Nobody is watching that run. The message lands in the function's log group and
