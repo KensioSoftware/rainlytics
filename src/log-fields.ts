@@ -8,6 +8,11 @@
 // reads it, and `readBy` below is that name rather than a comment, so a test
 // can insist on it.
 //
+// One of them is the viewer's address. `c-ip` is delivered so a visitor
+// count can be computed from it (KensioSoftware/rainlytics#53). The raw
+// store is therefore a record of people, and the log bucket's expiry decides
+// how long that lasts. `cdk/log-lifecycle.ts` holds that decision.
+//
 // Field selection is set on the delivery, which has an
 // UpdateDeliveryConfiguration operation, so this is cheaper to revisit than
 // the output format (which can only be set at creation). Confirm that before
@@ -29,8 +34,8 @@ export interface DeliveredLogField {
    *
    * Declared per field rather than computed. The rule above is inferred from
    * eleven observations of a transformation AWS documents nowhere, and a
-   * twelfth field that broke it would reach Athena as a column of nulls over
-   * a query reporting success. `log-fields.test.ts` applies the rule to every
+   * field that broke it would reach Athena as a column of nulls over a
+   * query reporting success. `log-fields.test.ts` applies the rule to every
    * declared name here, so the two disagree in a test rather than in a
    * dataset.
    */
@@ -122,8 +127,34 @@ export const deliveredLogFields: readonly DeliveredLogField[] = [
     name: "c-country",
     parquetName: "c_country",
     readBy:
-      "The geography rollup, resolved by CloudFront from an address we then" +
-      " never have to store ourselves.",
+      "The geography rollup, which CloudFront resolves from the address" +
+      " itself. No query has to do a lookup of its own.",
+  },
+  /*
+   * Last in the list, and it stays last.
+   *
+   * A delivery change applies to what CloudFront writes from then on and
+   * rewrites nothing already in the bucket, so the dataset holds records of
+   * both shapes for ever. Appending a column leaves every earlier record
+   * readable and the new one null on the days before the change. Inserting
+   * one in CloudFront's own field order would put a new name in the middle
+   * of the table's columns, and a `SELECT *` would answer in an order that
+   * depends on when the object was written.
+   *
+   * This is also the first field whose Parquet name is predicted by the rule
+   * in `parquetName` above rather than read off a delivered object. `c_ip` is
+   * the least surprising name the rule produces, and a Parquet delivery that
+   * spells it some other way reaches Athena as a column of nulls under a
+   * query reporting success. Read one back before trusting a visitor count
+   * over Parquet.
+   */
+  {
+    name: "c-ip",
+    parquetName: "c_ip",
+    readBy:
+      "The unique visitor count. KensioSoftware/rainlytics#74 hashes this" +
+      " and the user agent under a salt that rotates daily, and nothing" +
+      " else in a record identifies a viewer.",
   },
 ];
 
@@ -191,21 +222,27 @@ export function deliveredLogFieldsNamed(
  * Written down because "we never thought about it" and "we thought about it
  * and said no" look identical in a list holding only what was chosen.
  *
- * - `c-ip` and `cs(Cookie)` are personal data. An access log without them is
- *   a record of requests. With them it is a record of people. Leaving `c-ip`
- *   out also means there is no unique-visitor count, which is a real loss and
- *   a decision for whoever runs the site. See `.claude/roadmap.md`.
+ * `c-ip` was on this list until KensioSoftware/rainlytics#53 chose the
+ * daily-rotating hash. It is delivered now, and the raw store holds viewer
+ * addresses for as long as it holds anything. `cdk/log-lifecycle.ts` carries
+ * the retention that decision landed on.
+ *
+ * - `cs(Cookie)` is personal data with nothing to read it. The visitor
+ *   identifier comes from the address, and a cookie would only be a second
+ *   way to recognise the same person.
  * - `time-taken`, `origin-fbl` and `origin-lbl` measure the origin. Nothing
  *   rolls them up yet, and Core Web Vitals come from the beacon.
  * - `viewer-request-log-data` carries `cf.logCustomData()` output, capped at
  *   800 bytes. The beacon uses the query string, which holds far more.
- * - `x-forwarded-for` is the viewer address by another route, so it carries
- *   the same problem `c-ip` does.
+ * - `x-forwarded-for` holds the address of the viewer where `c-ip` holds the
+ *   address of the proxy in front of them. It would sharpen the count for
+ *   viewers behind one, and cost a field on every record where most of them
+ *   carry a hyphen. Worth revisiting once there is a count to measure it
+ *   against.
  * - `x-edge-location`, `asn`, `ssl-*`, `fle-*`, `c-port`, `sc-range-*` and
  *   `cs-protocol*` have no reader.
  */
 export const omittedLogFields: readonly string[] = [
-  "c-ip",
   "cs(Cookie)",
   "x-forwarded-for",
   "time-taken",
@@ -220,7 +257,16 @@ export const omittedLogFields: readonly string[] = [
  * Here so a typo in the lists above fails a test rather than a deployment,
  * or worse, delivers a dataset with a column permanently missing from it.
  *
+ * It is also the ceiling on how many fields one delivery can carry. Neither
+ * the CloudFront quotas page nor the CloudWatch Logs one publishes any limit
+ * on `recordFields`, and the `CreateDelivery` example in the CloudFront
+ * documentation prints a delivery holding every standard access log field at
+ * once. So the twelve above sit a long way inside what AWS will accept, and
+ * what keeps the list short is the storage and the bytes each query scans.
+ * Read in August 2026, and worth reading again before adding several.
+ *
  * @see https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/standard-logging.html
+ * @see https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cloudfront-limits.html
  */
 export const availableLogFields: readonly string[] = [
   // The standard access log fields.

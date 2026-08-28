@@ -18,8 +18,10 @@ terms are in the access log already. CloudFront records `cs-uri-query` whatever 
 origin forwarding are set to, so a search answered from the edge is counted alongside one that
 reached the origin. No other source covers both.
 
-Nothing about who searched is recorded anywhere. `c-ip` and `cs(Cookie)` are left out of the
-delivered field set on purpose, and the [log table](../log-table/) page says why.
+Who searched stays out of the answer. The delivered field set carries the viewer's address, because
+the unique visitor count is hashed from it, and a search count reads the query string alone. Cookies
+are left out of the field set altogether. The [log table](../log-table/) page covers the address
+column.
 
 ## Name the search page
 

@@ -14,6 +14,27 @@ import type { LogBucketProps } from "./log-bucket.js";
  *
  * Generous is cheap at the traffic Rainlytics is built for. A busy site
  * should set it deliberately.
+ *
+ * A year now also covers the viewer's address. KensioSoftware/rainlytics#53
+ * put `c-ip` in the delivered field set to count unique visitors, and
+ * KensioSoftware/rainlytics#73 looked at this number again for a store that
+ * holds one. It stays at a year, for three reasons.
+ *
+ * The address is one column of an object that also holds everything else
+ * about those requests. S3 expires objects and never columns. An expiry short
+ * enough to shed the addresses takes the request history with it, and that
+ * history is what every rollup is rebuilt from. The lifetime worth shortening
+ * is the one lifetime that cannot be shortened on its own.
+ *
+ * Lowering the default would then delete history on sites already running
+ * Rainlytics, on the first deploy after an upgrade, having asked nobody. A
+ * version bump should not quietly discard data that cannot be recovered.
+ *
+ * And the choice belongs to the site. Passing `retention` shortens how long
+ * the addresses are held, and shortens how far back a rollup can be
+ * recomputed with it. Leaving `c-ip` out of the delivery's `fields` keeps the
+ * year and gives up the visitor count. `docs/log-bucket/` sets both out for
+ * whoever runs the site, which is where the decision belongs.
  */
 export const defaultLogRetention = Duration.days(365);
 
@@ -32,7 +53,10 @@ export const defaultLogRetention = Duration.days(365);
  * daily. The rollups do, and a person reads the rollups.
  *
  * It also adds itself to the retention above. An object expires at 365 days,
- * becomes superseded, and goes for good 30 days after that.
+ * becomes superseded, and goes for good 30 days after that. That is the
+ * number to quote for how long the raw store holds a viewer's address. It is
+ * 395 days on the defaults, and KensioSoftware/rainlytics#73 kept both halves
+ * of it.
  */
 export const defaultRecoveryWindow = Duration.days(30);
 

@@ -83,9 +83,9 @@ one would not.
 ## Every column is a string
 
 CloudFront quotes every value in a JSON record, `timestamp(ms)` and `sc-status` included, and its
-Parquet writer goes through Avro and types all eleven fields as a nullable string. Both were read
-back off S3 in [#9](https://github.com/KensioSoftware/rainlytics/issues/9). A table declaring
-`timestamp_ms bigint` over that data fails with `HIVE_BAD_DATA`.
+Parquet writer goes through Avro and types every field as a nullable string. Both were read back off
+S3 in [#9](https://github.com/KensioSoftware/rainlytics/issues/9), over the eleven fields delivered
+at the time. A table declaring `timestamp_ms bigint` over that data fails with `HIVE_BAD_DATA`.
 
 So the casting belongs in the query:
 
@@ -116,6 +116,7 @@ both formats:
 | `cs(User-Agent)`     | `cs(User-Agent)`     | `cs_User_Agent`      | `cs_user_agent`      |
 | `x-host-header`      | `x-host-header`      | `x_host_header`      | `x_host_header`      |
 | `x-edge-result-type` | `x-edge-result-type` | `x_edge_result_type` | `x_edge_result_type` |
+| `c-ip`               | `c-ip`               | `c_ip`               | `c_ip`               |
 
 The other six follow the same rule. A rollup query is then written once and keeps working if the
 delivery is ever recreated in the other format.
@@ -133,6 +134,27 @@ side.
 
 `plain`, `w3c` and `raw` deliveries are refused at synthesis. They are delimited text with a header,
 and none of that has been tested here.
+
+## `c_ip` is the viewer's address
+
+The table has a column for it because the delivery asks for one. Rainlytics counts unique visitors
+as a daily-rotating hash of the address and the user agent, and the rollup computing that hash reads
+this column. The [log delivery](../log-delivery/) page says what the field set holds, and the [log
+bucket](../log-bucket/) page says for how long.
+
+Three things follow for anything querying this table.
+
+Records delivered before the field was added carry no address. Athena answers `null` for them and
+reports success, and a visitor count over those days comes back low.
+
+`SELECT *` at a terminal prints addresses. Name the columns a question needs, which is the habit the
+partition predicates already ask for.
+
+And `c_ip` is the one name in the table above that the rule predicts rather than reproduces.
+[#9](https://github.com/KensioSoftware/rainlytics/issues/9) read eleven names off delivered objects
+and this was not one of them, because the field joined the set afterwards. A Parquet delivery that
+spells it some other way answers every query with a column of nulls and reports success. Read an
+object back before trusting a visitor count over Parquet.
 
 ## Several distributions, one table
 

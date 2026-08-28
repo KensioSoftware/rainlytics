@@ -57,6 +57,27 @@ new LogBucket(this, "RainlyticsLogs", {
 
 Shortening it discards history that cannot be recovered afterwards.
 
+### It is also how long the addresses are kept
+
+The delivered field set includes `c-ip`. What expires here is therefore a record of people as well
+as of requests. Rainlytics counts unique visitors by hashing the viewer's address and their user
+agent under a salt that rotates daily, and a scheduled rollup computes that hash from the address
+the object already carries. The [log delivery](../log-delivery/) page covers the field set.
+
+A year was chosen for a store of requests, and
+[#73](https://github.com/KensioSoftware/rainlytics/issues/73) looked at it again for a store that
+holds addresses and kept it. S3 expires objects and never columns. The shortest expiry that would
+shed the addresses also throws away the request history every rollup is rebuilt from, and a year is
+the right answer for that history.
+
+So the choice is the site's, and there are two ways to take it. Passing `retention` shortens how
+long the addresses are held, and shortens the recomputable history by the same amount. Leaving
+`c-ip` out of the delivery's `fields` keeps the year and gives up the visitor count. The [log
+delivery](../log-delivery/) page has the second one.
+
+Whichever number you land on, the recovery window below adds itself to it. An address delivered
+today is gone at 395 days on the defaults.
+
 ## Versioning, and the window it opens
 
 The bucket is versioned. A deletion writes a delete marker over the object and keeps the version
