@@ -239,6 +239,12 @@ export function deliveredLogFieldsNamed(
  *   viewers behind one, and cost a field on every record where most of them
  *   carry a hyphen. Worth revisiting once there is a count to measure it
  *   against.
+ * - `distribution-tenant-id` names a distribution tenant, and there are none.
+ *   Where one distribution serves several sites, `x-host-header` is what
+ *   tells them apart.
+ * - `connection-id` identifies a TLS connection, and CloudFront fills it in
+ *   only where mTLS is enabled on the distribution. Rainlytics serves public
+ *   sites over ordinary TLS.
  * - `x-edge-location`, `asn`, `ssl-*`, `fle-*`, `c-port`, `sc-range-*` and
  *   `cs-protocol*` have no reader.
  */
@@ -265,6 +271,7 @@ export const omittedLogFields: readonly string[] = [
  * what keeps the list short is the storage and the bytes each query scans.
  * Read in August 2026, and worth reading again before adding several.
  *
+ * @see https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/standard-logs-reference.html
  * @see https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/standard-logging.html
  * @see https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cloudfront-limits.html
  */
@@ -303,13 +310,15 @@ export const availableLogFields: readonly string[] = [
   "sc-content-len",
   "sc-range-start",
   "sc-range-end",
-  "c-country",
-  "cache-behavior-path-pattern",
+  "distribution-tenant-id",
+  "connection-id",
   // The real-time fields standard logging v2 also offers.
   "timestamp(ms)",
   "origin-fbl",
   "origin-lbl",
   "asn",
+  "c-country",
+  "cache-behavior-path-pattern",
   "viewer-request-log-data",
   "viewer-response-log-data",
 ];
