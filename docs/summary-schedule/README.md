@@ -246,6 +246,128 @@ do. The one rule this construct adds is that the question builds its `WHERE` cla
 because that is what writes the window the job fills in. A query that reaches Athena without one is
 refused before it is sent, since Athena would take it and read every partition the table projects.
 
+## Permissions for a scoped deploy role
+
+Skippable on an account whose CloudFormation execution role holds `AdministratorAccess`.
+
+This construct creates more kinds of resource than the rest of the pipeline. A deploy of the
+defaults writes ten schedules, one function, one log group, two roles with an inline policy each,
+and a bucket with a bucket policy. `scheduler:` is the prefix to check first. A role that has
+deployed anything else in the account usually holds the rest already.
+
+```typescript
+import { PolicyStatement } from "aws-cdk-lib/aws-iam";
+
+new PolicyStatement({
+  sid: "TheRainlyticsSummarySchedules",
+  actions: [
+    "scheduler:CreateSchedule",
+    "scheduler:GetSchedule",
+    "scheduler:UpdateSchedule",
+    "scheduler:DeleteSchedule",
+  ],
+  resources: [
+    `arn:aws:scheduler:${region}:${account}:schedule/default/${schedulePrefix}*`,
+  ],
+});
+```
+
+`default` is the schedule group every schedule here goes in, and the names after it begin with
+`schedulePrefix` (`rainlytics-` unless it was passed). The wildcard therefore covers one
+deployment's schedules and leaves whatever else the account has scheduled alone.
+
+The function, its log group and the two roles:
+
+```typescript
+new PolicyStatement({
+  sid: "TheRainlyticsSummaryFunction",
+  actions: [
+    "lambda:CreateFunction",
+    "lambda:GetFunction",
+    "lambda:UpdateFunctionCode",
+    "lambda:UpdateFunctionConfiguration",
+    "lambda:DeleteFunction",
+  ],
+  resources: [`arn:aws:lambda:${region}:${account}:function:*`],
+});
+
+new PolicyStatement({
+  sid: "TheRainlyticsSummaryLogs",
+  actions: [
+    "logs:CreateLogGroup",
+    "logs:DescribeLogGroups",
+    "logs:PutRetentionPolicy",
+    "logs:DeleteLogGroup",
+  ],
+  resources: [`arn:aws:logs:${region}:${account}:log-group:*`],
+});
+
+new PolicyStatement({
+  sid: "TheRainlyticsSummaryRoles",
+  actions: [
+    "iam:CreateRole",
+    "iam:GetRole",
+    "iam:DeleteRole",
+    "iam:PutRolePolicy",
+    "iam:GetRolePolicy",
+    "iam:DeleteRolePolicy",
+    "iam:AttachRolePolicy",
+    "iam:DetachRolePolicy",
+    "iam:PassRole",
+  ],
+  resources: [`arn:aws:iam::${account}:role/${stackName}-*`],
+});
+```
+
+`iam:PassRole` is the one that looks like surplus. `lambda:CreateFunction` hands Lambda the role the
+function runs as, and `scheduler:CreateSchedule` hands Scheduler the role it invokes through. A
+policy that creates both roles and stops there fails on the first of those two calls.
+`iam:AttachRolePolicy` is for `AWSLambdaBasicExecutionRole`, the managed policy CDK attaches to
+every function's role.
+
+A role left unnamed is named by CloudFormation after the stack and the logical id, so the
+truncation trap on the [log bucket](../log-bucket/) page applies to the prefix above as well.
+
+The created bucket takes the S3 permissions on that same page against its own ARN, its bucket policy
+included (`enforceSSL` writes one). A deployment passing `summariesBucket` creates no bucket and
+needs none of them.
+
+The function's code goes up under a different role. `cdk deploy` uploads the asset with the
+bootstrap file publishing role before CloudFormation runs. A deploy that fails on the upload is a
+bootstrap question.
+
+Read the whole list as inferred from what the construct creates. The resource counts above come
+from synthesising the defaults, and no deploy has run under a role narrower than
+`AdministratorAccess`. So the actions have never been tested against the failure a missing one would
+cause.
+
+## Permissions for a scheduled run
+
+The deploy role has no part in these. The construct grants them itself, onto the role the function
+runs as, and a reader under a narrowed deploy role has no policy to write for them. They are here
+because a service control policy denies an unlisted prefix whichever role sent the call, and the
+deploy list above is half of what such an account has to allow.
+
+One run sends:
+
+- `athena:StartQueryExecution`, `StopQueryExecution`, `GetQueryExecution` and `GetQueryResults` on
+  the workgroup, with `athena:GetWorkGroup` alongside them (Athena reads the workgroup's own
+  configuration on the way to running a query in it).
+- `glue:GetDatabase`, `glue:GetTable` and `glue:GetPartitions` on the catalog, the database and the
+  table.
+- `s3:` on three buckets. Reads on the log bucket, reads and writes on the workgroup's results
+  bucket, and a put on the summaries bucket.
+- `ssm:GetParameter` on the visitor salt parameter.
+
+An account that allows the deploy prefixes and stops there deploys cleanly and fails on the first
+schedule that fires. Nobody is watching that run. The message lands in the function's log group and
+the summaries never start appearing. That is the harder of the two failures to attribute.
+
+`ssm:GetParameter` reads a parameter no template creates. The salt is a `SecureString`, and
+CloudFormation writes `String` and `StringList` parameters only. Somebody puts it there by hand
+before the first run that counts visitors, and [creating the
+secret](../visitors/#creating-the-secret) has the command.
+
 <!-- card
 ```typescript
 new RollupSummaries(this, "RainlyticsSummaries", { table, workgroup });
