@@ -161,8 +161,18 @@ Nobody is watching a scheduled run, and there are two places to look:
 - **The bucket.** A window with no object is one nobody computed. A window with an object holding no
   rows saw no traffic. Summaries that stop appearing are the visible half of a job that stopped
   working, and the [summaries](../summaries/) page has the three answers a reader meets.
-- **The log group.** `/aws/lambda/<function>`, kept for a month by default and moved with
-  `logRetention`.
+- **The log group.** One of its own, kept for a month by default and moved with `logRetention`.
+
+CloudFormation names that log group after the stack and the logical id. The name comes out
+something like `MyStack-RainlyticsSummariesJobLogs1C6CB09C-8mKvQ2XrTpLd`. The
+`/aws/lambda/<function name>` a Lambda function's logs usually sit under holds nothing here. The
+function's **Monitor** tab in the Lambda console links to the right group, and that is the quickest
+way to it. From a terminal, ask the stack:
+
+```bash
+aws cloudformation describe-stack-resources --stack-name MyStack \
+  --query "StackResources[?ResourceType=='AWS::Logs::LogGroup'].PhysicalResourceId"
+```
 
 A CloudWatch alarm over the error metric is the thing that would tell somebody without their having
 to look, and it is the one piece of this that carries a fixed monthly charge. That is why the
