@@ -2,12 +2,12 @@
 
 The precomputed answers a scheduled job writes to S3. Reading one costs a GET.
 
-Every named question runs Athena today, and Athena prices per query. Asking the same question twice
-pays twice. A summary is one question answered over one window, written once and read as many times
-as anybody looks.
+Athena prices per query. An interface that queried on every look would make cost track how often
+somebody checks their analytics. A summary is one question answered over one window, written once and
+read as many times as anybody looks.
 
-This page is the schema. The [summary schedule](../summary-schedule/) construct writes these, and
-[#56](https://github.com/KensioSoftware/rainlytics/issues/56) makes the commands read them.
+This page is the schema. The [summary schedule](../summary-schedule/) construct writes these, and the
+[named commands](../rollups/#reading-a-precomputed-answer) read them.
 
 ## The document
 
@@ -155,7 +155,7 @@ A reader fetching a summary meets three answers.
 - **A document with no rows** is a window that saw no traffic. The job writes one whenever a query
   comes back empty, and that is a requirement on the job rather than an accident of it.
 - **No object at all** is a window nobody has computed. The package calls it `neverComputed`, and a
-  command printing what it found prints that. What happened in that window is still an open
+  command reading a range of them says so and stops. What happened in that window is still an open
   question.
 
 ```typescript
@@ -218,12 +218,62 @@ false }` is a different answer, being a window that nobody visited.
 A count over a week or a month is a query over raw, and only where a salt older than a day can still
 be reached. #74 decides where the salt lives.
 
-## What is still to come
+## Reading one back
 
-[#56](https://github.com/KensioSoftware/rainlytics/issues/56) makes `rainlytics pageviews --last 7d`
-read a summary, and says what a command does with a range no stored window covers. Until it lands,
-the [rollup commands](../rollups/) query Athena and report what that cost, whether or not a summary
-of the same window is already sitting in the bucket.
+`rainlytics pageviews --last 7d` reads these. The bucket comes from `--summaries` or from
+`RAINLYTICS_SUMMARY_BUCKET` in the environment, and `--query` sends the question to Athena for a
+fresher answer.
+
+```bash
+rainlytics pageviews --last 7d --summaries rainlytics-summaries-1a2b
+```
+
+### Which windows a range covers
+
+A range arrives from `--last` and lands wherever the clock happens to be. The windows on S3 sit on
+UTC hour and day boundaries. A range is covered by the whole windows inside it, days wherever a whole
+UTC day fits and hours either side of them.
+
+```text
+2026-08-21T15:37Z .. 2026-08-28T14:37Z
+  hours   2026-08-21T16Z .. 2026-08-21T23Z     8 objects
+  days    2026-08-22    .. 2026-08-27          6 objects
+  hours   2026-08-28T00Z .. 2026-08-28T13Z    14 objects
+```
+
+29 objects for a week, and 52 at the worst. Hours all the way through would be 167. The two part
+hours at the edges are left out. A span therefore reads a little short of the one asked for, and
+standard error names the span that answered.
+
+A day nobody computed is assembled from the 24 hours under it, where every one of them exists. That
+is the second reason hourly windows are stored. A deployment running `granularities: ["hourly"]`
+reaches a month this way, and so does a day whose own run failed.
+
+### Three things a reader is told, and three it is refused
+
+The span that answered, how old the newest window in it is, and what the read cost:
+
+```text
+Read 23 summaries of pageviews from rainlytics-summaries-1a2b, covering
+2026-08-21T15:00:00.000Z to 2026-08-28T14:00:00.000Z.
+The newest was computed 2026-08-28T14:15:03.001Z (13 minutes ago). 23 GETs,
+about $0.0000092 at the us-east-1 rate.
+```
+
+Windows missing from the two ends of a range are dropped and counted. A schedule computes a window a
+quarter of an hour after it closes, and a deployment made last Tuesday has nothing before Tuesday. A
+range asked about today or about last month therefore runs off the end of what exists.
+
+Three cases stop the run, and each names `--query`:
+
+- **A window missing from the middle.** That is a run that failed. An answer skipping it would be
+  short by a whole window with nothing in the rows to say so.
+- **A range holding no computed window at all.** The schedule has never reached that span.
+- **Filters no stored summary was computed with**, covered under [A summary answers the question it
+  was computed with](../rollups/#a-summary-answers-the-question-it-was-computed-with).
+
+Nothing falls back to Athena on its own. A command that queried whenever a summary was missing would
+put the charge back without anybody choosing it. `AGENTS.md` rules out that read path.
 
 <!-- card
 ```json

@@ -11,10 +11,10 @@ importers:
       '@aws-sdk/client-athena':
         specifier: ^3.1118.0
         version: 3.1118.0
-    devDependencies:
       '@aws-sdk/client-s3':
         specifier: ^3.1119.0
         version: 3.1119.0
+    devDependencies:
       '@faker-js/faker':
         specifier: ^10.6.0
         version: 10.6.0

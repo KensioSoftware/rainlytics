@@ -23,8 +23,9 @@ export const lastOption: CliOption = {
   valueName: "span",
   description:
     `How far back to look, as a whole number of hours, days or weeks:` +
-    ` 24h, 7d, 2w. Defaults to ${defaultLast}. The span decides which` +
-    ` partitions are read, so a shorter one costs less.`,
+    ` 24h, 7d, 2w. Defaults to ${defaultLast}. The span decides how many` +
+    ` stored summaries are read, and how many partitions a --query run` +
+    ` scans. A shorter one costs less either way.`,
 };
 
 export const includeBotsOption: CliOption = {
@@ -55,8 +56,9 @@ export const pathOption: CliOption = {
     " covers everything below it. Give it again for each section that" +
     " belongs in one answer, and a request counts when it starts with any" +
     " of them. Matched against the address a reader sees, with" +
-    " CloudFront's encoding already taken off. It narrows the rows counted" +
-    " and leaves the bytes scanned where they were.",
+    " CloudFront's encoding already taken off. Only a summary computed under" +
+    " the same paths can answer it, and a --query run narrows the rows" +
+    " counted and leaves the bytes scanned where they were.",
 };
 
 export const paramOption: CliOption = {
@@ -90,6 +92,7 @@ export const hostOption: CliOption = {
   description:
     "Count only requests for this hostname, for a distribution serving" +
     " several sites. Matched in full rather than as a suffix, so a site and" +
-    " its www name are two hosts. It narrows the rows counted and leaves" +
+    " its www name are two hosts. Only a summary computed for the same host" +
+    " can answer it, and a --query run narrows the rows counted and leaves" +
     " the bytes scanned where they were.",
 };

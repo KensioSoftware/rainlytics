@@ -64,7 +64,6 @@
     }
   },
   "devDependencies": {
-    "@aws-sdk/client-s3": "^3.1119.0",
     "@faker-js/faker": "^10.6.0",
     "@kensio/smartass": "^1.37.5",
     "@kensio/yulin": "^1.20.12",
@@ -97,6 +96,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "dependencies": {
-    "@aws-sdk/client-athena": "^3.1118.0"
+    "@aws-sdk/client-athena": "^3.1118.0",
+    "@aws-sdk/client-s3": "^3.1119.0"
   }
 }
