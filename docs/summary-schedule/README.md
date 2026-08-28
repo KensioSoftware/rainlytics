@@ -210,6 +210,11 @@ this stack reads the answers, such as a static site given read access to one pre
 | `logRetention`         | a month                    | How long the function's logs are kept.             |
 | `schedulePrefix`       | `rainlytics-`              | What each schedule's name begins with.             |
 
+A default deployment reads the salt parameter. `pageviews` counts visitors, and it is one of the five
+questions above. The `SecureString` has to be in Parameter Store before the first run ([creating the
+secret](../visitors/#creating-the-secret) has the command). A deployment that wants none passes
+`rollups` without a question that counts visitors, and never reads the parameter.
+
 ## Two deployments in one account
 
 A schedule's name is unique within its group, and every schedule here goes in the account's default

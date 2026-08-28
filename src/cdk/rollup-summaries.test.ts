@@ -536,7 +536,7 @@ describe("computing rollup summaries on a schedule", () => {
           deliveries: [delivery],
         }),
         workgroup: new QueryWorkgroup(stack, "RainlyticsQueries"),
-        rollups: [viewsOnly],
+        rollups: [pageviews],
         granularities: ["hourly"],
         ...(passed === undefined ? {} : { summariesBucket: passed }),
       });

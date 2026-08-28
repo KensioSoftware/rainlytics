@@ -130,12 +130,16 @@ Run it once per deployment, in the account and region the summaries run in. The
 own, and grants the job `ssm:GetParameter` on whichever one it was given.
 
 A run that meets no parameter fails and says so, naming the parameter and printing that command.
-Only the questions that count visitors read it. A deployment that counts none needs no parameter and
-never asks for one.
+[Which questions carry a count](#which-questions-carry-a-count) says which runs read it.
 
 ## Which questions carry a count
 
-`pageviews` alone. A rollup says so with `countsVisitors`:
+`pageviews` alone, and it is one of the five questions a deployment gets when it passes no `rollups`
+of its own. A default deployment therefore reads the salt parameter, and the secret has to be there
+before its first run. A deployment that wants none passes `rollups` without a question that counts
+visitors, and needs no parameter.
+
+A rollup says it counts with `countsVisitors`:
 
 ```typescript
 import { pageviews, type Rollup } from "@kensio/rainlytics";
