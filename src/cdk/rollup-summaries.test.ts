@@ -18,11 +18,17 @@ import { describe, expect, it } from "vitest";
 
 import { deployStacks, simStartedAt } from "#test/simulated-deployment.js";
 
+import { summaryEnvironment } from "../functions/summary-deployment.js";
 import { partitionPrefix } from "../partitions.js";
 import { pageviews } from "../rollup-questions.js";
 import type { RollupSummary } from "../rollup-summaries.js";
 import { summarySchemaVersion } from "../rollup-summaries.js";
-import { defaultRedirectStatuses } from "../rollups.js";
+import type { Rollup } from "../rollups.js";
+import { defaultRedirectStatuses, windowPlaceholder } from "../rollups.js";
+import {
+  defaultVisitorSaltParameter,
+  visitorSaltPlaceholder,
+} from "../visitor-identity.js";
 import { CloudFrontLogDelivery } from "./log-delivery.js";
 import { LogBucket } from "./log-bucket.js";
 import { LogTable } from "./log-table.js";
@@ -38,6 +44,18 @@ describe("computing rollup summaries on a schedule", () => {
    * past, so the newest closed hour a run meets is the one before it.
    */
   const theClosedHour = new Date("2026-08-23T08:00:00.000Z");
+
+  /**
+   * The pageviews question with its visitor count turned off.
+   *
+   * Every case here is about windows, keys, buckets and lag, and a visitor
+   * count in the middle of them would be a second query nothing can answer.
+   * Yulin's Athena engine has no `sha256`, `to_utf8` or `to_hex`, so the
+   * shipped count comes back empty under a SUCCEEDED state and the run
+   * refuses it. KensioSoftware/yulin#1082 is that gap, and the two cases
+   * below cover the wiring that reaches it.
+   */
+  const viewsOnly: Rollup = { ...pageviews, countsVisitors: false };
 
   /** A whole deployment in a simulated account, computing one question. */
   const deployAnalytics = async (
@@ -75,7 +93,7 @@ describe("computing rollup summaries on a schedule", () => {
         new RollupSummaries(stack, "RainlyticsSummaries", {
           table,
           workgroup,
-          rollups: [pageviews],
+          rollups: [viewsOnly],
           granularities: ["hourly"],
           summariesBucketName,
           removalPolicy: RemovalPolicy.DESTROY,
@@ -86,6 +104,21 @@ describe("computing rollup summaries on a schedule", () => {
     );
 
     await simAws.region("us-east-1").account().athena().engine().enable();
+
+    // The salt secret, put where a site's operator puts it. Nothing in the
+    // stack creates it, because CloudFormation writes no SecureString and a
+    // secret in a template is not one. `docs/visitors/` has the command.
+    await simAws
+      .region("us-east-1")
+      .account()
+      .ssm()
+      .putParameter({
+        input: {
+          Name: defaultVisitorSaltParameter,
+          Type: "SecureString",
+          Value: faker.string.hexadecimal({ length: 64, prefix: "" }),
+        },
+      });
 
     return {
       simAws,
@@ -369,6 +402,61 @@ describe("computing rollup summaries on a schedule", () => {
       JSON.parse(await text(found.Body as unknown as Readable)),
     ).toMatchObject({
       rows: [{ path: "/", views: "1" }],
+    });
+  });
+
+  it("hands the visitor count to the schedule without the salt", async () => {
+    // Given a deployment of the question as Rainlytics ships it, which counts
+    // visitors.
+    const deployed = await deployAnalytics({ rollups: [pageviews] });
+
+    // When the schedule's target input is read back.
+    const schedule = await deployed.simAws
+      .region("us-east-1")
+      .account()
+      .scheduler()
+      .getSchedule({ input: { Name: "rainlytics-pageviews-hourly" } });
+    const input = String(schedule.Target?.Input);
+
+    // Then it carries the count and neither the window nor the salt. Both
+    // arrive when the run happens, which is what keeps a salt out of the
+    // schedule and out of the CloudFormation template holding it.
+    expect(input).toContain("visitorSql");
+    expect(input).toContain(windowPlaceholder);
+    expect(input).toContain(visitorSaltPlaceholder);
+  });
+
+  it("tells the job which parameter the salt is in", async () => {
+    // Given a site that keeps its secret under a name of its own.
+    const parameter = `/mine/${faker.string.uuid()}`;
+    const deployed = await deployAnalytics({ visitorSaltParameter: parameter });
+    const lambda = deployed.simAws.region("us-east-1").account().lambda();
+    const functions = await lambda.listFunctions({ input: {} });
+
+    // Then the deployed function reads that one. A deployment that named
+    // none would count visitors under a salt it invented.
+    const found = await lambda.getFunction({
+      input: { FunctionName: String(functions.Functions[0]?.FunctionName) },
+    });
+
+    expect(found.Configuration.Environment?.Variables).toMatchObject({
+      [summaryEnvironment.visitorSaltParameter]: parameter,
+    });
+  });
+
+  it("names the default parameter where a site chose none", async () => {
+    // Given a deployment that said nothing about where its secret lives.
+    const deployed = await deployAnalytics();
+    const lambda = deployed.simAws.region("us-east-1").account().lambda();
+    const functions = await lambda.listFunctions({ input: {} });
+
+    // Then it reads the one `docs/visitors/` tells an operator to create.
+    const found = await lambda.getFunction({
+      input: { FunctionName: String(functions.Functions[0]?.FunctionName) },
+    });
+
+    expect(found.Configuration.Environment?.Variables).toMatchObject({
+      [summaryEnvironment.visitorSaltParameter]: defaultVisitorSaltParameter,
     });
   });
 

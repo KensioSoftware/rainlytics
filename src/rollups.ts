@@ -263,6 +263,22 @@ export interface Rollup {
    */
   readonly totals?: RollupTotals | undefined;
 
+  /**
+   * Whether a summary of it carries how many visitors the window saw.
+   *
+   * Set on `pageviews` and absent everywhere else. The count is over the
+   * pages a request's narrowing covers, whatever the question beside it is
+   * counting, so a summary of status codes carrying one would report a number
+   * about rows it never looked at. `visitor-counts.ts` has what a visitor is
+   * and `docs/visitors/` has what the number means.
+   *
+   * It costs a second Athena query per window per run. The five shipped
+   * questions on both cadences, recomputing two windows, come to 250 queries
+   * a day and about 38 cents a month. Turning this on for one of them adds
+   * 50 queries, which is about 8 cents.
+   */
+  readonly countsVisitors?: boolean | undefined;
+
   /** What it selects and groups by, given the filters below it. */
   readonly body: (request: RollupRequest) => string;
 }

@@ -303,6 +303,10 @@ that goes stale.
 `rollupSql` hands back the text, and running it is the site's own Athena client. [Saving it in the
 workgroup](#running-a-rollup-of-your-own) is the other way round, and the way that needs no client.
 
+`countsVisitors: true` puts a visitor count on the summaries a scheduled copy of the rollup writes.
+The count is over pageviews under the same narrowing, whatever this question counts, and
+[Counting visitors](../visitors/) has what it means and what it costs.
+
 ### Reading a query-string parameter
 
 `decodedParameter` writes the expression that takes one parameter out of a record and decodes it. A

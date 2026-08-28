@@ -77,6 +77,20 @@ export interface RollupSummariesProps extends SummaryBucketProps {
   readonly recomputedWindows?: number | undefined;
 
   /**
+   * The SSM parameter holding the secret visitors are counted under.
+   *
+   * A `SecureString`, created outside this stack because CloudFormation
+   * cannot create one and a secret in a template is not a secret. A
+   * deployment whose questions count no visitors never reads it, and none has
+   * to exist. `docs/visitors/` has the command that makes one and why the
+   * secret stands rather than rotating.
+   *
+   * @default `/rainlytics/visitor-salt`, being
+   *   {@link defaultVisitorSaltParameter}
+   */
+  readonly visitorSaltParameter?: string | undefined;
+
+  /**
    * How long one run may take.
    *
    * @default five minutes

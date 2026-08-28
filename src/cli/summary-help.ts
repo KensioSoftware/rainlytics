@@ -4,7 +4,7 @@
 // Apart from the commands for the reason `help-text.ts` is apart from
 // `help.ts`. This is documentation, meant to be edited as prose.
 
-import { summaryEnvironment } from "../functions/summary-run.js";
+import { summaryEnvironment } from "../functions/summary-deployment.js";
 import type { CliOption } from "./option.js";
 
 /**

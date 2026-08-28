@@ -14,7 +14,8 @@ import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
 import { Duration, RemovalPolicy } from "aws-cdk-lib/core";
 import { Construct } from "constructs";
 
-import { summaryEnvironment } from "../functions/summary-run.js";
+import { summaryEnvironment } from "../functions/summary-deployment.js";
+import { defaultVisitorSaltParameter } from "../visitor-identity.js";
 import type { LogTable } from "./log-table.js";
 import type { QueryWorkgroup } from "./query-workgroup.js";
 import type { SummariesBucket } from "./summary-bucket.js";
@@ -23,6 +24,7 @@ import {
   athenaStatements,
   catalogStatements,
   logReadStatements,
+  visitorSaltStatements,
 } from "./summary-permissions.js";
 
 /** What the summary function needs telling. */
@@ -38,6 +40,13 @@ export interface SummaryFunctionProps {
 
   /** How many closed windows one run computes. */
   readonly windows: number;
+
+  /**
+   * The SSM parameter holding the visitor salt secret.
+   *
+   * @default `/rainlytics/visitor-salt`
+   */
+  readonly visitorSaltParameter?: string | undefined;
 
   /**
    * How long one run may take.
@@ -85,6 +94,9 @@ export class SummaryFunction extends Construct {
   constructor(scope: Construct, id: string, props: SummaryFunctionProps) {
     super(scope, id);
 
+    const saltParameter =
+      props.visitorSaltParameter ?? defaultVisitorSaltParameter;
+
     this.lambda = new LambdaFunction(this, "Function", {
       runtime: Runtime.NODEJS_22_X,
       handler: summaryHandlerName,
@@ -100,6 +112,7 @@ export class SummaryFunction extends Construct {
         [summaryEnvironment.workgroup]: props.workgroup.workgroupName,
         [summaryEnvironment.bucket]: props.bucket.bucketName,
         [summaryEnvironment.windows]: String(props.windows),
+        [summaryEnvironment.visitorSaltParameter]: saltParameter,
       },
     });
 
@@ -107,6 +120,7 @@ export class SummaryFunction extends Construct {
       ...athenaStatements(this, props.workgroup.workgroupName),
       ...catalogStatements(this, props.table.dataset),
       ...logReadStatements(props.table.logBucket, this.lambda),
+      ...visitorSaltStatements(this, saltParameter),
     ]) {
       this.lambda.addToRolePolicy(statement);
     }

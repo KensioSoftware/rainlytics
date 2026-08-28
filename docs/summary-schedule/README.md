@@ -108,6 +108,10 @@ Lowering `recomputedWindows` to 1 halves the Athena bill. Computing hours alone,
 `granularities: ["hourly"]`, is the other lever, at the price of a reader assembling a day out of 24
 objects.
 
+A question that counts visitors runs a second query per window. `pageviews` does, which adds 50
+queries a day to the 250 above and about 8 cents a month. [Counting visitors](../visitors/) has what
+that number means.
+
 ## Reading the query a schedule runs
 
 The SQL is written at synthesis by the same builder the `rainlytics` command uses, with the window
@@ -191,19 +195,20 @@ this stack reads the answers, such as a static site given read access to one pre
 
 ## Props
 
-| Prop                | Default                    | What it decides                             |
-| ------------------- | -------------------------- | ------------------------------------------- |
-| `table`             | required                   | The Glue table the questions read.          |
-| `workgroup`         | required                   | Where the queries run, and their cutoff.    |
-| `rollups`           | the five shipped questions | What to compute.                            |
-| `requests`          | none                       | What each question covers.                  |
-| `granularities`     | `["hourly", "daily"]`      | Which windows to compute.                   |
-| `lag`               | 15 minutes                 | How long after a window closes a run fires. |
-| `recomputedWindows` | 2                          | How many closed windows a run computes.     |
-| `summariesBucket`   | one is created             | Where the answers land.                     |
-| `timeout`           | 5 minutes                  | How long one run may take.                  |
-| `logRetention`      | a month                    | How long the function's logs are kept.      |
-| `schedulePrefix`    | `rainlytics-`              | What each schedule's name begins with.      |
+| Prop                   | Default                    | What it decides                                    |
+| ---------------------- | -------------------------- | -------------------------------------------------- |
+| `table`                | required                   | The Glue table the questions read.                 |
+| `workgroup`            | required                   | Where the queries run, and their cutoff.           |
+| `rollups`              | the five shipped questions | What to compute.                                   |
+| `requests`             | none                       | What each question covers.                         |
+| `granularities`        | `["hourly", "daily"]`      | Which windows to compute.                          |
+| `lag`                  | 15 minutes                 | How long after a window closes a run fires.        |
+| `recomputedWindows`    | 2                          | How many closed windows a run computes.            |
+| `summariesBucket`      | one is created             | Where the answers land.                            |
+| `visitorSaltParameter` | `/rainlytics/visitor-salt` | The SSM parameter holding the visitor salt secret. |
+| `timeout`              | 5 minutes                  | How long one run may take.                         |
+| `logRetention`         | a month                    | How long the function's logs are kept.             |
+| `schedulePrefix`       | `rainlytics-`              | What each schedule's name begins with.             |
 
 ## Two deployments in one account
 

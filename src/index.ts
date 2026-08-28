@@ -45,6 +45,20 @@ export {
 export { hoursIn, summaryCoverage } from "./summary-coverage.js";
 export { totalledRows } from "./summary-totals.js";
 export {
+  visitorColumn,
+  visitorCountSql,
+  visitorRows,
+} from "./visitor-counts.js";
+export {
+  defaultVisitorSaltParameter,
+  saltedSql,
+  visitorIdentifier,
+  visitorSaltDay,
+  visitorSaltMessage,
+  visitorSaltPlaceholder,
+  visitorText,
+} from "./visitor-identity.js";
+export {
   type SummaryGranularity,
   summaryGranularities,
   type SummarySpan,
