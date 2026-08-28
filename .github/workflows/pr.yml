@@ -44,9 +44,119 @@ permissions:
   contents: read
 
 jobs:
+  # Which of the jobs below have anything to read in this change.
+  #
+  # A pull request that only edits `.idea/` gives all three of them nothing,
+  # and one that only edits documentation gives the test matrix nothing. Both
+  # still spend four runners. This job reads the diff once and turns off the
+  # jobs that would have no opinion about it.
+  #
+  # Two things make that safe. A path this file does not recognise counts as
+  # code, so the only way to skip a job is to be on a list somebody wrote
+  # deliberately. And a job turned off by an `if` still reports. GitHub creates
+  # its check run under the usual name with a `skipped` conclusion, and a
+  # ruleset accepts that in place of a passing one. `paths-ignore:` on the
+  # trigger looks like the obvious way to do this and is not one. The run never
+  # happens, the required checks sit at pending, and the pull request cannot
+  # merge.
+  #
+  # This costs a runner of its own (a few seconds, billed as a minute) on every
+  # pull request, against the four it can save on a documentation change.
+  changed:
+    name: Changed
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Listing the pull request's files, below.
+      pull-requests: read
+    outputs:
+      # Whether the test matrix runs.
+      code: ${{ steps.classify.outputs.code }}
+      # Whether Lint and Build run. Implied by `code`.
+      checks: ${{ steps.classify.outputs.checks }}
+    steps:
+      - name: Classify the changed files
+        id: classify
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          # GitHub's own count, used below to catch a truncated file list.
+          CHANGED_FILES: ${{ github.event.pull_request.changed_files }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          emit() {
+            echo "code=$1" >>"$GITHUB_OUTPUT"
+            echo "checks=$2" >>"$GITHUB_OUTPUT"
+          }
+
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            echo "A push to release/**, which carries no pull request to read a diff from. Running everything."
+            emit true true
+            exit 0
+          fi
+
+          files="$(
+            gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" \
+              --paginate --jq '.[].filename'
+          )"
+
+          # That endpoint stops at 3000 files and reports the truncation
+          # nowhere. The event payload counted them separately, so the two
+          # disagreeing means the list is short, and a short list is one that
+          # skips jobs over files it never saw.
+          listed="$(grep --count '' <<<"$files" || true)"
+          if [[ "$listed" != "$CHANGED_FILES" ]]; then
+            echo "The API listed $listed of $CHANGED_FILES changed files. Running everything."
+            emit true true
+            exit 0
+          fi
+
+          # Paths no job below reads. Editor settings, the review bot's
+          # configuration and the pull request template reach none of the
+          # checks. .gitignore reaches none of them either. `files` in
+          # package.json is what decides the tarball, and `dist/` being both
+          # git-ignored and packed is the proof of it.
+          inert='^(\.gitignore|\.coderabbit\.yaml|\.github/dependabot\.yml|\.github/pull_request_template\.md)$|^\.idea/'
+
+          # Documentation, which two of the checks do read. `pnpm docs:check`
+          # reads every docs/ page for the contract rainlytics.com's scaffold
+          # expects, and `pnpm pack:check` reads the seven pages it names along
+          # with README.md and LICENSE. The tests read none of it.
+          docs='^docs/|\.md$|^LICENSE$'
+
+          code=false
+          checks=false
+          while IFS= read -r file; do
+            if [[ "$file" =~ $inert ]]; then
+              printf '  %-6s %s\n' inert "$file"
+            elif [[ "$file" =~ $docs ]]; then
+              printf '  %-6s %s\n' docs "$file"
+              checks=true
+            else
+              printf '  %-6s %s\n' code "$file"
+              code=true
+              checks=true
+            fi
+          done <<<"$files"
+
+          emit "$code" "$checks"
+
+          echo
+          if [[ "$code" == true ]]; then
+            echo "Code changed. Lint, Test and Build all run."
+          elif [[ "$checks" == true ]]; then
+            echo "Documentation only. Lint and Build run, and the test matrix skips."
+          else
+            echo "Every file here is on the inert list. Lint, Test and Build all skip."
+          fi
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    needs: changed
+    if: needs.changed.outputs.checks == 'true'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -84,6 +194,8 @@ jobs:
   test:
     name: Test (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    needs: changed
+    if: needs.changed.outputs.code == 'true'
     strategy:
       # One runtime failing says something specific about that runtime, and
       # cancelling the other throws away the half of the answer that says
@@ -106,6 +218,8 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    needs: changed
+    if: needs.changed.outputs.checks == 'true'
     steps:
       - uses: actions/checkout@v7
         with:
