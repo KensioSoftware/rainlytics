@@ -568,12 +568,12 @@ that answered and how old it is.
 
 ### A summary answers the question it was computed with
 
-`--path`, `--host`, `--include-bots` and `--param` each change the answer, and a schedule cannot
-count every combination of them. `RollupSummaries` computes the unfiltered form of each question,
-and [`requests`](../summary-schedule/) is where a deployment adds a narrowed one under a name of its
-own.
+`--path`, `--host`, `--include-bots`, `--param` and `--redirect-status` each decide which requests
+were counted, and a schedule cannot count every combination of them. `RollupSummaries` computes the
+unfiltered form of each question, and [`requests`](../summary-schedule/) is where a deployment adds a
+narrowed one under a name of its own.
 
-A run that names none of those options takes the ones the summaries were computed with. The
+A run that names none of those five takes the ones the summaries were computed with. The
 deployment declared its narrowing once and the command reads that copy back. A shell alias never has
 to carry a second one. Standard error says which filters the run took:
 
@@ -603,11 +603,16 @@ way, and this run named nothing to settle it with.
   --path: some windows computed with /guides/, others with the whole distribution
 ```
 
-Typing the one you want settles it. So does a span on one side of the change.
+Typing one of them settles nothing, since the windows computed the other way then refuse it. A span
+on one side of the change reads from stored summaries, and `--query` answers one covering both.
 
-`--limit` is the one option where the two only have to overlap. A summary computed with the top
-hundred paths holds the top twenty inside it. The reverse loses rows nobody counted. A run that
-typed the row count is refused, and a run that typed none takes the stored one.
+`--limit` is apart from those five. A row count decides how much of a ranked answer is printed and
+leaves what was counted where it was, so a deployment computing the top hundred paths still answers
+`rainlytics pageviews` with the top twenty. The stored hundred holds them.
+
+A summary computed with fewer rows than the command asks for is the other way round, and those rows
+were never counted. A run that typed the count is refused. A run that typed none is cut to what the
+stored windows hold, and standard error names the count it answered with.
 
 ### Several windows add up, and the ranking is approximate
 

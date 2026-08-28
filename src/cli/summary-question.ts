@@ -15,24 +15,37 @@ import type { SummaryQuestion } from "../rollup-summaries.js";
 import type { Rollup, RollupRequest } from "../rollups.js";
 
 /**
- * The options that narrow a question, spelled as a reader types them.
+ * The options deciding which requests a question counted.
  *
  * The list every reader of a narrowing walks. `questionDifferences` compares
- * these fields, `summary-adoption.ts` takes the ones a command line left out,
- * and `rollup-options.ts` records which of them arrived. An option added to a
- * rollup command reaches all three from here.
+ * these fields and `summary-adoption.ts` takes the ones a command line left
+ * out. An option added to a rollup command reaches both from here.
  *
  * `--last` is left out. The window is the range a summary answers over, and a
  * span is what a reader is choosing when they type it.
  */
-export const narrowingOptions = [
+export const countingOptions = [
   "--host",
   "--path",
   "--include-bots",
   "--param",
   "--redirect-status",
-  "--limit",
 ] as const;
+
+/** One option deciding which requests were counted. */
+export type CountingOption = (typeof countingOptions)[number];
+
+/**
+ * Those, and the row count.
+ *
+ * `--limit` is apart from the five above and stays apart the whole way down.
+ * The five decide which requests were counted, and a run naming none of them
+ * takes what the summaries counted. A row count decides how much of a ranked
+ * answer is printed and leaves what was counted where it was. A run naming
+ * none of it keeps the command's own default, cut to what the stored windows
+ * hold.
+ */
+export const narrowingOptions = [...countingOptions, "--limit"] as const;
 
 /** One option that narrows a question. */
 export type NarrowingOption = (typeof narrowingOptions)[number];

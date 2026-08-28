@@ -597,6 +597,39 @@ describe("the named questions, answered from stored summaries", () => {
     expect(run.error).toContain("Took --limit 1 from the summaries");
   });
 
+  it("keeps its own row count where the summaries go deeper", async () => {
+    // Given a deployment computing the top hundred paths, and two of them
+    // looked at in the hour it computed.
+    const deployed = await deployAnalytics({
+      requests: { pageviews: { limit: 100 } },
+    });
+    await putDelivered(deployed, anHour, [
+      aRecord(anHour),
+      aRecord(anHour, { "cs-uri-stem": "/grammar/" }),
+    ]);
+    await untilTheScheduleFires(deployed);
+
+    // When a run names no row count.
+    const run = await cli([
+      "pageviews",
+      "--last",
+      "2h",
+      "--summaries",
+      deployed.summariesBucketName,
+    ]);
+
+    // Then the command's own default of twenty answers and nothing is
+    // reported as taken. A row count decides how much of the answer is
+    // printed, and a deployment computing deeper does not make a bare
+    // command print a hundred rows.
+    expect(run.code).toBe(0);
+    expect(run.rows).toStrictEqual([
+      { path: "/", views: "1" },
+      { path: "/grammar/", views: "1" },
+    ]);
+    expect(run.error).not.toContain("--limit");
+  });
+
   it("refuses a row count somebody typed that the summary cannot reach", async () => {
     // Given the same deployment computing the top row alone.
     const deployed = await deployAnalytics({

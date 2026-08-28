@@ -78,9 +78,10 @@ export function answersSomethingElse(
  * and an answer assembled from them would cover part of the span under a
  * narrowing the rest was never computed with.
  *
- * The reader settles it by typing the one they want. Every window the run
- * still disagrees with is then named by {@link answersSomethingElse}. That is
- * the same conversation from the other end.
+ * Typing one of the two settles nothing. The windows computed the other way
+ * then refuse it through {@link answersSomethingElse}, which is the older half
+ * of the span saying the same thing from the other end. What answers is a
+ * shorter span or a query.
  */
 export function computedMoreThanOneWay(
   rollup: Rollup,
@@ -94,11 +95,11 @@ export function computedMoreThanOneWay(
 
   return new Error(
     `The stored ${rollup.name} summaries over that span were not all` +
-      ` computed the same way, and this run named nothing to settle it` +
-      ` with.\n${lines.join("\n")}\nA deployment that changed its requests` +
-      ` prop leaves both questions in the bucket. Name the one you want on` +
-      ` the command line, ask about a span on one side of the change, or run` +
-      ` it with --query.`,
+      ` computed the same way, and this run named no filter of its` +
+      ` own.\n${lines.join("\n")}\nA deployment that changed its requests` +
+      ` prop leaves both questions in the bucket, and typing one of them is` +
+      ` refused by the windows computed with the other. Ask about a span on` +
+      ` one side of the change, or run it with --query.`,
   );
 }
 

@@ -274,6 +274,43 @@ describe("reading a bucket of summaries", () => {
     );
   });
 
+  it("cuts to the shallowest window where two were computed differently", async () => {
+    // Given two hours computed to different depths, which is what a change
+    // to the requests prop leaves behind. Only the row count moved.
+    const deployed = await aBucket();
+    await putSummary(
+      deployed,
+      anHourOn("2026-08-24", 7),
+      [{ path: "/", views: "2" }],
+      { question: { ...question, limit: 1 } },
+    );
+    await putSummary(
+      deployed,
+      anHourOn("2026-08-24", 8),
+      [
+        { path: "/", views: "1" },
+        { path: "/grammar/", views: "1" },
+      ],
+      { question: { ...question, limit: 5 } },
+    );
+
+    // When both are asked about with no row count typed.
+    const run = await cli([
+      "pageviews",
+      "--last",
+      "3h",
+      "--summaries",
+      deployed.bucket,
+    ]);
+
+    // Then the shallower window decides, and the two windows hold one answer
+    // between them rather than a disagreement. A row count is how much of a
+    // ranked answer is printed, and every window here reaches one row.
+    expect(run.code).toBe(0);
+    expect(run.rows).toStrictEqual([{ path: "/", views: "3" }]);
+    expect(run.error).toContain("Took --limit 1 from the summaries");
+  });
+
   it("refuses a span its deployment computed two ways", async () => {
     // Given two hours computed either side of a change to the requests
     // prop. The bucket holds one narrowed hour and one unnarrowed one.
