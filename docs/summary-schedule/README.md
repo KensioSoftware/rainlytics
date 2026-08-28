@@ -2,9 +2,10 @@
 
 `RollupSummaries` runs the named questions on a schedule and writes each answer to S3.
 
-Everything the `rainlytics` command answers today costs an Athena query. Asking the same question
-twice pays twice. This construct asks each question once per window and stores the rows, so reading
-the answer afterwards costs a GET however many people look.
+Athena prices per query, and asking the same question twice pays twice. This construct asks each
+question once per window and stores the rows, so reading the answer afterwards costs a GET however
+many people look. [Reading a precomputed answer](../rollups/#reading-a-precomputed-answer) has what
+the command line does with what lands here.
 
 ```typescript
 import {

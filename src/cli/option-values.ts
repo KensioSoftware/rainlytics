@@ -12,6 +12,7 @@ import type { OptionValue } from "./command-line.js";
 import { valuesOf } from "./command-line.js";
 import { UsageError } from "./failure.js";
 import { defaultLast } from "./rollup-help.js";
+import { summaryBucketVariable } from "./summary-help.js";
 
 /** The text of an option, where one was given. */
 export function chosen(value: unknown): string | undefined {
@@ -103,4 +104,18 @@ export function rangeFrom(value: unknown, command: string): TimeRange {
       command,
     );
   }
+}
+
+/**
+ * The bucket to read summaries from, where anything named one.
+ *
+ * The option first and the environment behind it, the way the AWS SDK takes a
+ * region. An empty value counts as nothing named, since an unset variable in a
+ * shell script expands to one and a bucket called "" would be reported as a
+ * missing object for every window.
+ */
+export function summaryBucketFrom(value: unknown): string | undefined {
+  const named = chosen(value) ?? process.env[summaryBucketVariable] ?? "";
+
+  return named === "" ? undefined : named;
 }

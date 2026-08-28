@@ -62,6 +62,50 @@ about a workgroup sitting where it was deployed. Rainlytics adds the region it a
 message. The [query](../query/) page has the whole failure, and why the region to ask is the one the
 log bucket is in.
 
+## Where an answer comes from
+
+The five named questions read a precomputed summary off S3. A schedule counted the window once, the
+command fetches the windows the range covers, and the whole read costs a GET each. `query` and
+`saved-query` run Athena, because ad-hoc SQL has no summary to read.
+
+```bash
+rainlytics pageviews --last 7d --summaries rainlytics-summaries-1a2b
+```
+
+`--summaries` names the bucket the [summary schedule](../summary-schedule/) writes to.
+`RAINLYTICS_SUMMARY_BUCKET` in the environment says it once for a whole shell, and it is the same
+variable `RollupSummaries` sets on its own job. With neither, the command says where to put it and
+stops.
+
+`--query` runs the question through Athena:
+
+```bash
+rainlytics pageviews --last 7d --query
+```
+
+That answer is fresher than the last scheduled run, and it covers windows no schedule has computed.
+Athena charges per byte scanned and the command says what it came to. Nothing reaches for it on its
+own. A command that queried whenever a summary was missing would put that charge back without
+anybody choosing it.
+
+The rows are the same either way, and a pipeline reading the JSON sees no difference. What changes is
+on standard error:
+
+```text
+Read 23 summaries of pageviews from rainlytics-summaries-1a2b, covering
+2026-08-21T15:00:00.000Z to 2026-08-28T14:00:00.000Z.
+The newest was computed 2026-08-28T14:15:03.001Z (13 minutes ago). 23 GETs,
+about $0.0000092 at the us-east-1 rate.
+```
+
+The span there is the one that answered, and it runs a little short of the one asked for. The hour
+running now is still filling and has no stored window. Where the range reaches further back than the
+schedule does, a further line says how many windows had no summary.
+
+[Rollups](../rollups/#reading-a-precomputed-answer) has which filters a stored summary can answer
+under, and [rollup summaries](../summaries/#reading-one-back) has what happens to a range no stored
+window covers.
+
 ## Output
 
 `--output` takes `json`, `csv` or `table`, and every command accepts it.
@@ -157,9 +201,10 @@ Answer five named questions, with [`rainlytics pageviews`, `referrers`, `status-
 [`rainlytics saved-query`](#running-a-query-saved-in-the-workgroup). Run SQL for anything else with
 [`rainlytics query`](../query/).
 
-Every one of them reads Athena today. When the scheduled rollups land, the five named ones read a
-precomputed summary off S3 instead and each answer costs a GET. The commands and their options stay
-where they are, so that swap is invisible from out here.
+The five named questions read a [precomputed summary](../summaries/) off S3 and each answer costs a
+GET. `query` and `saved-query` reach Athena, and so does a named question given `--query`. The
+commands and their options are where M2 left them, which is what makes the swap invisible from out
+here.
 
 Rainlytics is experimental and pre-1.0. The command surface will change without a major version
 behind it.

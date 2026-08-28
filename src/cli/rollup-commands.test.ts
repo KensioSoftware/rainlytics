@@ -18,7 +18,7 @@ import { partitionPrefix } from "../partitions.js";
 import { rainlyticsCommands } from "./command.js";
 import { runCli } from "./run.js";
 
-describe("the named questions", () => {
+describe("the named questions, run through Athena", () => {
   let intercepted: SimSdk | undefined;
 
   /**
@@ -122,7 +122,14 @@ describe("the named questions", () => {
       });
   };
 
-  /** Runs the CLI the way the executable does, and reads both streams. */
+  /**
+   * Runs the CLI the way the executable does, and reads both streams.
+   *
+   * Every case here passes `--query`, which is what a person types for an
+   * answer fresher than the last scheduled run. Without it a named question
+   * reads the summaries a schedule wrote, and `summary-answer.test.ts` covers
+   * that path.
+   */
   const cli = async (argv: readonly string[]) => {
     let out = "";
     let error = "";
@@ -193,7 +200,7 @@ describe("the named questions", () => {
     await anHourOfTraffic(deployed);
 
     // When the pageviews are counted.
-    const run = await cli(["pageviews", "--last", "24h"]);
+    const run = await cli(["pageviews", "--query", "--last", "24h"]);
 
     // Then only the pages count. The stylesheet answered `text/css`, the 404
     // did not succeed, and the crawler is filtered out below.
@@ -235,7 +242,14 @@ describe("the named questions", () => {
     ]);
 
     // When the searches under the search page are counted.
-    const run = await cli(["searches", "--last", "24h", "--path", "/search/"]);
+    const run = await cli([
+      "searches",
+      "--query",
+      "--last",
+      "24h",
+      "--path",
+      "/search/",
+    ]);
 
     // Then the terms read as somebody typed them, the redirects are counted
     // beside them, and the tool's own parameter is left out.
@@ -270,7 +284,14 @@ describe("the named questions", () => {
     ]);
 
     // When the searches are counted.
-    const run = await cli(["searches", "--last", "24h", "--path", "/search"]);
+    const run = await cli([
+      "searches",
+      "--query",
+      "--last",
+      "24h",
+      "--path",
+      "/search",
+    ]);
 
     // Then `happy` found nothing. A permanent redirect is address tidying,
     // and a reader gets one whatever they typed. Counting the 308 would
@@ -300,6 +321,7 @@ describe("the named questions", () => {
     // When it names that status.
     const run = await cli([
       "searches",
+      "--query",
       "--last",
       "24h",
       "--path",
@@ -318,7 +340,7 @@ describe("the named questions", () => {
 
   it("refuses a redirect status that is not one", async () => {
     // Given a value that is not a list of status codes.
-    const run = await cli(["searches", "--redirect-status", "3xx"]);
+    const run = await cli(["searches", "--query", "--redirect-status", "3xx"]);
 
     // Then it says what it takes before anything reaches Athena, the way a
     // mistyped row count does.
@@ -329,7 +351,7 @@ describe("the named questions", () => {
 
   it("leaves the redirect statuses off a question that counts none", async () => {
     // Given a rollup counting every response as it came.
-    const run = await cli(["pageviews", "--redirect-status", "302"]);
+    const run = await cli(["pageviews", "--query", "--redirect-status", "302"]);
 
     // Then it has no redirects to be told about. The option sits on the one
     // question separating a search sent to its answer from one that produced
@@ -351,7 +373,14 @@ describe("the named questions", () => {
     ]);
 
     // When the searches are counted.
-    const run = await cli(["searches", "--last", "24h", "--path", "/search/"]);
+    const run = await cli([
+      "searches",
+      "--query",
+      "--last",
+      "24h",
+      "--path",
+      "/search/",
+    ]);
 
     // Then they are one row. Two rows would split one question in half and
     // rank both below a term nobody had trouble spelling.
@@ -374,6 +403,7 @@ describe("the named questions", () => {
     // When that parameter is named.
     const run = await cli([
       "searches",
+      "--query",
       "--last",
       "24h",
       "--path",
@@ -401,7 +431,14 @@ describe("the named questions", () => {
     ]);
 
     // When the pageviews are counted under one of them.
-    const run = await cli(["pageviews", "--last", "24h", "--path", "/guides/"]);
+    const run = await cli([
+      "pageviews",
+      "--query",
+      "--last",
+      "24h",
+      "--path",
+      "/guides/",
+    ]);
 
     // Then the other section and the page above both are left out. The
     // home page is a prefix of nothing here, which is what separates a
@@ -445,6 +482,7 @@ describe("the named questions", () => {
     // When both search pages are named.
     const run = await cli([
       "searches",
+      "--query",
       "--last",
       "24h",
       "--path",
@@ -498,6 +536,7 @@ describe("the named questions", () => {
     // When one path is given.
     const run = await cli([
       "searches",
+      "--query",
       "--last",
       "24h",
       "--path",
@@ -524,7 +563,14 @@ describe("the named questions", () => {
     ]);
 
     // When one of them is asked for.
-    const run = await cli(["pageviews", "--last", "24h", "--path", "/a_b/"]);
+    const run = await cli([
+      "pageviews",
+      "--query",
+      "--last",
+      "24h",
+      "--path",
+      "/a_b/",
+    ]);
 
     // Then only that one is counted. An unescaped LIKE would have counted
     // both, and the count would have looked right.
@@ -544,6 +590,7 @@ describe("the named questions", () => {
     // When one host is asked for.
     const run = await cli([
       "status-codes",
+      "--query",
       "--last",
       "24h",
       "--host",
@@ -569,7 +616,7 @@ describe("the named questions", () => {
     ]);
 
     // When the pageviews are counted.
-    const run = await cli(["pageviews", "--last", "24h"]);
+    const run = await cli(["pageviews", "--query", "--last", "24h"]);
 
     // Then the address reads as the reader would recognise it. One pass
     // would answer `/words/%E5%A5%BD/`, which is the URI the browser sent
@@ -587,7 +634,7 @@ describe("the named questions", () => {
     await anHourOfTraffic(deployed);
 
     // When the referrers are counted.
-    const run = await cli(["referrers", "--last", "24h"]);
+    const run = await cli(["referrers", "--query", "--last", "24h"]);
 
     // Then Google is the only one. The referral from this site's own host is
     // somebody moving around rather than arriving, and the crawler's is
@@ -603,7 +650,7 @@ describe("the named questions", () => {
     await anHourOfTraffic(deployed);
 
     // When the status codes are counted.
-    const run = await cli(["status-codes", "--last", "24h"]);
+    const run = await cli(["status-codes", "--query", "--last", "24h"]);
 
     // Then the stylesheet is in there too, unlike in the pageview count.
     // A stylesheet returning 404 is worth seeing and a rollup looking only
@@ -620,7 +667,7 @@ describe("the named questions", () => {
     await anHourOfTraffic(deployed);
 
     // When the cache hit ratio is asked for.
-    const run = await cli(["cache-hit-ratio", "--last", "24h"]);
+    const run = await cli(["cache-hit-ratio", "--query", "--last", "24h"]);
 
     // Then it is counted over the requests the cache had a say in. Three of
     // the five non-crawler requests were served from cache and one was a
@@ -638,9 +685,10 @@ describe("the named questions", () => {
     await anHourOfTraffic(deployed);
 
     // When the pages are counted both ways.
-    const filtered = await cli(["pageviews", "--last", "24h"]);
+    const filtered = await cli(["pageviews", "--query", "--last", "24h"]);
     const everything = await cli([
       "pageviews",
+      "--query",
       "--last",
       "24h",
       "--include-bots",
@@ -666,7 +714,14 @@ describe("the named questions", () => {
     await anHourOfTraffic(deployed);
 
     // When only the top one is wanted.
-    const run = await cli(["pageviews", "--last", "24h", "--limit", "1"]);
+    const run = await cli([
+      "pageviews",
+      "--query",
+      "--last",
+      "24h",
+      "--limit",
+      "1",
+    ]);
 
     // Then that is what comes back.
     expect(run.rows).toStrictEqual([{ path: "/", views: "2" }]);
@@ -690,8 +745,20 @@ describe("the named questions", () => {
     // carrying a `NOT` anywhere, and the default bot filter is one. Real
     // Athena prunes on the partition predicate whatever else the `WHERE`
     // holds. See KensioSoftware/yulin, where that conservatism is reported.
-    const aDay = await cli(["pageviews", "--last", "24h", "--include-bots"]);
-    const aMonth = await cli(["pageviews", "--last", "4w", "--include-bots"]);
+    const aDay = await cli([
+      "pageviews",
+      "--query",
+      "--last",
+      "24h",
+      "--include-bots",
+    ]);
+    const aMonth = await cli([
+      "pageviews",
+      "--query",
+      "--last",
+      "4w",
+      "--include-bots",
+    ]);
 
     // Then the shorter range reads less. `--last` becomes partition
     // predicates rather than a filter on the record's own timestamp, which
@@ -710,6 +777,7 @@ describe("the named questions", () => {
     // When a rollup is asked for there.
     const run = await cli([
       "pageviews",
+      "--query",
       "--last",
       "24h",
       "--workgroup",
@@ -731,6 +799,7 @@ describe("the named questions", () => {
     // When the region is named on a named question rather than on `query`.
     const run = await cli([
       "pageviews",
+      "--query",
       "--last",
       "24h",
       "--region",
@@ -747,7 +816,7 @@ describe("the named questions", () => {
 
   it("refuses a span it cannot read", async () => {
     // Given a range nobody could act on.
-    const run = await cli(["pageviews", "--last", "a fortnight"]);
+    const run = await cli(["pageviews", "--query", "--last", "a fortnight"]);
 
     // Then it says what it takes, and exits as the command-line mistake it
     // is rather than as a query that failed.
@@ -758,7 +827,7 @@ describe("the named questions", () => {
 
   it("refuses a row count that is not one", async () => {
     // Given a limit that is not a whole number.
-    const run = await cli(["pageviews", "--limit", "lots"]);
+    const run = await cli(["pageviews", "--query", "--limit", "lots"]);
 
     // Then it says so before running anything.
     expect(run.code).toBe(2);

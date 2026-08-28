@@ -8,6 +8,13 @@
 
 import { qualifiedTableName } from "./dataset.js";
 import { decodedColumn, decodedParameter } from "./log-encoding.js";
+import {
+  cacheTotals,
+  pageviewTotals,
+  referrerTotals,
+  searchTotals,
+  statusTotals,
+} from "./rollup-question-totals.js";
 import type { Rollup, RollupRequest } from "./rollups.js";
 import { matchedPath, rowsFor } from "./rollups.js";
 import { oneOf } from "./sql-text.js";
@@ -57,6 +64,7 @@ export const pageviews: Rollup = {
   name: "pageviews",
   summary: "Count views by path.",
   isRanked: true,
+  totals: pageviewTotals,
   description: `\
 Counts the pages people looked at, most looked at first.
 
@@ -84,6 +92,7 @@ export const referrers: Rollup = {
   name: "referrers",
   summary: "Count views by where they came from.",
   isRanked: true,
+  totals: referrerTotals,
   description: `\
 Counts where people arrived from, by the host that sent them.
 
@@ -115,6 +124,7 @@ export const statusCodes: Rollup = {
   name: "status-codes",
   summary: "Count responses by status code.",
   isRanked: true,
+  totals: statusTotals,
   description: `\
 Counts what CloudFront answered with.
 
@@ -141,6 +151,7 @@ export const cacheHitRatio: Rollup = {
   name: "cache-hit-ratio",
   summary: "Show how much CloudFront served from cache.",
   isRanked: false,
+  totals: cacheTotals,
   description: `\
 Shows how much CloudFront served from its own cache.
 
@@ -202,6 +213,7 @@ export const searches: Rollup = {
   name: "searches",
   summary: "Count searches by the term somebody typed.",
   isRanked: true,
+  totals: searchTotals,
   namesAParameter: true,
   countsRedirects: true,
   description: `\

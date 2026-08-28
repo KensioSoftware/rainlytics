@@ -23,4 +23,4 @@ runs on every `pnpm check`.
 - [Rollups](rollups/), the named questions, what each counts, and how to write one of your own.
 - [Searches](searches/), what readers typed into a search box.
 - [Query](query/), running SQL against the log table with `rainlytics query`.
-- [Rollup summaries](summaries/), the schema for the precomputed answers the commands will read.
+- [Rollup summaries](summaries/), the schema for the precomputed answers the commands read.

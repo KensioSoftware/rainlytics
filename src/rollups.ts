@@ -8,6 +8,7 @@
 // Nothing here reaches for the AWS SDK or for CDK. It is text.
 
 import { defaultLogDataset, type LogDataset } from "./dataset.js";
+import type { SummaryCell } from "./rollup-summaries.js";
 import type { TimeRange } from "./time-range.js";
 
 /**
@@ -141,6 +142,51 @@ export interface RollupRequest {
 }
 
 /**
+ * How one question's answer is put together from several stored windows.
+ *
+ * A reader asking about the last seven days is asking about 29 summaries, and
+ * the arithmetic between them belongs to the question. Two windows' counts of
+ * one path add up. Two windows' cache hit percentages average to a figure
+ * about nothing, and the percentage has to be worked out again once the counts
+ * underneath it have been added.
+ *
+ * A rollup that leaves this out answers from one stored window and says so
+ * over anything longer. That is the safe default for a question this package
+ * has never seen, and `docs/summaries/` has what a wrong guess would produce.
+ *
+ * Two truths hold whatever a rollup declares here. A ranked answer assembled
+ * from several windows is approximate, because a path outside the top rows of
+ * every window is missing from all of them. And a visitor count belongs to one
+ * day, for the reason `VisitorCount` sets out at length.
+ */
+export interface RollupTotals {
+  /**
+   * The columns holding counts, which add across windows.
+   *
+   * Every other column names a row. `pageviews` adds `views` and matches its
+   * rows on `path`, and `searches` adds `searches` and `redirected` and
+   * matches on the term and the section it was typed into.
+   *
+   * The first of them is what a ranked answer is ordered by, matching the
+   * `ORDER BY 2 DESC` a rollup writes for one window.
+   */
+  readonly added: readonly string[];
+
+  /**
+   * The columns worked out again once the counts have been added, by name.
+   *
+   * A ratio, a percentage or an average is derived from the counts beside it
+   * and has no meaning added or averaged. Each function is handed the added
+   * counts of one row and answers with the cell to write.
+   */
+  readonly recomputed?:
+    | Readonly<
+        Record<string, (added: Readonly<Record<string, number>>) => SummaryCell>
+      >
+    | undefined;
+}
+
+/**
  * One question, and the SQL that answers it.
  *
  * The ones Rainlytics ships are in `rollup-questions.ts`, and a site can
@@ -207,6 +253,15 @@ export interface Rollup {
    * list has redirect statuses to be told about.
    */
   readonly countsRedirects?: boolean | undefined;
+
+  /**
+   * How its rows add up across stored summaries, where they do.
+   *
+   * Absent on a question whose answer belongs to one window. A command asked
+   * about a longer span then reports which windows it found and offers the
+   * query that would cover them.
+   */
+  readonly totals?: RollupTotals | undefined;
 
   /** What it selects and groups by, given the filters below it. */
   readonly body: (request: RollupRequest) => string;

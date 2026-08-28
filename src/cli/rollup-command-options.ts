@@ -16,6 +16,7 @@ import {
   pathOption,
   redirectStatusOption,
 } from "./rollup-help.js";
+import { queryOption, summariesOption } from "./summary-help.js";
 
 /**
  * Every option one rollup command accepts, in the order help prints them.
@@ -25,6 +26,11 @@ import {
  * rollup answering a single row has nothing to limit, only a question about
  * what somebody typed has a parameter to be told about, and only the one
  * counting redirects has statuses to be told about.
+ *
+ * `--summaries` and `--query` come before the three every command that
+ * reaches Athena takes. A named question reads a precomputed answer, and the
+ * database, the workgroup and the region apply to the run that chose the
+ * query.
  */
 export function rollupOptions(rollup: Rollup): readonly CliOption[] {
   return [
@@ -35,6 +41,8 @@ export function rollupOptions(rollup: Rollup): readonly CliOption[] {
     ...(rollup.countsRedirects === true ? [redirectStatusOption] : []),
     includeBotsOption,
     ...(rollup.isRanked ? [limitOption] : []),
+    summariesOption,
+    queryOption,
     databaseOption,
     workgroupOption,
     regionOption,

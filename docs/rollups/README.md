@@ -14,9 +14,14 @@ path         views
 /grammar/       97
 ```
 
-`referrers`, `status-codes`, `cache-hit-ratio` and [`searches`](../searches/) are the others. Each takes the same
-`--last`, the same `--path` and `--host`, the same output formats and the same bot filter, and each
-reports what it scanned and what that cost on standard error.
+`referrers`, `status-codes`, `cache-hit-ratio` and [`searches`](../searches/) are the others. Each
+takes the same `--last`, the same `--path` and `--host`, the same output formats and the same bot
+filter.
+
+Each of them answers from the [precomputed summaries](../summaries/) a schedule wrote, at the cost of
+a GET per window. `--query` runs the question through Athena for a fresher answer, and reports what
+it scanned and what that cost. [Reading a precomputed
+answer](#reading-a-precomputed-answer) below has when each applies.
 
 ## What each one counts
 
@@ -417,6 +422,45 @@ stops there, since there is no `rainlytics countries` to point a reader at. It t
 A name is lowercase words joined by hyphens (`cache-hit-ratio`). It becomes a CDK logical id and an
 Athena query name, and `assertRollupName` refuses anything else at synthesis.
 
+### Adding a rollup of your own across windows
+
+A range of a week is 29 stored windows, and the command adds them together before it prints
+anything. `totals` is where a rollup says how:
+
+```typescript
+const countries: Rollup = {
+  name: "countries",
+  summary: "Count views by country.",
+  description: "Counts where readers were, most read from first.",
+  isRanked: true,
+  totals: { added: ["views"] },
+  body: (request) => /* ... */,
+};
+```
+
+`added` names the columns holding counts. Every other column names a row, so two windows' rows are
+matched on the country and their views add. The first count named is what a ranked answer is ordered
+by, matching the `ORDER BY 2 DESC` the query writes for one window.
+
+A column worked out from the counts beside it is named under `recomputed`, and its function is handed
+the counts of one row once they have been added:
+
+```typescript
+totals: {
+  added: ["hits", "misses"],
+  recomputed: {
+    hit_percent: (added) => percentageOf(added["hits"], added["misses"]),
+  },
+},
+```
+
+`cache-hit-ratio` is the shipped question that needs it. A percentage averaged across windows is a
+figure about none of them, and the counts underneath it are what add.
+
+A rollup with no `totals` answers from one stored window. A range covering several is reported as
+that, with `--query` offered for the span. That is the safe default for a question this package has
+never seen, and a wrong guess would report a percentage as its own sum.
+
 ### Running a rollup of your own
 
 The saved copy is what gives a site's own question a command line:
@@ -481,10 +525,56 @@ rainlytics referrers --last 7d | jq '.[0].referrer'
 `--limit` takes the top rows of a ranked rollup, twenty by default. `cache-hit-ratio` answers with
 one row and has nothing to limit.
 
-Each of these reads Athena today, at the cost the [query](../query/) page describes. When the
-scheduled rollups land, the same commands will read a [precomputed summary](../summaries/) off S3 and each
-answer will cost a GET. The commands and their options stay where they are, so that swap is
-invisible from out here.
+## Reading a precomputed answer
+
+`rainlytics pageviews --last 7d` reads what the [summary schedule](../summary-schedule/) already
+counted. The bucket comes from `--summaries` or from `RAINLYTICS_SUMMARY_BUCKET` in the environment,
+and a range of a week is 29 objects and about a hundredth of a cent.
+
+```bash
+rainlytics pageviews --last 7d --summaries rainlytics-summaries-1a2b
+rainlytics pageviews --last 7d --query
+```
+
+The rows are the same either way. Standard error is where the two differ, and it carries the span
+that answered and how old it is.
+
+### A summary answers the question it was computed with
+
+`--path`, `--host`, `--include-bots` and `--param` each change the answer, and a schedule cannot
+count every combination of them. `RollupSummaries` computes the unfiltered form of each question,
+and [`requests`](../summary-schedule/) is where a deployment adds a narrowed one under a name of its
+own.
+
+A run whose filters no stored summary matches is told what was stored:
+
+```text
+The stored pageviews summaries answer a different question.
+  --path: asked for /guides/, computed with the whole distribution
+A schedule computes the questions its deployment named, and the requests prop
+on RollupSummaries is where a narrowed one is added. --query answers this run
+from Athena at the cost a query reports.
+```
+
+`--limit` is the one option where the two only have to overlap. A summary computed with the top
+hundred paths holds the top twenty inside it. The reverse loses rows nobody counted, and it is
+refused.
+
+### Several windows add up, and the ranking is approximate
+
+A week is 29 stored windows and the command adds them together. Counts add. A row that fell outside
+the stored rows of every window is missing from all of them, so a ranked answer assembled this way is
+approximate and standard error says so. `--query` ranks the whole span in one pass.
+
+`cache-hit-ratio` adds its hits and its misses and works the percentage out again from the total.
+Averaging two windows' percentages would answer a figure about neither.
+
+A visitor count belongs to one window and never adds. The identifier takes a new salt every day, so
+two days' counts added together count everybody who came back twice over. A command reading several
+windows says that it cannot give one.
+
+A rollup of your own says how its rows combine with [`totals`](#adding-a-rollup-of-your-own-across-windows),
+and one that says nothing answers from a single stored window.
 
 ## Anything else
 

@@ -26,6 +26,7 @@ export {
   type RollupRequest,
   rollupRequest,
   rollupSql,
+  type RollupTotals,
   rowsFor,
   summarisedWindow,
   windowPlaceholder,
@@ -41,6 +42,8 @@ export {
   summarySchemaVersion,
   type VisitorCount,
 } from "./rollup-summaries.js";
+export { hoursIn, summaryCoverage } from "./summary-coverage.js";
+export { totalledRows } from "./summary-totals.js";
 export {
   type SummaryGranularity,
   summaryGranularities,

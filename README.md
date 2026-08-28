@@ -78,9 +78,9 @@ the traffic in a typical hour.
 
 It authenticates through the AWS SDK's default credential chain and writes
 JSON, CSV or a table, defaulting to the table at a terminal and to JSON when
-it is piped. What each query scanned and what that came to goes to standard
-error, so a pipeline reads rows and a person still sees the price. See the
-[command line](docs/command-line/), [rollups](docs/rollups/),
+it is piped. What a run read and what that came to goes to standard error, so
+a pipeline reads rows and a person still sees the price. See the [command
+line](docs/command-line/), [rollups](docs/rollups/),
 [searches](docs/searches/) and [query](docs/query/) pages.
 
 One more construct runs those questions on a schedule and writes each answer
@@ -91,9 +91,12 @@ new RollupSummaries(this, "RainlyticsSummaries", { table, workgroup });
 ```
 
 Each question is asked once per hour and once per day, on a lag long enough
-for CloudFront to have delivered the window. Reading an answer back is then a
-GET rather than a query. See the [summary schedule](docs/summary-schedule/)
-and [rollup summaries](docs/summaries/) pages.
+for CloudFront to have delivered the window. The named questions above then
+read those answers, and a week of pageviews costs 29 GETs and about a
+hundredth of a cent. `--query` sends the question to Athena for a fresher
+answer, at what a query costs. See the [summary
+schedule](docs/summary-schedule/) and [rollup summaries](docs/summaries/)
+pages.
 
 ## Status
 
