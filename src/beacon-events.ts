@@ -36,6 +36,7 @@
 // and a rollup reads the same parameters back as SQL.
 
 import { decodedParameter } from "./log-encoding.js";
+import { quoted } from "./sql-text.js";
 
 /**
  * The path a beacon reports to, where a site chooses none.
@@ -154,3 +155,23 @@ export const aBeaconEvent: readonly string[] = [
   "cs_uri_query <> '-'",
   `${beaconVersionColumn} <> ''`,
 ];
+
+/**
+ * The rows outside the beacon's path, as a condition for `rowsFor`.
+ *
+ * The other direction from {@link aBeaconEvent}, and it names the path that
+ * one leaves out. A question about beacon events narrows to the beacon
+ * through the request's own `paths`. A question about what the site answered
+ * has to take the beacon's requests back out, and `status-codes` is the one
+ * that does.
+ *
+ * Matched against the column as CloudFront delivered it, where `--path`
+ * decodes twice first. The path here is a constant this package chose and it
+ * carries nothing a browser or CloudFront escapes, so a record holds it as it
+ * was sent. An address somebody typed can hold anything.
+ *
+ * A prefix, the way every path match in Rainlytics is one.
+ */
+export const outsideTheBeaconPath = `strpos(cs_uri_stem, ${quoted(
+  defaultBeaconPath,
+)}) <> 1`;

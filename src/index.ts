@@ -82,6 +82,7 @@ export {
   beaconSchemaVersion,
   beaconVersionColumn,
   defaultBeaconPath,
+  outsideTheBeaconPath,
 } from "./beacon-events.js";
 export { decodedColumn, decodedParameter } from "./log-encoding.js";
 export {

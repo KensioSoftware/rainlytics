@@ -6,6 +6,7 @@
 // rollup that filtered differently would answer a different question from
 // its neighbours without saying so.
 
+import { defaultBeaconPath, outsideTheBeaconPath } from "./beacon-events.js";
 import { qualifiedTableName } from "./dataset.js";
 import { decodedColumn, decodedParameter } from "./log-encoding.js";
 import {
@@ -141,12 +142,22 @@ that only looks at pages.
 
 Automated traffic is left out by default here as it is everywhere else. Bots
 find the broken links first and in numbers, so \`--include-bots\` is usually
-what you want when reading this one.`,
+what you want when reading this one.
+
+Requests to the beacon's own path (\`${defaultBeaconPath}\`) are left out too,
+and no option puts them back. The beacon writes one row per event, and a
+single-page app sends several per reader per page. Those 204s can outnumber
+every response the site itself served, and they carry one status between
+them. The 404 this rollup exists to surface then sits somewhere below them.
+
+The beacon is Rainlytics measuring the site, and what the site answered is
+the question here. \`rainlytics query\` counts the beacon's own rows for
+anybody checking that it is delivering.`,
   body: (request) =>
     [
       "SELECT sc_status AS status, count(*) AS responses",
       `  FROM ${qualifiedTableName(request.dataset)}`,
-      rowsFor(request),
+      rowsFor(request, [outsideTheBeaconPath]),
       "  GROUP BY 1",
       rankedOrder,
       limitOf(request),

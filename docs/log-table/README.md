@@ -181,8 +181,10 @@ configured with, and CloudFront has no field carrying somebody else's payload. A
 table over the same objects meets the same wall, since no SerDe parses a query string. The
 [searches](../searches/) rollup already reads a search term out of the same column the same way.
 
-`beaconQueryString`, `beaconEventColumn` and `aBeaconEvent` are exported from the package root, so
-the browser writing the payload and the SQL reading it hold one definition between them.
+`beaconQueryString`, `beaconEventColumn`, `aBeaconEvent` and `outsideTheBeaconPath` are exported
+from the package root, so the browser writing the payload and the SQL reading it hold one definition
+between them. Which of the shipped questions count beacon rows is on the
+[rollups](../rollups/#the-beacons-own-requests) page. `status-codes` is the one that had to be told.
 
 Partitions written before the beacon shipped answer no rows at all. A beacon row is identified by
 the path it was sent to. A query for that path over an older day matches nothing, where a column
