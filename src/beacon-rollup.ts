@@ -30,12 +30,12 @@
 // exported for a site running the beacon to add to its own summaries, and a
 // deployment with no beacon computes nothing for it.
 
+import { defaultBeaconPath } from "./beacon-events.js";
 import {
   aBeaconEvent,
   beaconEventColumn,
   beaconPageColumn,
-  defaultBeaconPath,
-} from "./beacon-events.js";
+} from "./beacon-rows.js";
 import { qualifiedTableName } from "./dataset.js";
 import type { Rollup, RollupTotals } from "./rollups.js";
 import { rowsFor } from "./rollups.js";

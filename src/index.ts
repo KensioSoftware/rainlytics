@@ -74,17 +74,19 @@ export {
   windowRange,
 } from "./summary-runs.js";
 export {
-  aBeaconEvent,
   type BeaconEvent,
-  beaconEventColumn,
-  beaconPageColumn,
   beaconParameters,
   beaconQueryString,
   beaconSchemaVersion,
-  beaconVersionColumn,
   defaultBeaconPath,
-  outsideTheBeaconPath,
 } from "./beacon-events.js";
+export {
+  aBeaconEvent,
+  beaconEventColumn,
+  beaconPageColumn,
+  beaconVersionColumn,
+  outsideTheBeaconPath,
+} from "./beacon-rows.js";
 export { decodedColumn, decodedParameter } from "./log-encoding.js";
 export {
   lastRange,

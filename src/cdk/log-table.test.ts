@@ -10,13 +10,12 @@ import { describe, expect, it } from "vitest";
 import { deployStacks, simStartedAt } from "#test/simulated-deployment.js";
 
 import { defaultLogDataset, qualifiedTableName } from "../dataset.js";
+import { beaconQueryString, defaultBeaconPath } from "../beacon-events.js";
 import {
   beaconEventColumn,
   beaconPageColumn,
-  beaconQueryString,
   beaconVersionColumn,
-  defaultBeaconPath,
-} from "../beacon-events.js";
+} from "../beacon-rows.js";
 import {
   deliveredLogColumnNames,
   logFieldNamesWithoutAddress,
