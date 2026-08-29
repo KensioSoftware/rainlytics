@@ -72,6 +72,17 @@ export {
   windowedSql,
   windowRange,
 } from "./summary-runs.js";
+export {
+  aBeaconEvent,
+  type BeaconEvent,
+  beaconEventColumn,
+  beaconPageColumn,
+  beaconParameters,
+  beaconQueryString,
+  beaconSchemaVersion,
+  beaconVersionColumn,
+  defaultBeaconPath,
+} from "./beacon-events.js";
 export { decodedColumn, decodedParameter } from "./log-encoding.js";
 export {
   lastRange,
