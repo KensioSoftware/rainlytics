@@ -9,6 +9,16 @@
   // no equivalent: `@typescript-eslint/naming-convention`,
   // `jsdoc/require-jsdoc` and `jsdoc/require-description`, and
   // `eslint-plugin-security` plus `eslint-plugin-no-secrets`.
+
+  // The CloudFront Functions JS 2.0 runtime restrictions, which apply to
+  // `**/*.cff.js` and to nothing else. @kensio/yulin ships the plugin and the
+  // rule list, and the beacon's function is the one file they cover. A repo
+  // told to use no arrow functions anywhere would be unusable, so the rules
+  // arrive as an override rather than at the top level.
+  "extends": [
+    "./node_modules/@kensio/yulin/dist/config/oxlint/cffjs2.oxlintrc.json"
+  ],
+
   "plugins": ["eslint", "typescript", "unicorn", "oxc", "vitest", "jsdoc"],
 
   // Steers `expect(x).toBe(true)` and friends towards the assertion function

@@ -6,6 +6,7 @@
 // and `constructs` are optional peer dependencies, so installing Rainlytics
 // for the beacon alone pulls neither of them in.
 
+export { BeaconPath, type BeaconPathProps } from "./beacon-path.js";
 export { logDeliveryRegion } from "./delivery-region.js";
 export type { LogDeliveryBucket } from "./delivery-bucket.js";
 export {

@@ -1,0 +1,314 @@
+import { faker } from "@faker-js/faker";
+import { SimAwsHttp } from "@kensio/yulin/serve";
+import { CachePolicy, Distribution } from "aws-cdk-lib/aws-cloudfront";
+import { S3BucketOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
+import { PolicyStatement, ServicePrincipal } from "aws-cdk-lib/aws-iam";
+import { Bucket } from "aws-cdk-lib/aws-s3";
+import { Match, Template } from "aws-cdk-lib/assertions";
+import { App, CfnOutput, RemovalPolicy, Stack } from "aws-cdk-lib/core";
+import { describe, expect, it } from "vitest";
+
+import { deployStacks } from "#test/simulated-deployment.js";
+
+import { beaconQueryString, defaultBeaconPath } from "../beacon-events.js";
+import { BeaconPath, type BeaconPathProps } from "./beacon-path.js";
+
+describe("answering the beacon's collection path", () => {
+  /**
+   * A site's distribution with the beacon path added, deployed into a
+   * simulated account and reachable over HTTP.
+   *
+   * The origin is a bucket holding one object at the site's root. That is
+   * what makes "the origin was never asked" observable: a request the
+   * function did not answer reaches an empty key and comes back as an S3
+   * refusal rather than a 204.
+   */
+  const deployBeacon = async (props: Partial<BeaconPathProps> = {}) => {
+    const { simAws, stacks } = await deployStacks(
+      (app: App, account: string) => {
+        const stack = new Stack(app, "SiteStack", {
+          env: { account, region: "eu-west-2" },
+        });
+
+        const bucketName = `site-${faker.string.uuid()}`;
+        const site = new Bucket(stack, "SiteBucket", {
+          bucketName,
+          removalPolicy: RemovalPolicy.DESTROY,
+        });
+        // The read grant CloudFront serves the site under. It is written by
+        // hand because the origin below imports the bucket, and a grant on an
+        // imported bucket is a policy nobody applies.
+        site.addToResourcePolicy(
+          new PolicyStatement({
+            principals: [new ServicePrincipal("cloudfront.amazonaws.com")],
+            actions: ["s3:GetObject"],
+            resources: [site.arnForObjects("*")],
+          }),
+        );
+        // Imported by name, because CDK's own `Bucket` is not assignable to
+        // `IBucket` under `exactOptionalPropertyTypes`. That is the same
+        // mismatch `LogDeliveryBucket` was shaped around.
+        const origin = S3BucketOrigin.withOriginAccessControl(
+          Bucket.fromBucketName(stack, "SiteOrigin", bucketName),
+        );
+
+        const distribution = new Distribution(stack, "SiteDistribution", {
+          defaultBehavior: { origin },
+        });
+        new CfnOutput(stack, "DistributionDomainName", {
+          value: distribution.distributionDomainName,
+        });
+        new CfnOutput(stack, "SiteBucketName", { value: bucketName });
+
+        new BeaconPath(stack, "RainlyticsBeacon", {
+          ...props,
+          distribution: props.distribution ?? distribution,
+          origin: props.origin ?? origin,
+        });
+      },
+    );
+
+    const stack = stacks.get("SiteStack");
+    const host = stack?.output("DistributionDomainName") ?? "";
+    const bucketName = stack?.output("SiteBucketName") ?? "";
+    const http = new SimAwsHttp({ simAws });
+
+    return {
+      simAws,
+      bucketName,
+      get: async (pathAndQuery: string): Promise<Response> =>
+        http.fetch(`https://${host}${pathAndQuery}`, { redirect: "manual" }),
+    };
+  };
+
+  it("answers the beacon path with 204 and no body", async () => {
+    // Given a site with the beacon path deployed on its distribution.
+    const { get } = await deployBeacon();
+
+    // When the browser reports an event.
+    const query = beaconQueryString({ event: "route", page: "/liju/" });
+    const response = await get(`${defaultBeaconPath}?${query}`);
+
+    // Then CloudFront answers 204 with nothing in it. The event is the log
+    // record the request produced, and a body would be bytes charged for on
+    // every event for a browser that reads none of them.
+    expect(response.status).toBe(204);
+    await expect(response.text()).resolves.toBe("");
+  });
+
+  it("answers without asking the origin", async () => {
+    // Given a site whose origin bucket holds nothing at the beacon path.
+    const { get } = await deployBeacon();
+
+    // When an event arrives.
+    const response = await get(
+      `${defaultBeaconPath}?${beaconQueryString({
+        event: "vital",
+        page: "/",
+      })}`,
+    );
+
+    // Then it is answered at the edge. A request that reached the bucket
+    // would come back as an S3 refusal, and a flood of them would be
+    // arriving at the site itself rather than stopping at CloudFront.
+    expect(response.status).toBe(204);
+  });
+
+  it("tells a browser to keep no copy of the answer", async () => {
+    // Given the beacon path.
+    const { get } = await deployBeacon();
+
+    // When the same event is reported twice from the same page, which is the
+    // same URL twice.
+    const url = `${defaultBeaconPath}?${beaconQueryString({
+      event: "click",
+      page: "/grammar/",
+    })}`;
+    const first = await get(url);
+    const second = await get(url);
+
+    // Then neither answer is one a browser may store. A cached 204 would be
+    // served out of the browser's own cache and that event would reach no
+    // log.
+    expect(first.headers.get("cache-control")).toBe("no-store");
+    expect(second.status).toBe(204);
+  });
+
+  it("leaves the rest of the site to the origin", async () => {
+    // Given a site with a page at its root.
+    const { simAws, bucketName, get } = await deployBeacon();
+    await simAws
+      .region("eu-west-2")
+      .account()
+      .s3()
+      .putObject({
+        input: { Bucket: bucketName, Key: "index.html", Body: "<h1>Liju</h1>" },
+      });
+
+    // When a reader asks for that page.
+    const response = await get("/index.html");
+
+    // Then the origin serves it. The behaviour covers one path and the
+    // distribution carries on doing what it did before the beacon arrived.
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toContain("Liju");
+  });
+
+  it("serves the path it is given", async () => {
+    // Given a site whose router already answers `/_rainlytics`.
+    const path = "/_collect";
+
+    // When the beacon is pointed somewhere else.
+    const { get } = await deployBeacon({ path });
+
+    // Then that path is the one answered.
+    const response = await get(
+      `${path}?${beaconQueryString({ event: "route", page: "/" })}`,
+    );
+    expect(response.status).toBe(204);
+  });
+
+  it("refuses a path CloudFront would never match", async () => {
+    // Given a path written without its leading slash, which CloudFront takes
+    // as a valid pattern.
+    const deploying = deployBeacon({ path: "_rainlytics" });
+
+    // Then synthesis fails, naming the path. Deployed, it would match no
+    // request the beacon sends, and the first sign of that is a dataset with
+    // no beacon rows in it.
+    await expect(deploying).rejects.toThrow(/_rainlytics/u);
+    await expect(deploying).rejects.toThrow(/leading slash/u);
+  });
+
+  it("refuses a path carrying a query string", async () => {
+    // Given a path with the payload already stuck on it.
+    const deploying = deployBeacon({ path: "/_rainlytics?v=1" });
+
+    // Then synthesis fails. A path pattern is matched against the path
+    // alone, and the query string is where every event differs.
+    await expect(deploying).rejects.toThrow(/query string/u);
+  });
+
+  describe("what the distribution is given", () => {
+    /**
+     * These read the synthesised template rather than the deployed
+     * simulation. Yulin models no cache policy on a behaviour and its
+     * CloudFront has no `ListFunctions` or `GetFunction`, so a deployed
+     * distribution has nothing to ask about either. Raised as
+     * KensioSoftware/yulin#1130 and KensioSoftware/yulin#1131.
+     *
+     * What the deployed function does is covered above, by requests going
+     * into the simulation and coming back 204.
+     */
+    const synthesised = (props: Partial<BeaconPathProps> = {}): Template => {
+      const stack = new Stack(new App(), "SiteStack", {
+        env: { account: "123456789012", region: "eu-west-2" },
+      });
+      new Bucket(stack, "SiteBucket", { bucketName: "site-bucket" });
+      const origin = S3BucketOrigin.withOriginAccessControl(
+        Bucket.fromBucketName(stack, "SiteOrigin", "site-bucket"),
+      );
+      const distribution = new Distribution(stack, "SiteDistribution", {
+        defaultBehavior: { origin },
+      });
+      new BeaconPath(stack, "RainlyticsBeacon", {
+        ...props,
+        distribution,
+        origin,
+      });
+
+      return Template.fromStack(stack);
+    };
+
+    /** The managed `CachingOptimized` policy, under the fixed id AWS gives it. */
+    const cachingOptimized = "658327ea-f89d-4fab-a63d-7e88639e58f6";
+
+    /** The distribution properties, matched on the beacon's own behaviour. */
+    const beaconBehaviour = (
+      properties: Record<string, unknown>,
+    ): Record<string, unknown> => {
+      const matched = Match.objectLike({
+        PathPattern: defaultBeaconPath,
+        ...properties,
+      });
+
+      return {
+        DistributionConfig: Match.objectLike({
+          CacheBehaviors: Match.arrayWith([matched]),
+        }),
+      };
+    };
+
+    it("leaves the query string out of the cache key", () => {
+      // Given a beacon path taking the default cache policy.
+      // When the stack is synthesised.
+      const template = synthesised();
+
+      // Then the behaviour carries the managed policy that keys on the path
+      // alone. The payload travels in the query string, and a policy keying
+      // on it would make every event a cache entry of its own.
+      template.hasResourceProperties(
+        "AWS::CloudFront::Distribution",
+        beaconBehaviour({ CachePolicyId: cachingOptimized }),
+      );
+    });
+
+    it("takes a cache policy a site would rather use", () => {
+      // Given a site standardising on one managed policy across its
+      // behaviours, this one keying on nothing and storing nothing.
+      const cachePolicy = CachePolicy.CACHING_DISABLED;
+
+      // When the beacon is deployed with it.
+      const template = synthesised({ cachePolicy });
+
+      // Then that is the policy on the behaviour.
+      template.hasResourceProperties(
+        "AWS::CloudFront::Distribution",
+        beaconBehaviour({ CachePolicyId: cachePolicy.cachePolicyId }),
+      );
+    });
+
+    it("runs the function before the cache is consulted", () => {
+      // Given the same stack.
+      const template = synthesised();
+
+      // Then the function is associated at viewer-request. CloudFront
+      // reaches that event before the cache lookup and before any origin
+      // request, and it is what makes the 204 free of both.
+      const atViewerRequest = Match.objectLike({
+        EventType: "viewer-request",
+      });
+      template.hasResourceProperties(
+        "AWS::CloudFront::Distribution",
+        beaconBehaviour({ FunctionAssociations: [atViewerRequest] }),
+      );
+    });
+
+    it("deploys the function on the JS 2.0 runtime", () => {
+      // Given the same stack.
+      const template = synthesised();
+
+      // Then the function names the runtime its source is written against.
+      // The lint rules on `beacon-204.cff.js` hold it to JS 2.0's
+      // restrictions, and JS 1.0 has its own.
+      template.hasResourceProperties("AWS::CloudFront::Function", {
+        FunctionConfig: Match.objectLike({ Runtime: "cloudfront-js-2.0" }),
+      });
+    });
+
+    it("takes a function name where the account needs a chosen one", () => {
+      // Given two sites in one account. CloudFront function names are unique
+      // across an account, and CDK derives one from the construct's path in
+      // the tree.
+      const functionName = `beacon-${faker.string.alphanumeric(8)}`;
+
+      // When the beacon is deployed under a name of its own.
+      const template = synthesised({ functionName });
+
+      // Then that is the name it carries.
+      template.hasResourceProperties("AWS::CloudFront::Function", {
+        Name: functionName,
+      });
+    });
+  });
+});
