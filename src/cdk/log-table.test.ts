@@ -11,6 +11,13 @@ import { deployStacks, simStartedAt } from "#test/simulated-deployment.js";
 
 import { defaultLogDataset, qualifiedTableName } from "../dataset.js";
 import {
+  beaconEventColumn,
+  beaconPageColumn,
+  beaconQueryString,
+  beaconVersionColumn,
+  defaultBeaconPath,
+} from "../beacon-events.js";
+import {
   deliveredLogColumnNames,
   logFieldNamesWithoutAddress,
 } from "../log-fields.js";
@@ -404,6 +411,39 @@ describe("the Glue table over delivered logs", () => {
     ]);
   });
 
+  it("reads a beacon event back out of the query string", async () => {
+    // Given the query string a beacon sends, delivered the way CloudFront
+    // writes one. The event is a route change on a page the request never
+    // names, which is the case a payload in the query string exists for.
+    const deployed = await deployTable();
+    const [distributionId = ""] = deployed.distributionIds;
+    const sent = beaconQueryString({ event: "route", page: "/guides/好/" });
+    await putDelivered(deployed, distributionId, simStartedAt, [
+      {
+        "timestamp(ms)": String(simStartedAt.getTime()),
+        "cs-method": "GET",
+        "cs-uri-stem": defaultBeaconPath,
+        "cs-uri-query": asCloudFrontWrites(sent),
+        "cs(User-Agent)": "Mozilla/5.0",
+      },
+    ]);
+    await enableQueryEngine(deployed);
+
+    // When the envelope is selected the way a rollup selects it.
+    const answered = await queryRows(
+      deployed,
+      `SELECT ${beaconEventColumn}, ${beaconPageColumn},` +
+        ` ${beaconVersionColumn} FROM ${table()} WHERE year = '2026'` +
+        ` AND month = '08' AND day = '23' AND hour = '09'`,
+    );
+
+    // Then the event arrives as the beacon meant it, through the browser's
+    // encoding and CloudFront's on top of it. No column of this table holds
+    // any of the three, and nothing had to be added to it for the beacon.
+    expect(answered.rows).toStrictEqual([["route", "/guides/好/", "1"]]);
+    expect(answered.answeredBy).toBe("engine");
+  });
+
   it("describes no address where the delivery asked for none", async () => {
     // Given a site delivering the field set that holds no personal data.
     const table = catalogTable(
@@ -598,6 +638,24 @@ describe("the Glue table over delivered logs", () => {
       .engine()
       .enable();
   };
+
+  /**
+   * A query string as CloudFront writes it into a record.
+   *
+   * CloudFront percent-encodes each value it writes and the browser has
+   * already encoded it once, so `家` reaches the log as `%25E5%25AE%25B6`.
+   * The separators survive, which is what leaves `url_extract_parameter` a
+   * query string to split. `docs/searches/` has the same worked example.
+   */
+  const asCloudFrontWrites = (queryString: string): string =>
+    queryString
+      .split("&")
+      .map((pair) => {
+        const [name = "", value = ""] = pair.split("=");
+
+        return `${name}=${encodeURIComponent(value)}`;
+      })
+      .join("&");
 
   /**
    * The rows one query answered with, and what answered it.

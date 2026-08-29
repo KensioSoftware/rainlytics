@@ -160,6 +160,35 @@ and this was not one of them, because the field joined the set afterwards. A Par
 spells it some other way answers every query with a column of nulls and reports success. Read an
 object back before trusting a visitor count over Parquet.
 
+## A beacon row is a row like any other
+
+The [optional beacon](https://github.com/KensioSoftware/rainlytics/issues/100) sends a GET to a path
+on the site's own domain and puts its payload in the query string. CloudFront records `cs-uri-query`
+whatever the cache key and origin forwarding are set to. The event lands in the same objects, the
+same partitions and this same table. Layer 2 is more rows in the dataset layer 1 already writes.
+
+The payload stays in `cs_uri_query` and is read at query time.
+
+```sql
+SELECT url_decode(url_extract_parameter(cs_uri_stem || '?' || cs_uri_query, 'e')) AS event,
+       count(*) AS events
+  FROM rainlytics.cloudfront_logs
+ WHERE cs_uri_stem = '/_rainlytics'
+```
+
+A column of its own was never available. This table's columns are the fields the delivery was
+configured with, and CloudFront has no field carrying somebody else's payload. A view or a second
+table over the same objects meets the same wall, since no SerDe parses a query string. The
+[searches](../searches/) rollup already reads a search term out of the same column the same way.
+
+`beaconQueryString`, `beaconEventColumn` and `aBeaconEvent` are exported from the package root, so
+the browser writing the payload and the SQL reading it hold one definition between them.
+
+Partitions written before the beacon shipped answer no rows at all. A beacon row is identified by
+the path it was sent to. A query for that path over an older day matches nothing, where a column
+added later would have answered nulls. That is the one shape of schema change an immutable store
+takes without argument.
+
 ## Several distributions, one table
 
 `distributionid` partitions before time does, so one table covers every site delivering into the
