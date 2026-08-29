@@ -12,8 +12,11 @@ Two things follow, and they want different answers. The counts recover. The mone
 This comes first because the beacon looks like the thing that opened the door.
 
 A site's own pages take a request from anybody. A million requests for a real page put a million
-rows in the log, and the pageview count follows them up. Every analytics product built on server
-logs works this way. A log records what arrived and has no way to ask why.
+rows in the log. Each one is a GET that answered HTML and succeeded, and that is the whole of what
+`pageviews` asks of a row, so the count follows the flood up. The [crawler
+filter](../rollups/#crawlers-are-most-of-the-traffic) catches a flood naming itself a bot and
+nothing else about it. Every analytics product built on server logs works this way. A log records
+what arrived and has no way to ask why.
 
 What layer 2 adds is a forged page value and events nobody caused. The gap is narrower than it
 looks. A spammed page request already lies about which page was read, and it transfers the page body
@@ -24,18 +27,18 @@ to do it. A spammed beacon request carries no body in either direction.
 The raw store is immutable and every rollup is rebuilt from it. A poisoned window is a re-run under
 a better filter.
 
-[#104](https://github.com/KensioSoftware/rainlytics/issues/104) carries that filter. It belongs in
-the rollup query, beside the [crawler filter](../rollups/#crawlers-are-most-of-the-traffic) every
-question already applies. The raw store keeps every row and the query decides what to count. A rule
-that turns out to be wrong is another re-run.
+[#104](https://github.com/KensioSoftware/rainlytics/issues/104) is where that filter gets chosen
+and written, and no rollup applies one yet. It belongs in the rollup query, beside the crawler
+filter every question already applies. The raw store keeps every row and the query decides what to
+count. A rule that turns out to be wrong is another re-run.
 
 The [log bucket's](../log-bucket/) expiry is the outer limit on this. A window that has aged past it
 has no rows left to recount, under any filter at all. A year is the default.
 
 ## The money is spent
 
-A re-run fixes a number. Nothing re-runs a bill. Every spammed request buys three charges, and the
-site pays all three whatever a rollup later decides about the row.
+A re-run fixes a number. Nothing re-runs a bill. Every spammed request buys two charges outright
+and arms a third, and no filter written afterwards takes any of them back.
 
 **A CloudFront request.** The distribution charges per request at its own rate, and that charge
 lands on the CDN bill whether Rainlytics is installed or not. A request for a real page costs the
@@ -44,18 +47,24 @@ too, and [#99](https://github.com/KensioSoftware/rainlytics/issues/99) is choosi
 CloudFront Function and a small cached object on those terms.
 
 **A log record, kept for the bucket's retention.**
-[#9](https://github.com/KensioSoftware/rainlytics/issues/9) measured the whole pipeline at $0.084 a
-month on a site serving 137,000 requests a day, which works out near $0.02 per million requests. It
-splits between one PUT per delivered object and steady-state storage under the 365-day expiry. A
-flood pays that on the way in and then pays the storage every month until the expiry drops it.
+[#9](https://github.com/KensioSoftware/rainlytics/issues/9) measured the log store at $0.084 a month
+on a site serving 137,000 requests a day, which works out near $0.02 per million requests. It splits
+between one PUT per delivered object and steady-state storage under the 365-day expiry. CloudFront
+delivers into the bucket at no charge, which made that figure the whole of what Rainlytics itself
+cost on that site. A flood pays the rate on the way in and then pays the storage every month until
+the expiry drops it.
 
-**Bytes that every query over the window scans.** Athena bills $5.00 per terabyte. Spammed rows sit
-in the same objects as real ones and no partition predicate tells them apart. Every rollup covering
-the window reads them once per run, for as long as that window stays in range.
+**Bytes that a query over the window scans.** This is the armed one. Athena bills $5.00 per terabyte,
+and the charge arrives only when something reads the window (a scheduled rollup, or a `--query` run
+for a fresher answer). Spammed rows sit in the same objects as real ones and no partition predicate
+tells them apart, so each run that covers the window reads them again for as long as it stays in
+range.
 
-The third charge already has a ceiling. The [query workgroup's](../query-workgroup/)
-bytes-scanned cutoff fails a query at ten gibibytes, which caps one query near five cents whatever
-the flood put in the window. The first two have no ceiling.
+That third charge already has a ceiling. The [query workgroup's](../query-workgroup/) bytes-scanned
+cutoff fails a query at ten gibibytes, which caps one query near five cents whatever the flood put in
+the window. It binds queries naming the workgroup, being `rainlytics` unless a deployment renamed it.
+Athena's own `primary` workgroup has no cutoff, and a query landing there is uncapped. The first two
+charges have no ceiling anywhere.
 
 ## AWS WAF, and why it stays out of the default
 
@@ -70,8 +79,8 @@ A rate-based rule is an ordinary rule at $1.00. So the smallest configuration th
 web ACL carrying one rate-based rule on the collection path, is $6.00 a month before a single request
 reaches it.
 
-Set that beside the $0.084 a month #9 measured. WAF is a fixed floor around seventy times the
-pipeline it protects, and it is billed in full in a quiet month when nobody attacks anything. Every
+Set that beside the $0.084 a month #9 measured. WAF is a fixed floor around seventy times the log
+store it protects, and it is billed in full in a quiet month when nobody attacks anything. Every
 other charge on this page is priced by use, and this would be the largest line on a quiet site's
 bill.
 
@@ -116,7 +125,7 @@ the beacon reports to.
 <!-- card
 ```text
 one web ACL and one rate-based rule    $6.00 a month
-the pipeline #9 measured              $0.084 a month
+the log store #9 measured             $0.084 a month
 a budget alarm watching for a flood        no charge
 ```
 -->
