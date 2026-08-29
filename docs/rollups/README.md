@@ -36,7 +36,8 @@ out, and so are the ones this site sent itself. Those are somebody moving around
 reference site an unfiltered version of this is topped by its own stylesheet.
 
 **`status-codes`** counts every response, including the assets the pageview count leaves out. A
-stylesheet returning 404 is worth seeing and a rollup looking only at pages never would.
+stylesheet returning 404 is worth seeing and a rollup looking only at pages never would. Requests to
+the [beacon's own path](#the-beacons-own-requests) are the exception.
 
 **`cache-hit-ratio`** counts over the requests the cache had a say in, being a Hit, a RefreshHit or
 a Miss. A redirect, an error and a response a CloudFront Function generated are requests the cache
@@ -87,6 +88,43 @@ rainlytics pageviews --last 7d --include-bots
 
 `status-codes` is the one where `--include-bots` is usually what you want. Bots find the broken
 links first and in numbers.
+
+## The beacon's own requests
+
+The beacon sends a GET to `/_rainlytics` on the site's own domain and carries its payload in the
+query string. An event is another row in the same log. It writes one row per event, and a
+single-page app reporting route changes, web vitals and errors sends several per reader per page. A
+quiet site can end up with more beacon rows than responses of its own.
+
+`status-codes` leaves those requests out, and no option puts them back. Every event answers 204. A
+window of them leads the table under one status, and the 404 the question exists to surface sits
+somewhere below it. The question is what the site answered for the things it serves, and the beacon
+is Rainlytics measuring the site.
+
+Anybody checking that the beacon is delivering has [`rainlytics query`](../query/):
+
+```bash
+rainlytics query "SELECT sc_status, count(*) AS events FROM cloudfront_logs
+  WHERE year = '2026' AND month = '08' AND day = '29'
+  AND strpos(cs_uri_stem, '/_rainlytics') = 1
+  GROUP BY 1"
+```
+
+The path is one constant, `defaultBeaconPath`, that the beacon and the rollup both read. Naming a
+different one belongs to the beacon construct.
+
+The other four questions leave beacon rows out already, for reasons they had anyway:
+
+- **`pageviews`** and **`referrers`** count a GET that answered `text/html` with a 200 or a 304. An
+  event answers 204 and names no content type.
+- **`searches`** wants its parameter non-empty. A payload names its parameters `v`, `e` and `p`, and
+  carries no `q`.
+- **`cache-hit-ratio`** counts a Hit, a RefreshHit or a Miss. A CloudFront Function answers every
+  event, and the cache is never asked.
+
+Those four are checked against delivered beacon records rather than taken on trust, in
+`src/beacon-events.test.ts`. Each of them leaves the rows out through a condition it has for its own
+reasons, and a rollup of your own gets none of that for free.
 
 ## `--path` and `--host` narrow the question
 

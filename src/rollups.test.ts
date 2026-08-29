@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { defaultLogDataset, qualifiedTableName } from "./dataset.js";
 import { decodedParameter } from "./log-encoding.js";
+import { defaultBeaconPath, outsideTheBeaconPath } from "./beacon-events.js";
 import { rollups } from "./rollup-questions.js";
 import type { Rollup, RollupRequest } from "./rollups.js";
 import {
@@ -165,9 +166,11 @@ describe("the SQL a rollup runs", () => {
       // given, so the two arrive here as the same question.
       for (const sql of [sqlFor(name), sqlFor(name, { paths: [] })]) {
         // Then neither filter is written at all, rather than written as a
-        // condition matching everything.
+        // condition matching everything. `--path` matches the decoded
+        // address, which is what tells its prefix test from the one
+        // `status-codes` writes to leave the beacon out.
         expect(sql).not.toContain("x_host_header =");
-        expect(sql).not.toContain("strpos(");
+        expect(sql).not.toContain("strpos(url_decode");
       }
     },
   );
@@ -247,7 +250,8 @@ describe("the SQL a rollup runs", () => {
     // Given the three rollups that read no path.
     // Then none of them decodes anything. The referrer is read for its host,
     // which is ASCII whatever the rest of the URL holds, and a status code
-    // and a result type carry no encoding at all.
+    // and a result type carry no encoding at all. The beacon's path that
+    // status-codes leaves out is matched undecoded for the same reason.
     expect(sqlFor("referrers")).not.toContain("url_decode");
     expect(sqlFor("status-codes")).not.toContain("url_decode");
     expect(sqlFor("cache-hit-ratio")).not.toContain("url_decode");
@@ -261,6 +265,17 @@ describe("the SQL a rollup runs", () => {
     // is somebody moving around rather than arriving.
     expect(sql).toContain("url_extract_host(cs_referer) <> x_host_header");
     expect(sql).toContain("cs_referer <> '-'");
+  });
+
+  it("leaves the beacon's own requests out of the status codes", () => {
+    // Given the status-code rollup.
+    const sql = sqlFor("status-codes");
+
+    // Then a request to the beacon's path is not counted. The beacon writes
+    // one row per event, and a single-page app's 204s can outnumber every
+    // response the site itself served.
+    expect(sql).toContain(outsideTheBeaconPath);
+    expect(sql).toContain(`'${defaultBeaconPath}'`);
   });
 
   it("counts the cache over the requests it had a say in", () => {
