@@ -210,9 +210,22 @@ export const visitorCountFields: readonly string[] = [
   "cs(User-Agent)",
 ];
 
+/**
+ * The visitor-count fields a field set leaves out, in declared order.
+ *
+ * Both of them or neither. A delivery carrying the address and no user agent
+ * counts nobody in exactly the way one carrying neither does, and a caller
+ * told to add the field it already has would go round the same loop twice.
+ */
+export function missingVisitorCountFields(
+  fields: readonly string[],
+): readonly string[] {
+  return visitorCountFields.filter((field) => !fields.includes(field));
+}
+
 /** Whether a field set carries what a visitor count is computed from. */
 export function countsVisitorsFrom(fields: readonly string[]): boolean {
-  return visitorCountFields.every((field) => fields.includes(field));
+  return missingVisitorCountFields(fields).length === 0;
 }
 
 /**

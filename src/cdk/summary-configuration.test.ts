@@ -193,6 +193,23 @@ describe("what a deployment of the summaries computes", () => {
     expect(building).toThrow(/c-ip/u);
   });
 
+  it("names the identifying field a narrowed delivery actually left out", () => {
+    // Given a delivery keeping the address and dropping the user agent, which
+    // counts nobody just as surely.
+    const building = (): unknown =>
+      summariesIn({ rollups: [pageviews], granularities: ["hourly"] }, [
+        "timestamp(ms)",
+        "cs-uri-stem",
+        "c-ip",
+      ]);
+
+    // Then the refusal names the user agent and leaves the address out of it.
+    // Being told to add a field already delivered sends its author looking in
+    // the wrong place.
+    expect(building).toThrow(/cs\(User-Agent\)/u);
+    expect(building).not.toThrow(/c-ip/u);
+  });
+
   it("refuses a deployment that would compute nothing", () => {
     // Given a site that passed an empty list of questions, which is not the
     // same as leaving the prop out.

@@ -5,7 +5,10 @@
 // deployment makes is between what it was told and a default. This one is
 // between what it was told and what the delivered field set can support.
 
-import { countsVisitorsFrom, visitorAddressField } from "../log-fields.js";
+import {
+  countsVisitorsFrom,
+  missingVisitorCountFields,
+} from "../log-fields.js";
 import { type Rollup, withoutVisitorCount } from "../rollups.js";
 import { rollups } from "../rollup-questions.js";
 import type { RollupSummariesProps } from "./summary-configuration.js";
@@ -36,7 +39,7 @@ export function computedQuestions(
     return rollups.map((rollup) => withoutVisitorCount(rollup));
   }
 
-  assertNothingCountsVisitors(props.rollups);
+  assertNothingCountsVisitors(props.rollups, props.table.fields);
 
   return props.rollups;
 }
@@ -48,9 +51,17 @@ export function computedQuestions(
  * name a column the table has never heard of, and fail once an hour in a
  * bucket nobody is watching.
  *
- * @throws {Error} naming the questions and how to turn their count off.
+ * The message names the fields actually absent. A delivery keeping the
+ * address and dropping the user agent counts nobody, and being told to add
+ * the address would send its author looking at a field already there.
+ *
+ * @throws {Error} naming the questions, what is missing, and how to turn
+ *   their count off.
  */
-function assertNothingCountsVisitors(asked: readonly Rollup[]): void {
+function assertNothingCountsVisitors(
+  asked: readonly Rollup[],
+  fields: readonly string[],
+): void {
   const counting = asked.filter((rollup) => rollup.countsVisitors === true);
 
   if (counting.length === 0) {
@@ -58,11 +69,13 @@ function assertNothingCountsVisitors(asked: readonly Rollup[]): void {
   }
 
   const named = counting.map((rollup) => rollup.name).join(", ");
+  const missing = missingVisitorCountFields(fields).join(" and ");
 
   throw new Error(
-    `${named} counts visitors, and this table describes no` +
-      ` ${visitorAddressField} column to count them from. Either deliver` +
-      ` ${visitorAddressField}, which the default field set does, or wrap` +
-      ` the question in withoutVisitorCount.`,
+    `${named} counts visitors, and this deployment's delivery leaves out` +
+      ` ${missing}. A visitor is a hash of the viewer's address and their` +
+      ` user agent, and both have to be delivered for one to be counted.` +
+      ` Either add ${missing} to the delivered field set, or wrap the` +
+      ` question in withoutVisitorCount.`,
   );
 }
