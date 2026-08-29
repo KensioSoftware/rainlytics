@@ -27,10 +27,12 @@ to do it. A spammed beacon request carries no body in either direction.
 The raw store is immutable and every rollup is rebuilt from it. A poisoned window is a re-run under
 a better filter.
 
-[#104](https://github.com/KensioSoftware/rainlytics/issues/104) is where that filter gets chosen
-and written, and no rollup applies one yet. It belongs in the rollup query, beside the crawler
-filter every question already applies. The raw store keeps every row and the query decides what to
-count. A rule that turns out to be wrong is another re-run.
+[#104](https://github.com/KensioSoftware/rainlytics/issues/104) chose that filter and
+[`beacon-events`](../beacon-events/) applies it. One visitor's identical events are counted no more
+than 60 times an hour, which is one a minute from one person, on one page, of one event name. It
+sits in the rollup query, beside the crawler filter every question already applies. The raw store
+keeps every row and the query decides what to count. A rule that turns out to be wrong is another
+re-run.
 
 The [log bucket's](../log-bucket/) expiry is the outer limit on this. A window that has aged past it
 has no rows left to recount, under any filter at all. A year is the default.
@@ -43,8 +45,8 @@ and arms a third, and no filter written afterwards takes any of them back.
 **A CloudFront request.** The distribution charges per request at its own rate, and that charge
 lands on the CDN bill whether Rainlytics is installed or not. A request for a real page costs the
 same and transfers a page body on top of it. Whatever answers the collection path is priced per hit
-too, and [#99](https://github.com/KensioSoftware/rainlytics/issues/99) is choosing between a
-CloudFront Function and a small cached object on those terms.
+too, and [#99](https://github.com/KensioSoftware/rainlytics/issues/99) settled on a [CloudFront
+Function](../beacon-path/) at $0.10 per million invocations.
 
 **A log record, kept for the bucket's retention.**
 [#9](https://github.com/KensioSoftware/rainlytics/issues/9) measured the log store at $0.084 a month

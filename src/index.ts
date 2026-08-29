@@ -15,6 +15,7 @@ export {
   searches,
   statusCodes,
 } from "./rollup-questions.js";
+export { beaconEventCap, beaconEvents } from "./beacon-rollup.js";
 export {
   assertRollupName,
   botUserAgentPattern,
