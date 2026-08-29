@@ -20,13 +20,7 @@ import type { LogTable } from "./log-table.js";
 import type { QueryWorkgroup } from "./query-workgroup.js";
 import type { SummariesBucket } from "./summary-bucket.js";
 import { summaryCodePath, summaryHandlerName } from "./summary-code.js";
-import {
-  athenaStatements,
-  catalogStatements,
-  logReadStatements,
-  resultsStatements,
-  visitorSaltStatements,
-} from "./summary-permissions.js";
+import { summaryJobStatements } from "./summary-permissions.js";
 
 /** What the summary function needs telling. */
 export interface SummaryFunctionProps {
@@ -41,6 +35,15 @@ export interface SummaryFunctionProps {
 
   /** How many closed windows one run computes. */
   readonly windows: number;
+
+  /**
+   * Whether any of this deployment's questions counts visitors.
+   *
+   * False where the table carries no viewer address. The function is then
+   * given no permission to read the salt, and the parameter it names need
+   * never exist.
+   */
+  readonly countsVisitors: boolean;
 
   /**
    * The SSM parameter holding the visitor salt secret.
@@ -117,15 +120,13 @@ export class SummaryFunction extends Construct {
       },
     });
 
-    for (const statement of [
-      ...athenaStatements(this, props.workgroup.workgroupName),
-      ...catalogStatements(this, props.table.dataset),
-      ...logReadStatements(props.table.logBucket, this.lambda),
-      // Athena writes every query's output to the workgroup's results
-      // location as the caller, and reads it back to answer GetQueryResults.
-      ...resultsStatements(props.workgroup.resultsBucket, this.lambda),
-      ...visitorSaltStatements(this, saltParameter),
-    ]) {
+    for (const statement of summaryJobStatements(this, {
+      workgroup: props.workgroup,
+      table: props.table,
+      grantee: this.lambda,
+      saltParameter,
+      countsVisitors: props.countsVisitors,
+    })) {
       this.lambda.addToRolePolicy(statement);
     }
 

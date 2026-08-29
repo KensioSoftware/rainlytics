@@ -136,8 +136,8 @@ A run that meets no parameter fails and says so, naming the parameter and printi
 
 `pageviews` alone, and it is one of the five questions a deployment gets when it passes no `rollups`
 of its own. A default deployment therefore reads the salt parameter, and the secret has to be there
-before its first run. A deployment that wants none passes `rollups` without a question that counts
-visitors, and needs no parameter.
+before its first run. [Running without a visitor count](#running-without-a-visitor-count) has the
+deployment that reads no parameter at all.
 
 A rollup says it counts with `countsVisitors`:
 
@@ -161,11 +161,51 @@ recomputing two windows, come to 250 queries a day and about 38 cents a month. T
 `pageviews` adds 50 of those, which is about 8 cents. The
 [summary schedule](../summary-schedule/#what-it-costs) page has the arithmetic.
 
+## Running without a visitor count
+
+A site that delivers no viewer address counts no visitors, and nothing else about it changes.
+
+```typescript
+import { logFieldNamesWithoutAddress } from "@kensio/rainlytics";
+
+new CloudFrontLogDelivery(this, "RainlyticsDelivery", {
+  distributionId: "E1EXAMPLE1234",
+  logBucket: logs.bucket,
+  fields: logFieldNamesWithoutAddress,
+});
+```
+
+That is the only line a site changes. The [log table](../log-table/) describes what the delivery
+writes and the [summary schedule](../summary-schedule/) reads the table. Both follow. The schedule
+computes the same five questions with the count off, needs no salt parameter, and is granted no
+`ssm:GetParameter`. Summaries carry no `visitors` field, which a reader tells apart from a count of
+zero.
+
+A deployment naming its own questions says so per question:
+
+```typescript
+import { pageviews, referrers, withoutVisitorCount } from "@kensio/rainlytics";
+
+new RollupSummaries(this, "RainlyticsSummaries", {
+  table,
+  workgroup,
+  rollups: [withoutVisitorCount(pageviews), referrers],
+});
+```
+
+A question that counts visitors over a table with no address is refused at synthesis, naming the
+question. Left alone it would run once an hour against a column the table has never heard of.
+
+The choice sits on the delivery because the delivery is what writes the raw store. Turning the
+address off later leaves every address already written where it is, until the [log
+bucket](../log-bucket/) expiry reaches it.
+
 ## Where the addresses are
 
 The raw log bucket holds viewer addresses in the clear, for as long as it holds anything. That is
 the price [#53](https://github.com/KensioSoftware/rainlytics/issues/53) paid for a visitor count,
-and the [log bucket](../log-bucket/) page has the expiry that decides how long it lasts.
+and the [log bucket](../log-bucket/) page has the expiry that decides how long it lasts. A site
+running the field set above has none of them to keep.
 
 The salt protects the identifier and never the source. Anyone who can read the log bucket has the
 addresses themselves, at better resolution than any digest would give them.

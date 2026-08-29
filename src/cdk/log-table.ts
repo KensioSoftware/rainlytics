@@ -115,6 +115,16 @@ export class LogTable extends Construct {
    */
   readonly logBucket: LogDeliveryBucket;
 
+  /**
+   * The fields the table describes, as the deliveries agreed on them.
+   *
+   * Here so that what reads the table can see what is in it. `RollupSummaries`
+   * asks whether the viewer's address is among these before it schedules a
+   * visitor count, because a query naming a column the table has no idea about
+   * fails once an hour in a bucket nobody is watching.
+   */
+  readonly fields: readonly string[];
+
   constructor(scope: Construct, id: string, props: LogTableProps) {
     super(scope, id);
 
@@ -133,6 +143,8 @@ export class LogTable extends Construct {
 
     const fields = deliveredLogFieldsNamed(delivery.fields);
     const format = logTableFormat(delivery.outputFormat, fields);
+
+    this.fields = delivery.fields;
 
     this.database = new CfnDatabase(this, "Database", {
       catalogId,

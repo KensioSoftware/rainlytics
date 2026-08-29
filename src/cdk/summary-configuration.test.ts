@@ -1,10 +1,13 @@
 import { faker } from "@faker-js/faker";
+import type { Policy } from "aws-cdk-lib/aws-iam";
 import { Bucket } from "aws-cdk-lib/aws-s3";
 import type { CfnSchedule } from "aws-cdk-lib/aws-scheduler";
 import { App, Stack } from "aws-cdk-lib/core";
 import { describe, expect, it } from "vitest";
 
+import { logFieldNamesWithoutAddress } from "../log-fields.js";
 import { pageviews, rollups } from "../rollup-questions.js";
+import { withoutVisitorCount } from "../rollups.js";
 import { CloudFrontLogDelivery } from "./log-delivery.js";
 import { LogTable } from "./log-table.js";
 import { QueryWorkgroup } from "./query-workgroup.js";
@@ -20,6 +23,7 @@ import type { RollupSummariesProps } from "./summary-configuration.js";
 describe("what a deployment of the summaries computes", () => {
   const summariesIn = (
     over: Partial<RollupSummariesProps> = {},
+    fields?: readonly string[],
   ): RollupSummaries => {
     const stack = new Stack(new App(), "AnalyticsStack", {
       env: { account: "123456789012", region: "us-east-1" },
@@ -27,6 +31,7 @@ describe("what a deployment of the summaries computes", () => {
     const delivery = new CloudFrontLogDelivery(stack, "Delivery", {
       distributionId: "E1EXAMPLE1234",
       logBucket: new Bucket(stack, "Logs"),
+      ...(fields === undefined ? {} : { fields }),
     });
 
     return new RollupSummaries(stack, "RainlyticsSummaries", {
@@ -34,6 +39,30 @@ describe("what a deployment of the summaries computes", () => {
       workgroup: new QueryWorkgroup(stack, "Queries"),
       ...over,
     });
+  };
+
+  /** The actions the summary function's role was granted. */
+  const grantedActions = (summaries: RollupSummaries): readonly string[] => {
+    const policy = summaries.lambda.role?.node.tryFindChild(
+      "DefaultPolicy",
+    ) as Policy;
+    const document = Stack.of(summaries).resolve(policy.document) as {
+      readonly Statement: readonly {
+        readonly Action: string | readonly string[];
+      }[];
+    };
+
+    return document.Statement.flatMap((statement) => [statement.Action].flat());
+  };
+
+  /** The visitor SQL a schedule carries, where it carries any. */
+  const visitorSqlOf = (
+    schedule: CfnSchedule | undefined,
+  ): string | undefined => {
+    const target = schedule?.target as CfnSchedule.TargetProperty;
+
+    return (JSON.parse(String(target.input)) as { visitorSql?: string })
+      .visitorSql;
   };
 
   it("computes every shipped question on both cadences", () => {
@@ -87,6 +116,98 @@ describe("what a deployment of the summaries computes", () => {
     expect(summaries.schedules.map((schedule) => schedule.name)).toStrictEqual([
       "docs-pageviews-hourly",
     ]);
+  });
+
+  it("counts visitors where the table carries the viewer's address", () => {
+    // Given a deployment over a table built from the default field set.
+    const summaries = summariesIn({
+      rollups: [pageviews],
+      granularities: ["hourly"],
+    });
+
+    // Then the schedule carries a second query counting them, salted per day,
+    // and the job may read the salt.
+    expect(visitorSqlOf(summaries.schedules[0])).toContain("c_ip");
+    expect(grantedActions(summaries)).toContain("ssm:GetParameter");
+  });
+
+  it("counts no visitors where the delivery left the address out", () => {
+    // Given a site delivering a field set with no viewer address, which is
+    // the one configuration holding no personal data.
+    const summaries = summariesIn(
+      { granularities: ["hourly"] },
+      logFieldNamesWithoutAddress,
+    );
+
+    // Then it still computes every shipped question, and none of them carries
+    // a query naming a column the table has never heard of.
+    expect(summaries.schedules).toHaveLength(rollups.length);
+    for (const schedule of summaries.schedules) {
+      expect(visitorSqlOf(schedule)).toBeUndefined();
+    }
+  });
+
+  it("reads no salt for a deployment counting no visitors", () => {
+    // Given the same deployment, whose SSM parameter nobody has created.
+    const summaries = summariesIn(
+      { granularities: ["hourly"] },
+      logFieldNamesWithoutAddress,
+    );
+
+    // When the function's policy is read.
+    const actions = grantedActions(summaries);
+
+    // Then it was granted nothing on Systems Manager, while keeping the reads
+    // its queries need. A site running no count has no parameter to point
+    // that permission at.
+    expect(actions).toContain("athena:StartQueryExecution");
+    expect(actions).not.toContain("ssm:GetParameter");
+  });
+
+  it("takes a named question whose visitor count was turned off", () => {
+    // Given a site delivering no address and naming the one question it
+    // wants, with the count taken off it.
+    const summaries = summariesIn(
+      { rollups: [withoutVisitorCount(pageviews)], granularities: ["hourly"] },
+      logFieldNamesWithoutAddress,
+    );
+
+    // Then it deploys, and the schedule carries the question without a count.
+    expect(summaries.schedules).toHaveLength(1);
+    expect(visitorSqlOf(summaries.schedules[0])).toBeUndefined();
+  });
+
+  it("refuses a question that counts visitors the table cannot identify", () => {
+    // Given a site that left the address out of the delivery and then asked
+    // for the visitor count by name anyway.
+    const building = (): unknown =>
+      summariesIn(
+        { rollups: [pageviews], granularities: ["hourly"] },
+        logFieldNamesWithoutAddress,
+      );
+
+    // Then it is refused at synthesis. Dropping the count silently would run
+    // a deployment computing something other than what its code asked for,
+    // and running it would fail hourly against a missing column.
+    expect(building).toThrow(/counts visitors/u);
+    expect(building).toThrow(/c-ip/u);
+  });
+
+  it("names the identifying field a narrowed delivery actually left out", () => {
+    // Given a delivery keeping the address and dropping the user agent, which
+    // counts nobody just as surely.
+    const building = (): unknown =>
+      summariesIn({ rollups: [pageviews], granularities: ["hourly"] }, [
+        "timestamp(ms)",
+        "cs-uri-stem",
+        "c-ip",
+      ]);
+
+    // Then the refusal names the user agent and leaves the address out of it.
+    // Being told to add a field already delivered sends its author looking in
+    // the wrong place.
+    expect(building).toThrow(/cs\(User-Agent\)/u);
+    expect(building).not.toThrow(/c-ip/u);
   });
 
   it("refuses a deployment that would compute nothing", () => {

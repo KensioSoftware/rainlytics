@@ -10,7 +10,10 @@ import { describe, expect, it } from "vitest";
 import { deployStacks, simStartedAt } from "#test/simulated-deployment.js";
 
 import { defaultLogDataset, qualifiedTableName } from "../dataset.js";
-import { deliveredLogColumnNames } from "../log-fields.js";
+import {
+  deliveredLogColumnNames,
+  logFieldNamesWithoutAddress,
+} from "../log-fields.js";
 import {
   partitionKeyNames,
   partitionLocationTemplate,
@@ -399,6 +402,22 @@ describe("the Glue table over delivered logs", () => {
       "timestamp_ms",
       "cs_uri_stem",
     ]);
+  });
+
+  it("describes no address where the delivery asked for none", async () => {
+    // Given a site delivering the field set that holds no personal data.
+    const table = catalogTable(
+      await deployTable({
+        delivery: { fields: [...logFieldNamesWithoutAddress] },
+      }),
+    );
+
+    // Then the table has no column an address could be read out of, while
+    // every other question still has the column it groups by.
+    const columns = table.columns.map((column) => column.Name);
+    expect(columns).not.toContain("c_ip");
+    expect(columns).toContain("cs_uri_stem");
+    expect(columns).toContain("cs_user_agent");
   });
 
   describe("what it refuses to build", () => {

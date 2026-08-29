@@ -284,6 +284,27 @@ export interface Rollup {
 }
 
 /**
+ * One question with its visitor count off.
+ *
+ * A deployment over a table carrying no viewer address computes no visitor
+ * count, and `RollupSummaries` derives that for the questions Rainlytics
+ * ships. A site naming its questions instead says so through this.
+ *
+ * ```typescript
+ * new RollupSummaries(this, "RainlyticsSummaries", {
+ *   table,
+ *   workgroup,
+ *   rollups: [withoutVisitorCount(pageviews), referrers],
+ * });
+ * ```
+ */
+export function withoutVisitorCount(rollup: Rollup): Rollup {
+  const { countsVisitors: _countsVisitors, ...rest } = rollup;
+
+  return rest;
+}
+
+/**
  * A request with whatever it left out filled in.
  *
  * The dataset in particular. A rollup that wrote the table name out would be

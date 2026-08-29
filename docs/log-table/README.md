@@ -137,12 +137,16 @@ and none of that has been tested here.
 
 ## `c_ip` is the viewer's address
 
-The table has a column for it because the delivery asks for one. Rainlytics counts unique visitors
-as a daily-rotating hash of the address and the user agent, and the rollup computing that hash reads
-this column. The [log delivery](../log-delivery/) page says what the field set holds, and the [log
-bucket](../log-bucket/) page says for how long.
+The table has a column for it where the delivery asks for one, which the default field set does.
+Rainlytics counts unique visitors as a daily-rotating hash of the address and the user agent, and
+the rollup computing that hash reads this column. The [log delivery](../log-delivery/) page says
+what the field set holds, and the [log bucket](../log-bucket/) page says for how long.
 
-Three things follow for anything querying this table.
+A delivery configured with `logFieldNamesWithoutAddress` produces a table with no such column. A
+[summary schedule](../summary-schedule/) over that table computes no visitor count, and every other
+column and question is the same.
+
+Three things follow for anything querying a table that has the column.
 
 Records delivered before the field was added carry no address. Athena answers `null` for them and
 reports success, and a visitor count over those days comes back low.

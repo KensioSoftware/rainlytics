@@ -19,7 +19,9 @@ import type { Construct } from "constructs";
 
 import type { LogDataset } from "../dataset.js";
 import type { LogDeliveryBucket } from "./delivery-bucket.js";
+import type { LogTable } from "./log-table.js";
 import type { QueryResultsBucket } from "./query-results-bucket.js";
+import type { QueryWorkgroup } from "./query-workgroup.js";
 import type { SummariesBucket } from "./summary-bucket.js";
 
 /**
@@ -131,10 +133,10 @@ export function catalogStatements(
  * A site naming a customer key of its own grants `kms:Decrypt` on it as well,
  * the way a customer-encrypted log bucket hands out its own.
  *
- * Granted whether or not any of this deployment's questions count visitors. A
- * statement naming a parameter nobody reads costs nothing, and a question
- * gaining a visitor count later is then a template change rather than a run
- * that fails on a permission.
+ * Granted to a deployment whose questions count visitors, and left off one
+ * whose table carries no viewer address. Nothing there can gain a visitor
+ * count without redelivering the field, and the parameter is then one a site
+ * running no count would have to create for a read that never happens.
  */
 export function visitorSaltStatements(
   scope: Construct,
@@ -246,5 +248,38 @@ export function summaryReadStatements(
       actions: ["s3:GetObject"],
       resources: [`${bucket.bucketArn}/*`],
     }),
+  ];
+}
+
+/**
+ * Everything the scheduled job's role is granted, in one list.
+ *
+ * Here rather than in `SummaryFunction` so that what the job may do is read
+ * in one place, beside the statements saying what each part of it is for.
+ *
+ * The salt is the only conditional one. A deployment whose table carries no
+ * viewer address counts no visitors, and granting it a read on a parameter
+ * nobody created would describe a permission the site has to satisfy.
+ */
+export function summaryJobStatements(
+  scope: Construct,
+  granted: {
+    readonly workgroup: QueryWorkgroup;
+    readonly table: LogTable;
+    readonly grantee: IGrantable;
+    readonly saltParameter: string;
+    readonly countsVisitors: boolean;
+  },
+): readonly PolicyStatement[] {
+  return [
+    ...athenaStatements(scope, granted.workgroup.workgroupName),
+    ...catalogStatements(scope, granted.table.dataset),
+    ...logReadStatements(granted.table.logBucket, granted.grantee),
+    // Athena writes every query's output to the workgroup's results location
+    // as the caller, and reads it back to answer GetQueryResults.
+    ...resultsStatements(granted.workgroup.resultsBucket, granted.grantee),
+    ...(granted.countsVisitors
+      ? visitorSaltStatements(scope, granted.saltParameter)
+      : []),
   ];
 }

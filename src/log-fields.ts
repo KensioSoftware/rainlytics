@@ -164,6 +164,71 @@ export const deliveredLogFieldNames: readonly string[] = deliveredLogFields.map(
 );
 
 /**
+ * The field carrying the viewer's address.
+ *
+ * Named here because three places have to agree about it. A delivery decides
+ * whether to ask for it, a table decides whether to describe it, and
+ * `RollupSummaries` decides whether anything can count visitors. Spelling it
+ * three times is how they would come to disagree.
+ */
+export const visitorAddressField = "c-ip";
+
+/**
+ * The delivered field names with the viewer's address left out.
+ *
+ * A delivery configured with these writes a record of requests. Every rollup
+ * except the visitor count reads the same columns it always did, and
+ * `RollupSummaries` over the resulting table computes no visitor count and
+ * needs no salt.
+ *
+ * ```typescript
+ * new CloudFrontLogDelivery(this, "RainlyticsDelivery", {
+ *   distributionId: "E1EXAMPLE1234",
+ *   logBucket: logs.bucket,
+ *   fields: logFieldNamesWithoutAddress,
+ * });
+ * ```
+ *
+ * The raw store is immutable, so this decides what a day holds on the day it
+ * is delivered. Turning it on later leaves the addresses already written
+ * where they are, until the log bucket's expiry reaches them.
+ * `docs/visitors/` has both halves of that.
+ */
+export const logFieldNamesWithoutAddress: readonly string[] =
+  deliveredLogFieldNames.filter((name) => name !== visitorAddressField);
+
+/**
+ * The fields a visitor count is computed from.
+ *
+ * `visitor-identity.ts` hashes the address together with the user agent, so a
+ * field set missing either one counts nobody. The user agent is delivered for
+ * the bot filter every rollup applies, which means the address is the field
+ * this turns on.
+ */
+export const visitorCountFields: readonly string[] = [
+  visitorAddressField,
+  "cs(User-Agent)",
+];
+
+/**
+ * The visitor-count fields a field set leaves out, in declared order.
+ *
+ * Both of them or neither. A delivery carrying the address and no user agent
+ * counts nobody in exactly the way one carrying neither does, and a caller
+ * told to add the field it already has would go round the same loop twice.
+ */
+export function missingVisitorCountFields(
+  fields: readonly string[],
+): readonly string[] {
+  return visitorCountFields.filter((field) => !fields.includes(field));
+}
+
+/** Whether a field set carries what a visitor count is computed from. */
+export function countsVisitorsFrom(fields: readonly string[]): boolean {
+  return missingVisitorCountFields(fields).length === 0;
+}
+
+/**
  * The Glue column name a field is read back through, whichever format the
  * delivery writes.
  *

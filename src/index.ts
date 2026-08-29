@@ -30,6 +30,7 @@ export {
   rowsFor,
   summarisedWindow,
   windowPlaceholder,
+  withoutVisitorCount,
 } from "./rollups.js";
 export {
   neverComputed,
@@ -94,13 +95,17 @@ export {
 } from "./dataset.js";
 export {
   availableLogFields,
+  countsVisitorsFrom,
   type DeliveredLogField,
   deliveredLogColumnNames,
   deliveredLogFieldNames,
   deliveredLogFields,
   deliveredLogFieldsNamed,
   logColumnName,
+  logFieldNamesWithoutAddress,
   omittedLogFields,
+  visitorAddressField,
+  visitorCountFields,
 } from "./log-fields.js";
 export {
   defaultFirstPartitionYear,

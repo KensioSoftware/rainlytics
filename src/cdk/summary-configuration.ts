@@ -10,10 +10,10 @@ import type { Duration } from "aws-cdk-lib/core";
 
 import { savedQueryPrefix } from "../dataset.js";
 import type { Rollup } from "../rollups.js";
-import { rollups } from "../rollup-questions.js";
 import { defaultRecomputedWindows } from "../summary-runs.js";
 import type { SummaryGranularity } from "../summary-windows.js";
 import { summaryGranularities } from "../summary-windows.js";
+import { computedQuestions } from "./computed-questions.js";
 import type { LogTable } from "./log-table.js";
 import type { QueryWorkgroup } from "./query-workgroup.js";
 import { assertRequestedNames } from "./saved-query-names.js";
@@ -84,8 +84,13 @@ export interface RollupSummariesProps extends SummaryBucketProps {
    *
    * `pageviews` counts visitors, and it is one of the five questions a
    * deployment that passes no `rollups` gets. The parameter therefore has to
-   * exist before a default deployment's first run. A deployment that wants
-   * none passes `rollups` without a question that counts visitors.
+   * exist before a default deployment's first run.
+   *
+   * A deployment whose table carries no viewer address counts no visitors,
+   * needs no parameter here, and is granted no permission to read one. That
+   * follows the delivery's field set, so a site opting out passes
+   * `logFieldNamesWithoutAddress` to `CloudFrontLogDelivery` and changes
+   * nothing here.
    *
    * `docs/visitors/` has the command that makes one and why the secret
    * stands rather than rotating.
@@ -132,6 +137,15 @@ export interface SummaryConfiguration {
   /** The questions to compute. */
   readonly rollups: readonly Rollup[];
 
+  /**
+   * Whether any of them counts visitors.
+   *
+   * False where the table carries no viewer address. The deployment then
+   * needs no salt parameter, and `SummaryFunction` leaves it out rather than
+   * granting a read on a parameter nothing will look at.
+   */
+  readonly countsVisitors: boolean;
+
   /** The windows to compute them over. */
   readonly granularities: readonly SummaryGranularity[];
 
@@ -158,7 +172,7 @@ export interface SummaryConfiguration {
 export function summaryConfiguration(
   props: RollupSummariesProps,
 ): SummaryConfiguration {
-  const computing = props.rollups ?? rollups;
+  const computing = computedQuestions(props);
   const granularities = props.granularities ?? summaryGranularities;
 
   assertSomethingToCompute(computing, granularities);
@@ -167,6 +181,7 @@ export function summaryConfiguration(
 
   return {
     rollups: computing,
+    countsVisitors: computing.some((rollup) => rollup.countsVisitors === true),
     granularities,
     windows: props.recomputedWindows ?? defaultRecomputedWindows,
     lag: props.lag ?? defaultSummaryLag,
