@@ -59,8 +59,9 @@ Shortening it discards history that cannot be recovered afterwards.
 
 ### It is also how long the addresses are kept
 
-The delivered field set includes `c-ip`. What expires here is therefore a record of people as well
-as of requests. Rainlytics counts unique visitors by hashing the viewer's address and their user
+The delivered field set includes `c-ip` by default. What expires here is therefore a record of
+people as well as of requests, until a site delivers
+[the field set without it](../visitors/#running-without-a-visitor-count). Rainlytics counts unique visitors by hashing the viewer's address and their user
 agent under a salt that rotates daily, and a scheduled rollup computes that hash from the address
 the object already carries. The [log delivery](../log-delivery/) page covers the field set, and
 [Counting visitors](../visitors/) covers the hash.

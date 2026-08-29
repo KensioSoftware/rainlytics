@@ -22,11 +22,16 @@ import { describe, expect, it } from "vitest";
 import { deployStacks, simStartedAt } from "#test/simulated-deployment.js";
 
 import { summaryEnvironment } from "../functions/summary-deployment.js";
+import { logFieldNamesWithoutAddress } from "../log-fields.js";
 import { partitionPrefix } from "../partitions.js";
 import { pageviews } from "../rollup-questions.js";
 import type { RollupSummary } from "../rollup-summaries.js";
 import { summarySchemaVersion } from "../rollup-summaries.js";
-import { defaultRedirectStatuses, windowPlaceholder } from "../rollups.js";
+import {
+  defaultRedirectStatuses,
+  windowPlaceholder,
+  withoutVisitorCount,
+} from "../rollups.js";
 import {
   defaultVisitorSaltParameter,
   visitorSaltPlaceholder,
@@ -51,6 +56,13 @@ describe("computing rollup summaries on a schedule", () => {
   const deployAnalytics = async (
     over: Partial<RollupSummariesProps> = {},
     inStack: (stack: Stack) => Partial<RollupSummariesProps> = () => ({}),
+    site: {
+      /** What the delivery asks CloudFront for, defaulting to the whole set. */
+      readonly fields?: readonly string[];
+
+      /** Whether the account holds a visitor salt at all. */
+      readonly salt?: boolean;
+    } = {},
   ) => {
     const logBucketName = `rainlytics-logs-${faker.string.uuid()}`;
     const summariesBucketName = `rainlytics-summaries-${faker.string.uuid()}`;
@@ -72,6 +84,7 @@ describe("computing rollup summaries on a schedule", () => {
         const delivery = new CloudFrontLogDelivery(stack, "Delivery", {
           distributionId: distribution.distributionId,
           logBucket: logs.bucket,
+          ...(site.fields === undefined ? {} : { fields: site.fields }),
         });
         const table = new LogTable(stack, "RainlyticsTable", {
           deliveries: [delivery],
@@ -97,18 +110,22 @@ describe("computing rollup summaries on a schedule", () => {
 
     // The salt secret, put where a site's operator puts it. Nothing in the
     // stack creates it, because CloudFormation writes no SecureString and a
-    // secret in a template is not one. `docs/visitors/` has the command.
-    await simAws
-      .region("us-east-1")
-      .account()
-      .ssm()
-      .putParameter({
-        input: {
-          Name: defaultVisitorSaltParameter,
-          Type: "SecureString",
-          Value: faker.string.hexadecimal({ length: 64, prefix: "" }),
-        },
-      });
+    // secret in a template is not one. `docs/visitors/` has the command. A
+    // case about a deployment counting no visitors leaves it out, which is
+    // the account a site running without one actually has.
+    if (site.salt !== false) {
+      await simAws
+        .region("us-east-1")
+        .account()
+        .ssm()
+        .putParameter({
+          input: {
+            Name: defaultVisitorSaltParameter,
+            Type: "SecureString",
+            Value: faker.string.hexadecimal({ length: 64, prefix: "" }),
+          },
+        });
+    }
 
     return {
       simAws,
@@ -446,6 +463,29 @@ describe("computing rollup summaries on a schedule", () => {
     expect(failure?.message).toContain(parameter);
     expect(account.athena().queryExecutions()).toStrictEqual([]);
     await expect(summaryAt(deployed, closedHourKey)).resolves.toBeUndefined();
+  });
+
+  it("summarises an hour with no salt where the address is undelivered", async () => {
+    // Given a site delivering the field set that holds no personal data, in
+    // an account where nobody has ever created a visitor salt.
+    const deployed = await deployAnalytics(
+      { rollups: [withoutVisitorCount(pageviews)] },
+      () => ({}),
+      { fields: logFieldNamesWithoutAddress, salt: false },
+    );
+    const { "c-ip": _address, ...asDelivered } = aRecord(theClosedHour);
+    await putDelivered(deployed, theClosedHour, [asDelivered, asDelivered]);
+
+    // When the schedule fires.
+    await deployed.simAws.clock().advanceBy({ minutes: 16 });
+
+    // Then the hour is summarised as usual and carries no visitor count. A
+    // reader sees the field absent rather than a zero, and the run needed no
+    // parameter to get there.
+    const summary = await summaryAt(deployed, closedHourKey);
+
+    expect(summary?.rows).toStrictEqual([{ path: "/", views: "2" }]);
+    expect(summary?.visitors).toBeUndefined();
   });
 
   it("hands the visitor count to the schedule without the salt", async () => {

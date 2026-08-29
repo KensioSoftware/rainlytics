@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   availableLogFields,
+  countsVisitorsFrom,
   deliveredLogColumnNames,
   deliveredLogFields,
   deliveredLogFieldNames,
   deliveredLogFieldsNamed,
   logColumnName,
+  logFieldNamesWithoutAddress,
   omittedLogFields,
+  visitorAddressField,
 } from "./log-fields.js";
 
 describe("the delivered log field set", () => {
@@ -19,6 +22,24 @@ describe("the delivered log field set", () => {
     for (const field of deliveredLogFieldNames) {
       expect(availableLogFields).toContain(field);
     }
+  });
+
+  it("drops only the address from the set that leaves visitors uncounted", () => {
+    // Given the field set a site delivers to hold no personal data.
+    // Then it is the delivered set with the viewer's address taken out, and
+    // every other question reads the same columns it always did.
+    expect(logFieldNamesWithoutAddress).not.toContain(visitorAddressField);
+    expect(logFieldNamesWithoutAddress).toStrictEqual(
+      deliveredLogFieldNames.filter((name) => name !== visitorAddressField),
+    );
+  });
+
+  it("counts visitors from the default set and from nothing narrower", () => {
+    // Given the two field sets a site chooses between.
+    // Then the default identifies a viewer and the other one cannot. This is
+    // what `RollupSummaries` reads to decide whether to schedule a count.
+    expect(countsVisitorsFrom(deliveredLogFieldNames)).toBe(true);
+    expect(countsVisitorsFrom(logFieldNamesWithoutAddress)).toBe(false);
   });
 
   it("records omissions that CloudFront actually offers", () => {

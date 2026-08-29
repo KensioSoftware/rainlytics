@@ -68,6 +68,7 @@ export class RollupSummaries extends Construct {
       workgroup: props.workgroup,
       bucket: this.bucket,
       windows: settled.windows,
+      countsVisitors: settled.countsVisitors,
       ...(props.visitorSaltParameter === undefined
         ? {}
         : { visitorSaltParameter: props.visitorSaltParameter }),

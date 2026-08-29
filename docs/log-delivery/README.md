@@ -93,17 +93,22 @@ last exactly as long as the log objects do. On the defaults that is 365 days, pl
 superseded version survives, and the [log bucket](../log-bucket/) page has both numbers and how to
 change them.
 
-A site that would rather not keep addresses can deliver everything else:
+A site that would rather not keep addresses delivers the named set without it:
 
 ```typescript
-import { deliveredLogFieldNames } from "@kensio/rainlytics";
+import { logFieldNamesWithoutAddress } from "@kensio/rainlytics";
 
 new CloudFrontLogDelivery(this, "RainlyticsDelivery", {
   distributionId: "E1EXAMPLE1234",
   logBucket: logs.bucket,
-  fields: deliveredLogFieldNames.filter((field) => field !== "c-ip"),
+  fields: logFieldNamesWithoutAddress,
 });
 ```
+
+That is the only line a site changes. The [log table](../log-table/) declares the columns the
+delivery asks for and gets no `c_ip`. The [summary schedule](../summary-schedule/) reads the table,
+computes the same five questions with the visitor count off, and is granted no permission to read
+the salt. The SSM parameter a default deployment needs before its first run never has to exist.
 
 Pageviews, referrers, devices, status codes and geography all carry on. The visitor count is the one
 thing that stops being computable, and no later job can recover it for the days the field was
