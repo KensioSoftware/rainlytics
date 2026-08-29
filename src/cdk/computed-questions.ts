@@ -40,8 +40,47 @@ export function computedQuestions(
   }
 
   assertNothingCountsVisitors(props.rollups, props.table.fields);
+  assertNothingIdentifiesViewers(props.rollups, props.table.fields);
 
   return props.rollups;
+}
+
+/**
+ * Refuses questions whose rows this table cannot tell apart.
+ *
+ * `beacon-events` is the one that ships. It bounds a flood by capping what
+ * one visitor contributes in an hour, and it names the viewer's address to do
+ * it. A delivery without that field has no column for the query to group by.
+ *
+ * There is nothing to turn off here, which is what separates this from the
+ * visitor count. A summary without a visitor count is the same question with
+ * one fewer number beside it. A beacon rollup without the cap is a different
+ * question, and it would count a flood of a million as a million.
+ *
+ * @throws {Error} naming the questions and what is missing.
+ */
+function assertNothingIdentifiesViewers(
+  asked: readonly Rollup[],
+  fields: readonly string[],
+): void {
+  const identifying = asked.filter(
+    (rollup) => rollup.identifiesViewers === true,
+  );
+
+  if (identifying.length === 0) {
+    return;
+  }
+
+  const named = identifying.map((rollup) => rollup.name).join(", ");
+  const missing = missingVisitorCountFields(fields).join(" and ");
+
+  throw new Error(
+    `${named} bounds a flood by capping what one visitor sent, and this` +
+      ` deployment's delivery leaves out ${missing}. Either add ${missing}` +
+      ` to the delivered field set, or leave the question out of this` +
+      ` deployment. Counting beacon events with no cap would report a flood` +
+      ` of a million as a million.`,
+  );
 }
 
 /**

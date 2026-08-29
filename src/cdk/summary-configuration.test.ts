@@ -6,6 +6,7 @@ import { App, Stack } from "aws-cdk-lib/core";
 import { describe, expect, it } from "vitest";
 
 import { logFieldNamesWithoutAddress } from "../log-fields.js";
+import { beaconEvents } from "../beacon-rollup.js";
 import { pageviews, rollups } from "../rollup-questions.js";
 import { withoutVisitorCount } from "../rollups.js";
 import { CloudFrontLogDelivery } from "./log-delivery.js";
@@ -190,6 +191,36 @@ describe("what a deployment of the summaries computes", () => {
     // a deployment computing something other than what its code asked for,
     // and running it would fail hourly against a missing column.
     expect(building).toThrow(/counts visitors/u);
+    expect(building).toThrow(/c-ip/u);
+  });
+
+  it("computes the beacon question where the table can identify viewers", () => {
+    // Given a site running the beacon and adding its question to the five.
+    const summaries = summariesIn({
+      rollups: [...rollups, beaconEvents],
+      granularities: ["hourly"],
+    });
+
+    // Then it deploys, with a schedule for each question. The beacon's own
+    // question is opt-in, so a site with no beacon pays for none of this.
+    expect(summaries.schedules).toHaveLength(rollups.length + 1);
+  });
+
+  it("refuses the beacon question where the table cannot identify viewers", () => {
+    // Given a site delivering the field set that holds no personal data, and
+    // asking for the beacon question anyway.
+    const building = (): unknown =>
+      summariesIn(
+        { rollups: [beaconEvents], granularities: ["hourly"] },
+        logFieldNamesWithoutAddress,
+      );
+
+    // Then it is refused at synthesis. The question bounds a flood by capping
+    // what one visitor sent, and a delivery with no address has no column to
+    // key that on. Computing it without the cap would count a flood of a
+    // million as a million.
+    expect(building).toThrow(/bounds a flood/u);
+    expect(building).toThrow(/beacon-events/u);
     expect(building).toThrow(/c-ip/u);
   });
 

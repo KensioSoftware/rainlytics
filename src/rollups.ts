@@ -189,8 +189,9 @@ export interface RollupTotals {
 /**
  * One question, and the SQL that answers it.
  *
- * The ones Rainlytics ships are in `rollup-questions.ts`, and a site can
- * write its own. A rollup writes what it selects and groups by, and calls
+ * The five the command line answers are in `rollup-questions.ts`,
+ * `beacon-rollup.ts` holds the one a site running the beacon opts into, and a
+ * site can write its own. A rollup writes what it selects and groups by, and calls
  * {@link rowsFor} for the rows underneath. That is where the partition
  * predicate, the bot filter and the host and paths a caller narrowed to are
  * written, and a question filtering its own way would answer a different
@@ -262,6 +263,20 @@ export interface Rollup {
    * query that would cover them.
    */
   readonly totals?: RollupTotals | undefined;
+
+  /**
+   * Whether its SQL tells one viewer from another.
+   *
+   * Set on `beacon-events`, which bounds a flood by capping what one visitor
+   * contributes, and absent everywhere else. It names the same two delivered
+   * fields a visitor count is hashed from, so a deployment carrying no viewer
+   * address cannot answer the question at all. `RollupSummaries` refuses one
+   * at synthesis rather than letting the query fail once an hour.
+   *
+   * Different from {@link countsVisitors}, which decides whether a summary
+   * carries a `visitors` field beside the rows. This one is about the rows.
+   */
+  readonly identifiesViewers?: boolean | undefined;
 
   /**
    * Whether a summary of it carries how many visitors the window saw.

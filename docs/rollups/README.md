@@ -43,6 +43,10 @@ the [beacon's own path](#the-beacons-own-requests) are the exception.
 a Miss. A redirect, an error and a response a CloudFront Function generated are requests the cache
 was never asked about, and counting them would move the ratio without the cache having changed.
 
+A sixth question, [`beacon-events`](../beacon-events/), counts what the optional beacon reported. It
+waits to be asked for, because a site with no beacon would be paying for a scheduled query over rows
+nobody writes. That page has how to add it and the cap it applies to a flood.
+
 ## The log is percent-encoded twice
 
 CloudFront percent-encodes every value it writes into a log record, and a request URI reaches it
