@@ -25,3 +25,8 @@ runs on every `pnpm check`.
 - [Query](query/), running SQL against the log table with `rainlytics query`.
 - [Rollup summaries](summaries/), the schema for the precomputed answers the commands read.
 - [Counting visitors](visitors/), what a visitor count means and over what window.
+
+## Cost
+
+- [Abusing the collection path](abuse/), what an open collection path exposes, and the prices for
+  containing it.
