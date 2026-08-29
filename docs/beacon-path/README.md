@@ -37,10 +37,10 @@ the payload travels past it into the log.
 ## The choice between a function and a cached object
 
 An empty path can be answered two ways. A CloudFront Function on viewer-request returns a synthetic
-204. A small object on the origin is served from the cache. Both carry the same CloudFront request
-charge and the same log delivery, and the invocation charge below is the only difference between
-them. [#99](https://github.com/KensioSoftware/rainlytics/issues/99) took the decision on three
-things beside cost.
+204, and a small object on the origin is served from the cache. Both carry the same CloudFront
+request charge and the same log delivery, and the invocation charge below is the only difference
+between them. [#99](https://github.com/KensioSoftware/rainlytics/issues/99) took the decision on
+three things beside cost.
 
 **Rainlytics can ship the function on its own.** The construct attaches a behaviour and a function
 to a distribution you already own, whatever that distribution serves. A cached object needs
