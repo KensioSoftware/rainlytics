@@ -38,7 +38,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json && tsc -p tsconfig.lambda.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && tsc -p tsconfig.lambda.json && cp src/cdk/beacon-204.cff.js dist/cdk/",
     "prepack": "pnpm build",
     "build:check": "tsc -p tsconfig.json --noEmit",
     "fmt": "oxlint --fix . && oxfmt .",
