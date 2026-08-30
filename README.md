@@ -98,6 +98,29 @@ answer, at what a query costs. See the [summary
 schedule](docs/summary-schedule/) and [rollup summaries](docs/summaries/)
 pages.
 
+The optional beacon covers what the access log cannot see. A construct answers
+a collection path with a 204 at the CloudFront edge, and a module bundled into
+the site's own JavaScript reports to it:
+
+```typescript
+new BeaconPath(this, "RainlyticsBeacon", { distribution, origin });
+```
+
+```typescript
+import { startBeacon } from "@kensio/rainlytics/beacon";
+
+const beacon = startBeacon();
+beacon.report({ event: "signup", page: location.pathname });
+```
+
+Route changes in a single-page app report themselves. The request stops at the
+edge, and CloudFront writes it to the same log objects, the same partitions and
+the same table as every page request, so the beacon adds rows rather than a
+pipeline. It weighs 519 bytes gzipped, carries no cookies and no identifier,
+and `pnpm check` fails if it grows past its budget. See the [browser
+beacon](docs/beacon/), [beacon path](docs/beacon-path/) and [beacon
+events](docs/beacon-events/) pages.
+
 ## Status
 
 Experimental and pre-1.0. The construct API changes without a major version

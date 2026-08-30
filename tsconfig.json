@@ -1,9 +1,16 @@
 {
   "compilerOptions": {
-    // ES2022 is the floor both halves of this package can meet. `engines`
-    // asks for Node 22, and the beacon runs in whatever browser the site it
-    // is bundled into supports.
-    "target": "ES2022",
+    // ES2021 is the syntax the `browserslist` floor in package.json can run.
+    // Baseline 2022 is Safari 16, and the one piece of ES2022 syntax outside
+    // it is the static initialization block, which Safari took until 16.4 to
+    // ship. `engines` asks for Node 22, which is far above either.
+    //
+    // `useDefineForClassFields` follows `target` when nothing names it, and
+    // ES2021 would turn it off. Naming it keeps class fields meaning what
+    // they meant, and lowering the target then changes how the emitted
+    // JavaScript says it rather than what it says.
+    "target": "ES2021",
+    "useDefineForClassFields": true,
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     // DOM alongside the ES library because the beacon is browser code.

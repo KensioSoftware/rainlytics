@@ -19,6 +19,10 @@
       "types": "./dist/cdk/index.d.ts",
       "import": "./dist/cdk/index.js"
     },
+    "./beacon": {
+      "types": "./dist/beacon/index.d.ts",
+      "import": "./dist/beacon/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -30,6 +34,9 @@
     "LICENSE"
   ],
   "sideEffects": false,
+  "browserslist": [
+    "baseline 2022"
+  ],
   "imports": {
     "#test/*": "./test/*"
   },
@@ -49,7 +56,8 @@
     "test": "pnpm build && vitest run",
     "test:coverage": "pnpm build && vitest run --coverage",
     "pack:check": "./scripts/sh/pack-check.sh",
-    "check": "pnpm fmt && pnpm lint && pnpm docs:check && pnpm fta && pnpm build:check && pnpm pack:check && pnpm test:coverage"
+    "beacon:size": "node scripts/js/beacon-size.mjs",
+    "check": "pnpm fmt && pnpm lint && pnpm docs:check && pnpm fta && pnpm build:check && pnpm pack:check && pnpm beacon:size && pnpm test:coverage"
   },
   "peerDependencies": {
     "aws-cdk-lib": "^2.265.0",
@@ -75,7 +83,9 @@
     "aws-cdk-lib": "^2.265.0",
     "constructs": "^10.7.2",
     "conventional-changelog-conventionalcommits": "9.3.1",
+    "esbuild": "^0.28.2",
     "fta-cli": "^3.0.0",
+    "happy-dom": "^20.11.15",
     "node-sql-parser": "^5.4.0",
     "oxfmt": "^0.64.0",
     "oxlint": "^1.77.0",

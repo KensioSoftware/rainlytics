@@ -18,6 +18,11 @@ runs on every `pnpm check`.
 - [Summary schedule](summary-schedule/), which computes the questions on a timer and stores the
   answers.
 
+## In the browser
+
+- [Browser beacon](beacon/), which reports the route changes and custom events a server log cannot
+  see.
+
 ## Reading the data back
 
 - [Command line](command-line/), the `rainlytics` command and what it writes.

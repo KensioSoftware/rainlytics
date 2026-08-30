@@ -11,5 +11,11 @@
 # .github/dependabot.yml. Excluding a package there without excluding it here
 # moves the wait to a bump pull request whose every job dies at
 # "pnpm install --frozen-lockfile".
+
+# esbuild ships a platform binary and links it from a postinstall script.
+# Without this it installs and then fails to run, which `beacon-size.mjs`
+# would report as a broken bundle rather than as a missing binary.
+allowBuilds:
+  esbuild: true
 minimumReleaseAgeExclude:
   - "@kensio/*"
