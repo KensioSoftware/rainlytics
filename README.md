@@ -10,10 +10,10 @@ already writes. A measured page downloads no analytics JavaScript, opens no
 extra connection, and resolves no extra hostname.
 
 An optional beacon covers what an access log cannot see accurately, such as
-route changes in a single-page app and events the site raises itself. It is
-bundled into the site's own JavaScript and reports back through the site's own
-domain (no second host, no separate script tag). Core Web Vitals and JavaScript
-errors need fields beyond the current envelope and are not there yet.
+route changes in a single-page app, Core Web Vitals, JavaScript errors and
+events the site raises itself. It is bundled into the site's own JavaScript and
+reports back through the site's own domain (no second host, no separate script
+tag).
 
 Everything runs on usage-priced AWS services, batched and precomputed on a
 schedule rather than processed per request. Nothing in the pipeline is always
@@ -121,10 +121,24 @@ beacon.report({ event: "signup", page: location.pathname });
 Route changes in a single-page app report themselves. The request stops at the
 edge, and CloudFront writes it to the same log objects, the same partitions and
 the same table as every page request, so the beacon adds rows rather than a
-pipeline. It weighs 545 bytes gzipped, sends no cookies, generates no
-identifier, and `pnpm check` fails if it grows past its budget. See the [browser
-beacon](docs/beacon/), [beacon path](docs/beacon-path/) and [beacon
-events](docs/beacon-events/) pages.
+pipeline. It weighs 586 bytes gzipped, sends no cookies, generates no
+identifier, and `pnpm check` fails if it grows past its budget.
+
+Core Web Vitals and uncaught JavaScript errors sit behind imports of their own,
+so a site pays for what it asked for:
+
+```typescript
+import { reportVitals } from "@kensio/rainlytics/beacon/vitals";
+import { reportErrors } from "@kensio/rainlytics/beacon/errors";
+
+reportVitals(beacon);
+reportErrors(beacon);
+```
+
+That is TTFB, FCP, LCP and CLS, plus what an uncaught error said. All of it
+together comes to 1349 bytes gzipped. See the [browser beacon](docs/beacon/),
+[beacon path](docs/beacon-path/) and [beacon events](docs/beacon-events/)
+pages.
 
 ## Status
 

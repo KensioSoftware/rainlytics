@@ -83,7 +83,9 @@ export {
 export {
   aBeaconEvent,
   beaconEventColumn,
+  beaconMessageColumn,
   beaconPageColumn,
+  beaconValueColumn,
   beaconVersionColumn,
   outsideTheBeaconPath,
 } from "./beacon-rows.js";

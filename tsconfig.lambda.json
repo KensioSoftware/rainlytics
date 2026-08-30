@@ -5,9 +5,10 @@
   // say so. A CommonJS build needs nothing beside it, and it is what the
   // simulator in the tests can load.
   //
-  // The CDK constructs and the command line are left out. Neither is reachable
-  // from a handler, and `aws-cdk-lib` is a peer dependency the function's
-  // runtime does not have.
+  // The CDK constructs, the command line and the browser beacon are left out.
+  // None is reachable from a handler. `aws-cdk-lib` is a peer dependency the
+  // function's runtime does not have, and `src/beacon` is code for a browser
+  // that would otherwise be bytes in every cold start for nobody.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "rootDir": "src",
@@ -24,5 +25,12 @@
     "sourceMap": false
   },
   "include": ["src/**/*"],
-  "exclude": ["src/cdk", "src/cli", "test", "**/*.test.ts", "**/*.spec.ts"]
+  "exclude": [
+    "src/beacon",
+    "src/cdk",
+    "src/cli",
+    "test",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
 }

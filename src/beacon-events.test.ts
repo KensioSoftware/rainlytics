@@ -13,11 +13,20 @@ import { deployStacks } from "#test/simulated-deployment.js";
 
 import { runAthenaQuery } from "./athena/athena-query.js";
 import {
+  type BeaconEvent,
   beaconParameters,
   beaconQueryString,
   beaconSchemaVersion,
   defaultBeaconPath,
 } from "./beacon-events.js";
+import {
+  aBeaconEvent,
+  beaconEventColumn,
+  beaconMessageColumn,
+  beaconValueColumn,
+} from "./beacon-rows.js";
+import { qualifiedTableName } from "./dataset.js";
+import { partitionPredicate } from "./rollup-rows.js";
 import { CloudFrontLogDelivery } from "./cdk/log-delivery.js";
 import { LogBucket } from "./cdk/log-bucket.js";
 import { LogTable } from "./cdk/log-table.js";
@@ -228,15 +237,51 @@ describe("a window holding beacon events", () => {
    * origin, no body comes back, and the query string is logged whatever the
    * cache key is set to.
    */
-  const putBeaconEvent = (deployed: Deployed, page: string): Promise<void> =>
+  const putBeaconPayload = (
+    deployed: Deployed,
+    event: BeaconEvent,
+  ): Promise<void> =>
     putRecord(deployed, {
       "cs-uri-stem": defaultBeaconPath,
-      "cs-uri-query": delivered(beaconQueryString({ event: "route", page })),
+      "cs-uri-query": delivered(beaconQueryString(event)),
       "sc-status": "204",
       "sc-content-type": "-",
-      "cs(Referer)": delivered(`https://www.example.com${page}`),
+      "cs(Referer)": delivered(`https://www.example.com${event.page}`),
       "x-edge-result-type": "FunctionGeneratedResponse",
     });
+
+  /** One route change, which is what most of these cases seed. */
+  const putBeaconEvent = (deployed: Deployed, page: string): Promise<void> =>
+    putBeaconPayload(deployed, { event: "route", page });
+
+  /**
+   * What the beacon columns read off the rows in the hour.
+   *
+   * A plain select rather than a rollup, because no shipped question reads
+   * these two yet. #112 left a rollup over the vitals to its own issue, and
+   * this is the round trip that has to hold before one can be written.
+   */
+  const beaconRows = async (): Promise<
+    readonly Readonly<Record<string, string | undefined>>[]
+  > => {
+    const outcome = await runAthenaQuery({
+      sql:
+        `SELECT ${beaconEventColumn} AS event,\n` +
+        `    ${beaconValueColumn} AS value,\n` +
+        `    ${beaconMessageColumn} AS message\n` +
+        `  FROM ${qualifiedTableName()}\n` +
+        `  WHERE ${partitionPredicate(theHour)}\n` +
+        `    AND ${aBeaconEvent.join("\n    AND ")}\n` +
+        `  ORDER BY 1\n`,
+      database: "rainlytics",
+      workgroup: "rainlytics",
+      region: "us-east-1",
+    });
+
+    expect(outcome.state).toBe("SUCCEEDED");
+
+    return outcome.rows;
+  };
 
   /**
    * A window holding more beacon events than responses of the site's own.
@@ -277,6 +322,58 @@ describe("a window holding beacon events", () => {
 
     return outcome.rows;
   };
+
+  it("carries a web vital's number back off the row", async () => {
+    // Given an hour holding a largest contentful paint the browser measured.
+    const deployed = await deployAnalytics();
+    await putBeaconPayload(deployed, {
+      event: "lcp",
+      page: "/guides/",
+      value: 2400,
+    });
+
+    // When the beacon columns are read back.
+    const rows = await beaconRows();
+
+    // Then the number is the one the browser sent. It went through the
+    // browser's encoding, CloudFront's own on the way into the record, and
+    // both decodes on the way out.
+    expect(rows).toStrictEqual([{ event: "lcp", value: "2400", message: "" }]);
+  });
+
+  it("carries what an error said back off the row", async () => {
+    // Given an error message holding the characters that separate one
+    // parameter from the next, which a message quoting a URL produces.
+    const deployed = await deployAnalytics();
+    const said = "TypeError: no handler for /a?b=c&d=e";
+    await putBeaconPayload(deployed, {
+      event: "error",
+      page: "/liju/",
+      message: said,
+    });
+
+    // When the beacon columns are read back.
+    const rows = await beaconRows();
+
+    // Then the message is the one the browser sent, rather than three more
+    // parameters. This is the round trip a rollup counting errors by message
+    // would be built on.
+    expect(rows).toStrictEqual([{ event: "error", value: "", message: said }]);
+  });
+
+  it("leaves both columns empty for an event that measured nothing", async () => {
+    // Given a route change, which carries neither.
+    const deployed = await deployAnalytics();
+    await putBeaconEvent(deployed, "/");
+
+    // When the beacon columns are read back.
+    const rows = await beaconRows();
+
+    // Then both read empty rather than failing the query. A question over
+    // one event name reads rows that all carry the same shape, and a
+    // question over the lot still runs.
+    expect(rows).toStrictEqual([{ event: "route", value: "", message: "" }]);
+  });
 
   it("counts the site's own responses under status-codes", async () => {
     // Given an hour holding five beacon events and three responses the site

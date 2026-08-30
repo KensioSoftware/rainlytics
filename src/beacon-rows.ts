@@ -26,6 +26,27 @@ export const beaconEventColumn = decodedParameter(beaconParameters.event);
 export const beaconPageColumn = decodedParameter(beaconParameters.page);
 
 /**
+ * The number an event measured, as SQL.
+ *
+ * Text, the way every one of these is text. The column reads empty for an
+ * event that measured nothing, and a question wanting arithmetic casts it
+ * itself over rows it has already narrowed to one event name. Casting here
+ * would answer 0 for every route change, and a percentile over those zeroes
+ * would be a plausible number that is wrong.
+ */
+export const beaconValueColumn = decodedParameter(beaconParameters.value);
+
+/**
+ * The text an event carries, as SQL.
+ *
+ * The only column here that can hold anything a site's own code wrote. A
+ * deployment that delivers no viewer address to hold no personal data should
+ * read `docs/beacon/` before turning error reporting on, because this is the
+ * way back in.
+ */
+export const beaconMessageColumn = decodedParameter(beaconParameters.message);
+
+/**
  * The rows a beacon event is, as conditions for `rowsFor`.
  *
  * The path is not among them. A rollup narrows to the beacon's path through
