@@ -176,9 +176,9 @@ Shows how much CloudFront served from its own cache.
 
 Counted over the requests where the cache had a say, being a Hit, a
 RefreshHit or a Miss. Everything else CloudFront reports is a request the
-cache was never asked about: a redirect, an error, or a response a
-CloudFront Function generated. Counting those would move the ratio without
-anything about the cache having changed.
+cache was never asked about, such as a redirect, an error, or the
+\`FunctionGeneratedResponse\` a beacon event comes back as. Counting those
+would move the ratio without anything about the cache having changed.
 
 One row, so \`--limit\` does nothing here.`,
   body: (request) =>
