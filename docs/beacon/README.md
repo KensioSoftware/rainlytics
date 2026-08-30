@@ -35,9 +35,13 @@ beacon.report({ event: "signup", page: location.pathname });
 ```
 
 The request carries no cookies. `credentials: "omit"` is on every send, which keeps the site's own
-cookies out of a header that would be paid for on each event and could reach a log. There is no
-identifier of any kind in the payload. [Counting visitors](../visitors/) covers what a visitor is
+cookies out of a header that would be paid for on each event and could reach a log. The beacon
+generates no identifier of any kind. [Counting visitors](../visitors/) covers what a visitor is
 here, and it is computed from the access log rather than from anything the browser sends.
+
+`event` and `page` are the site's own values, and the beacon sends whatever it is handed. Keep
+personal data out of both. Whatever they hold is written into `cs_uri_query` in the access log and
+kept for as long as the log objects are.
 
 **The page the beacon starts on is not reported.** Loading it was a request, CloudFront recorded it,
 and reporting it again would count one view twice in two questions that are meant to agree. What the
@@ -59,8 +63,8 @@ beacon.report({ event: "signup", page: location.pathname });
 
 | Measure         | Bytes |
 | --------------- | ----- |
-| Minified        | 865   |
-| Gzipped         | 519   |
+| Minified        | 925   |
+| Gzipped         | 545   |
 | Budget, gzipped | 640   |
 
 `pnpm check` fails over that budget. Brotli, which CloudFront serves to anything that asks, comes in
@@ -115,8 +119,8 @@ wrong for whichever banner the site actually runs.
 | `path`         | `/_rainlytics` | The collection path, matching `BeaconPath`. |
 | `reportRoutes` | `true`         | Whether route changes report themselves.    |
 
-A site that passed `path` to the construct passes the same one here. The two disagreeing is a beacon
-reporting into a path nothing answers, and the first sign of it is a dataset holding no beacon rows.
+A site that passed `path` to the construct passes the same one here. If the two disagree, the beacon
+reports to a path nothing answers, and the first sign of that is a dataset holding no beacon rows.
 
 `reportRoutes: false` leaves `report` as the only way an event is sent, which suits a site that would
 rather call its own router's hook.

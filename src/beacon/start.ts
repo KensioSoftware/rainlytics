@@ -23,8 +23,8 @@ export interface BeaconOptions {
    * The collection path, matching what `BeaconPath` was deployed with.
    *
    * Defaults to {@link defaultBeaconPath}. A site that passed `path` to the
-   * construct passes the same one here, and the two disagreeing is a beacon
-   * reporting into a path nothing answers.
+   * construct passes the same one here. If the two disagree, the beacon
+   * reports to a path nothing answers.
    */
   readonly path?: string;
 

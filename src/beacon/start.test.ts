@@ -3,7 +3,10 @@
 import { faker } from "@faker-js/faker";
 import { describe, expect, it } from "vitest";
 
-import { collectionEndpoint } from "#test/collection-endpoint.js";
+import {
+  collectionEndpoint,
+  requestsSettled,
+} from "#test/collection-endpoint.js";
 
 import { defaultBeaconPath } from "../beacon-events.js";
 import { routeEventName, startBeacon } from "./start.js";
@@ -16,8 +19,14 @@ describe("the beacon a site starts", () => {
    * the endpoint the moment after acting. A request the test makes and waits
    * for gives the endpoint something to have received, and what the beacon
    * did or did not send is then visible beside it.
+   *
+   * The drain comes first. Waiting for this request alone would prove only
+   * that this request arrived, and a beacon send already on the wire could
+   * still land after the assertion read the list.
    */
   const mark = async (): Promise<string> => {
+    await requestsSettled();
+
     const path = `/marked-${faker.string.uuid()}`;
     await fetch(path);
 

@@ -74,6 +74,32 @@ describe("watching a single-page app change route", () => {
     stop();
   });
 
+  it("leaves a wrapper added after it in place when it stops", () => {
+    // Given a beacon watching, and a router that wrapped `pushState` after
+    // it and is still using it.
+    const { pages, stop } = watchedPages();
+    const alsoSeen: string[] = [];
+    const ours = history.pushState.bind(history);
+    history.pushState = (...args: Parameters<History["pushState"]>): void => {
+      ours(...args);
+      alsoSeen.push(location.pathname);
+    };
+
+    // When the beacon stops.
+    stop();
+    const page = aPage();
+    history.pushState({}, "", page);
+
+    // Then the router's wrapper is still running and the beacon is silent.
+    // Putting the original back here would take the router's wrapper off the
+    // page with it, and the site would lose whatever it does on a route
+    // change with no error to find it by.
+    expect(alsoSeen).toStrictEqual([page]);
+    expect(pages).toStrictEqual([]);
+
+    history.pushState = ours;
+  });
+
   it("hears nothing once it has been stopped", () => {
     // Given a watch that has been stopped, which is what a site withdrawing
     // consent leaves behind.
