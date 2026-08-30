@@ -19,7 +19,7 @@ import { RollupSummaries } from "../cdk/rollup-summaries.js";
 import type { RollupSummariesProps } from "../cdk/summary-configuration.js";
 import { partitionPrefix } from "../partitions.js";
 import { cacheHitRatio, pageviews } from "../rollup-questions.js";
-import type { Rollup } from "../rollups.js";
+import { defaultVisitorSaltParameter } from "../visitor-identity.js";
 import { rainlyticsCommands } from "./command.js";
 import { runCli } from "./run.js";
 
@@ -34,18 +34,6 @@ import { runCli } from "./run.js";
  */
 describe("the named questions, answered from stored summaries", () => {
   let intercepted: SimSdk | undefined;
-
-  /**
-   * The pageviews question with its visitor count turned off.
-   *
-   * These cases are about reading a stored answer back, and a visitor count
-   * would be a second query nothing here can answer. Yulin's Athena engine
-   * has no `sha256`, `to_utf8` or `to_hex`, so the count comes back empty
-   * under a SUCCEEDED state and the run refuses it, leaving no summary to
-   * read. KensioSoftware/yulin#1082 is that gap. The name is the same, so
-   * every key and question below is the one a shipped deployment writes.
-   */
-  const viewsOnly: Rollup = { ...pageviews, countsVisitors: false };
 
   /** The hour the traffic in these cases happened in. */
   const anHour = new Date("2026-08-23T08:00:00.000Z");
@@ -94,7 +82,7 @@ describe("the named questions, answered from stored summaries", () => {
         new RollupSummaries(stack, "RainlyticsSummaries", {
           table,
           workgroup,
-          rollups: [viewsOnly, cacheHitRatio],
+          rollups: [pageviews, cacheHitRatio],
           granularities: ["hourly"],
           summariesBucketName,
           removalPolicy: RemovalPolicy.DESTROY,
@@ -113,6 +101,22 @@ describe("the named questions, answered from stored summaries", () => {
     intercepted = new SimSdk({ simAws });
     intercepted.intercept(AthenaClient);
     intercepted.intercept(S3Client);
+
+    // The salt secret, put where a site's operator puts it. Nothing in the
+    // stack creates it, because CloudFormation writes no SecureString.
+    // `docs/visitors/` has the command. The summaries below carry a visitor
+    // count, and the schedules need it before they fire.
+    await simAws
+      .region("us-east-1")
+      .account()
+      .ssm()
+      .putParameter({
+        input: {
+          Name: defaultVisitorSaltParameter,
+          Type: "SecureString",
+          Value: faker.string.hexadecimal({ length: 64, prefix: "" }),
+        },
+      });
 
     return {
       simAws,

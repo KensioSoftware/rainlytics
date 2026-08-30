@@ -87,18 +87,8 @@ const sender = "c_ip, cs_user_agent";
  */
 const loggedHour = "cast(timestamp_ms AS bigint) / 3600000";
 
-/**
- * One visitor's identical events in one hour, counted no further than the cap.
- *
- * `least(count(*), 60)` says this in fewer characters and is what Athena would
- * take. Yulin's query engine has no `least` and answers the whole query from a
- * declaration rather than running it, which would leave this rule with no test
- * that executes. Raised as KensioSoftware/yulin#1141. The `CASE` is the same
- * arithmetic in a form both engines run.
- */
-const cappedCount =
-  `CASE WHEN count(*) > ${String(beaconEventCap)}` +
-  ` THEN ${String(beaconEventCap)} ELSE count(*) END`;
+/** One visitor's identical events in one hour, counted no further than the cap. */
+const cappedCount = `least(count(*), ${String(beaconEventCap)})`;
 
 /** Events by page and by name, added by both. */
 const beaconEventTotals: RollupTotals = { added: ["events"] };

@@ -4,8 +4,7 @@ import { CachePolicy, Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { S3BucketOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { PolicyStatement, ServicePrincipal } from "aws-cdk-lib/aws-iam";
 import { Bucket } from "aws-cdk-lib/aws-s3";
-import { Match, Template } from "aws-cdk-lib/assertions";
-import { App, CfnOutput, RemovalPolicy, Stack } from "aws-cdk-lib/core";
+import { type App, CfnOutput, RemovalPolicy, Stack } from "aws-cdk-lib/core";
 import { describe, expect, it } from "vitest";
 
 import { deployStacks } from "#test/simulated-deployment.js";
@@ -58,6 +57,9 @@ describe("answering the beacon's collection path", () => {
         new CfnOutput(stack, "DistributionDomainName", {
           value: distribution.distributionDomainName,
         });
+        new CfnOutput(stack, "DistributionId", {
+          value: distribution.distributionId,
+        });
         new CfnOutput(stack, "SiteBucketName", { value: bucketName });
 
         new BeaconPath(stack, "RainlyticsBeacon", {
@@ -76,6 +78,7 @@ describe("answering the beacon's collection path", () => {
     return {
       simAws,
       bucketName,
+      distributionId: stack?.output("DistributionId") ?? "",
       get: async (pathAndQuery: string): Promise<Response> =>
         http.fetch(`https://${host}${pathAndQuery}`, { redirect: "manual" }),
     };
@@ -190,125 +193,90 @@ describe("answering the beacon's collection path", () => {
   });
 
   describe("what the distribution is given", () => {
-    /**
-     * These read the synthesised template rather than the deployed
-     * simulation. Yulin models no cache policy on a behaviour and its
-     * CloudFront has no `ListFunctions` or `GetFunction`, so a deployed
-     * distribution has nothing to ask about either. Raised as
-     * KensioSoftware/yulin#1130 and KensioSoftware/yulin#1131.
-     *
-     * What the deployed function does is covered above, by requests going
-     * into the simulation and coming back 204.
-     */
-    const synthesised = (props: Partial<BeaconPathProps> = {}): Template => {
-      const stack = new Stack(new App(), "SiteStack", {
-        env: { account: "123456789012", region: "eu-west-2" },
-      });
-      new Bucket(stack, "SiteBucket", { bucketName: "site-bucket" });
-      const origin = S3BucketOrigin.withOriginAccessControl(
-        Bucket.fromBucketName(stack, "SiteOrigin", "site-bucket"),
-      );
-      const distribution = new Distribution(stack, "SiteDistribution", {
-        defaultBehavior: { origin },
-      });
-      new BeaconPath(stack, "RainlyticsBeacon", {
-        ...props,
-        distribution,
-        origin,
-      });
-
-      return Template.fromStack(stack);
-    };
-
     /** The managed `CachingOptimized` policy, under the fixed id AWS gives it. */
     const cachingOptimized = "658327ea-f89d-4fab-a63d-7e88639e58f6";
 
-    /** The distribution properties, matched on the beacon's own behaviour. */
-    const beaconBehaviour = (
-      properties: Record<string, unknown>,
-    ): Record<string, unknown> => {
-      const matched = Match.objectLike({
-        PathPattern: defaultBeaconPath,
-        ...properties,
-      });
+    /** The beacon's own behaviour, read off the deployed distribution. */
+    const beaconBehaviour = async (props: Partial<BeaconPathProps> = {}) => {
+      const { simAws, distributionId } = await deployBeacon(props);
+      const read = await simAws
+        .cloudFront()
+        .getDistribution({ input: { Id: distributionId } });
 
-      return {
-        DistributionConfig: Match.objectLike({
-          CacheBehaviors: Match.arrayWith([matched]),
-        }),
-      };
+      return read.Distribution?.DistributionConfig?.CacheBehaviors?.Items?.find(
+        (behaviour) =>
+          behaviour.PathPattern === (props.path ?? defaultBeaconPath),
+      );
     };
 
-    it("leaves the query string out of the cache key", () => {
+    /** The one function the deployed account holds, live. */
+    const publishedFunction = async (props: Partial<BeaconPathProps> = {}) => {
+      const { simAws } = await deployBeacon(props);
+      const listed = await simAws
+        .cloudFront()
+        .listFunctions({ input: { Stage: "LIVE" } });
+
+      return listed.FunctionList.Items[0];
+    };
+
+    it("leaves the query string out of the cache key", async () => {
       // Given a beacon path taking the default cache policy.
-      // When the stack is synthesised.
-      const template = synthesised();
+      // When the stack is deployed.
+      const behaviour = await beaconBehaviour();
 
       // Then the behaviour carries the managed policy that keys on the path
       // alone. The payload travels in the query string, and a policy keying
       // on it would make every event a cache entry of its own.
-      template.hasResourceProperties(
-        "AWS::CloudFront::Distribution",
-        beaconBehaviour({ CachePolicyId: cachingOptimized }),
-      );
+      expect(behaviour?.CachePolicyId).toBe(cachingOptimized);
     });
 
-    it("takes a cache policy a site would rather use", () => {
+    it("takes a cache policy a site would rather use", async () => {
       // Given a site standardising on one managed policy across its
       // behaviours, this one keying on nothing and storing nothing.
       const cachePolicy = CachePolicy.CACHING_DISABLED;
 
       // When the beacon is deployed with it.
-      const template = synthesised({ cachePolicy });
+      const behaviour = await beaconBehaviour({ cachePolicy });
 
       // Then that is the policy on the behaviour.
-      template.hasResourceProperties(
-        "AWS::CloudFront::Distribution",
-        beaconBehaviour({ CachePolicyId: cachePolicy.cachePolicyId }),
-      );
+      expect(behaviour?.CachePolicyId).toBe(cachePolicy.cachePolicyId);
     });
 
-    it("runs the function before the cache is consulted", () => {
+    it("runs the function before the cache is consulted", async () => {
       // Given the same stack.
-      const template = synthesised();
+      const behaviour = await beaconBehaviour();
 
       // Then the function is associated at viewer-request. CloudFront
       // reaches that event before the cache lookup and before any origin
       // request, and it is what makes the 204 free of both.
-      const atViewerRequest = Match.objectLike({
-        EventType: "viewer-request",
-      });
-      template.hasResourceProperties(
-        "AWS::CloudFront::Distribution",
-        beaconBehaviour({ FunctionAssociations: [atViewerRequest] }),
-      );
+      expect(
+        behaviour?.FunctionAssociations?.Items?.map(
+          (association) => association.EventType,
+        ),
+      ).toStrictEqual(["viewer-request"]);
     });
 
-    it("deploys the function on the JS 2.0 runtime", () => {
+    it("deploys the function on the JS 2.0 runtime", async () => {
       // Given the same stack.
-      const template = synthesised();
+      const summary = await publishedFunction();
 
       // Then the function names the runtime its source is written against.
       // The lint rules on `beacon-204.cff.js` hold it to JS 2.0's
       // restrictions, and JS 1.0 has its own.
-      template.hasResourceProperties("AWS::CloudFront::Function", {
-        FunctionConfig: Match.objectLike({ Runtime: "cloudfront-js-2.0" }),
-      });
+      expect(summary?.FunctionConfig.Runtime).toBe("cloudfront-js-2.0");
     });
 
-    it("takes a function name where the account needs a chosen one", () => {
+    it("takes a function name where the account needs a chosen one", async () => {
       // Given two sites in one account. CloudFront function names are unique
       // across an account, and CDK derives one from the construct's path in
       // the tree.
       const functionName = `beacon-${faker.string.alphanumeric(8)}`;
 
       // When the beacon is deployed under a name of its own.
-      const template = synthesised({ functionName });
+      const summary = await publishedFunction({ functionName });
 
       // Then that is the name it carries.
-      template.hasResourceProperties("AWS::CloudFront::Function", {
-        Name: functionName,
-      });
+      expect(summary?.Name).toBe(functionName);
     });
   });
 });

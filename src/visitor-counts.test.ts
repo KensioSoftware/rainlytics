@@ -33,7 +33,7 @@ import {
 import {
   saltedSql,
   visitorSaltPlaceholder,
-  visitorText,
+  visitorIdentifier,
 } from "./visitor-identity.js";
 
 describe("the query that counts visitors", () => {
@@ -72,14 +72,9 @@ describe("the query that counts visitors", () => {
 /*
  * What one record hashes to, run through Athena.
  *
- * These count the distinct text a digest is taken over rather than the digest
- * itself. Yulin's Athena engine has no `sha256`, `to_utf8` or `to_hex`, and a
- * query reaching for one comes back empty under a SUCCEEDED state.
- * KensioSoftware/yulin#1082 is that gap.
- *
- * `sha256` is injective for these purposes, so two texts are two identifiers
- * and one text is one. What the cases below establish about the text
- * therefore holds of the identifier over it.
+ * These select the identifier itself over the rows the shipped count reads.
+ * Simulated Athena computes the digest. The identifiers here are the ones a
+ * deployment counts.
  */
 describe("who one identifier stands for", () => {
   let intercepted: SimSdk | undefined;
@@ -175,21 +170,20 @@ describe("who one identifier stands for", () => {
   };
 
   /**
-   * The distinct texts one window hashes, under one day's salt.
+   * The distinct identifiers one window holds, under one day's salt.
    *
    * The account is the one `deployAnalytics` deployed. Every case here builds
    * one before it seeds anything, and the SDK is pointed at it there.
    */
-  const textsIn = async (
+  const identifiersIn = async (
     window: SummaryWindow,
     salt: string,
   ): Promise<readonly string[]> => {
-    // The rows the shipped count reads, with the text a digest is taken over
-    // put where the count would be. Yulin cannot evaluate the digest, and it
-    // runs everything under it.
+    // The rows the shipped count reads, with the identifier it counts put
+    // where the count would be.
     const request = rollupRequest({ range: summarisedWindow });
     const lines = [
-      `SELECT DISTINCT ${visitorText} AS visitor`,
+      `SELECT DISTINCT ${visitorIdentifier} AS visitor`,
       `  FROM ${qualifiedTableName()}`,
       visitorRows(request),
     ];
@@ -218,7 +212,9 @@ describe("who one identifier stands for", () => {
     await putView(deployed, anHour, "203.0.113.7");
 
     // Then the hour holds one visitor.
-    await expect(textsIn(anHourly(anHour), "a-salt")).resolves.toHaveLength(1);
+    await expect(
+      identifiersIn(anHourly(anHour), "a-salt"),
+    ).resolves.toHaveLength(1);
   });
 
   it("is two identifiers for two addresses on one day", async () => {
@@ -229,9 +225,9 @@ describe("who one identifier stands for", () => {
     await putView(deployed, anHour, "198.51.100.24");
 
     // Then the hour holds two visitors.
-    const texts = await textsIn(anHourly(anHour), "a-salt");
+    const identifiers = await identifiersIn(anHourly(anHour), "a-salt");
 
-    expect(new Set(texts).size).toBe(2);
+    expect(new Set(identifiers).size).toBe(2);
   });
 
   it("is two identifiers for one address on two days", async () => {
@@ -243,8 +239,8 @@ describe("who one identifier stands for", () => {
 
     // When each day is counted under its own salt.
     const [today, tomorrow] = await Promise.all([
-      textsIn(anHourly(anHour), "todays-salt"),
-      textsIn(anHourly(nextDay), "tomorrows-salt"),
+      identifiersIn(anHourly(anHour), "todays-salt"),
+      identifiersIn(anHourly(nextDay), "tomorrows-salt"),
     ]);
 
     // Then the same person is a different visitor. This is why a month is not
@@ -262,13 +258,12 @@ describe("who one identifier stands for", () => {
     await putView(deployed, anHour);
 
     // When the hour is counted.
-    const texts = await textsIn(anHourly(anHour), "a-salt");
+    const identifiers = await identifiersIn(anHourly(anHour), "a-salt");
 
-    // Then only the record with an address is counted. Left in, every record
-    // of the days before the delivery changed would gather into one
-    // identifier and report a visitor nobody was.
-    expect(texts).toStrictEqual([
-      "a-salt|203.0.113.7|Mozilla/5.0%20(Macintosh)",
-    ]);
+    // Then only the record with an address is counted. The addressless one
+    // hashes to an identifier of its own, and leaving it in would show up
+    // here as a second visitor. Every record of the days before the delivery
+    // changed would gather into that one and report somebody nobody was.
+    expect(identifiers).toHaveLength(1);
   });
 });

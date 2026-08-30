@@ -15,9 +15,7 @@
   // rule list, and the beacon's function is the one file they cover. A repo
   // told to use no arrow functions anywhere would be unusable, so the rules
   // arrive as an override rather than at the top level.
-  "extends": [
-    "./node_modules/@kensio/yulin/dist/config/oxlint/cffjs2.oxlintrc.json"
-  ],
+  "extends": ["./node_modules/@kensio/yulin/cffjs2.oxlintrc.json"],
 
   "plugins": ["eslint", "typescript", "unicorn", "oxc", "vitest", "jsdoc"],
 

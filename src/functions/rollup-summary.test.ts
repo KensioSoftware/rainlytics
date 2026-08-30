@@ -29,6 +29,7 @@ import {
   summarisedWindow,
   windowPlaceholder,
 } from "../rollups.js";
+import { visitorCountSql } from "../visitor-counts.js";
 import { defaultVisitorSaltParameter } from "../visitor-identity.js";
 import { visitorSaltPlaceholder } from "../visitor-identity.js";
 import { handler } from "./rollup-summary.js";
@@ -178,20 +179,13 @@ describe("one run of the rollup summary job", () => {
   });
 
   /**
-   * A visitor count the simulated engine can answer.
+   * The visitor count a schedule carries beside the pageviews question.
    *
-   * The shipped one is `count(DISTINCT to_hex(sha256(to_utf8(...))))`, and
-   * Yulin has neither the digest nor a distinct count over an expression.
-   * KensioSoftware/yulin#1082 is that gap. This counts distinct addresses
-   * over the same window and carries the salt where the shipped query carries
-   * it, so what these cases cover is the run around the count.
+   * The shipped query, narrowed the way `aRun` narrows the question above.
    * `visitor-counts.test.ts` covers who one identifier stands for.
    */
   const aVisitorCount = (): string =>
-    `SELECT count(DISTINCT c_ip) AS visitors\n` +
-    `  FROM "rainlytics"."cloudfront_logs"\n` +
-    `  WHERE ${windowPlaceholder}\n` +
-    `    AND ${visitorSaltPlaceholder} <> ''\n`;
+    visitorCountSql(rollupRequest({ range: summarisedWindow }));
 
   /**
    * A quarter past nine, on both clocks.
