@@ -119,17 +119,38 @@ event would reach no log.
 
 ## What a beacon row looks like in the log
 
-One thing here is still unmeasured. The CloudFront documentation enumerates no `x-edge-result-type`
-value for a response that a function generated. The published list runs `Hit`, `RefreshHit`, `Miss`,
-`LimitExceeded`, `CapacityExceeded`, `Error`, `Redirect` and `LambdaExecutionError`. Read the value
-off a deployed distribution before writing a query that depends on it. The note is on
-[#99](https://github.com/KensioSoftware/rainlytics/issues/99).
+Measured on 2026-08-30, from a verification request to the collection path on a deployed
+distribution:
 
-Beacon rows also land in the status-code rollup as 204s. Anybody asking that question means to
-count page requests.
-[#103](https://github.com/KensioSoftware/rainlytics/issues/103) covers what to do with them, and
-[#104](https://github.com/KensioSoftware/rainlytics/issues/104) covers filtering a spammed
-collection path.
+```json
+{
+  "cs-uri-stem": "/_rainlytics",
+  "cs-uri-query": "v=1&e=verify119&p=%252Fverify%252F",
+  "sc-status": "204",
+  "sc-content-type": "-",
+  "x-edge-result-type": "FunctionGeneratedResponse"
+}
+```
+
+**`x-edge-result-type` is `FunctionGeneratedResponse`**, which the CloudFront documentation does not
+enumerate. The published list runs `Hit`, `RefreshHit`, `Miss`, `LimitExceeded`, `CapacityExceeded`,
+`Error`, `Redirect` and `LambdaExecutionError`, and this is none of them. The same value arrives at
+the browser as `x-cache: FunctionGeneratedResponse from cloudfront`.
+
+That is the value [cache hit ratio](../rollups/) needed. It counts a Hit, a RefreshHit and a Miss
+and nothing else, so a beacon row falls outside the ratio without the question having to know the
+beacon exists. Had it come back as a Hit, every event would have inflated the ratio.
+[#119](https://github.com/KensioSoftware/rainlytics/issues/119) is where that was settled.
+
+**The payload is encoded twice.** The browser encodes what it sends and CloudFront encodes the
+record again, so a `%2F` on the way out is `%252F` in the row. `decodedParameter` in
+`src/log-encoding.ts` is the two passes that read it back, and the row above is what they were
+written for.
+
+Beacon rows land in the status-code rollup as 204s, and `status-codes` takes them back out by path.
+Anybody asking that question means to count page requests. [Beacon
+events](../beacon-events/) has the rollup that counts the beacon's own rows instead, with the cap
+that bounds a flood of them.
 
 ## Permissions for a scoped deploy role
 
