@@ -58,6 +58,13 @@ expected=(
   package/dist/cdk/index.d.ts
   package/dist/beacon/index.js
   package/dist/beacon/index.d.ts
+  # The two the beacon's own subpaths point at. Vitals and errors are behind
+  # imports of their own so a site pays for what it asked for, and each is a
+  # separate entry in `exports` that npm will happily leave out of a tarball.
+  package/dist/beacon/vitals.js
+  package/dist/beacon/vitals.d.ts
+  package/dist/beacon/errors.js
+  package/dist/beacon/errors.d.ts
   # The CLI's entry point. `bin` in package.json is a third list that has to
   # agree with `files` and with `exports`, and npm links it onto a consumer's
   # PATH without ever checking the target is there. A missing one shows up as

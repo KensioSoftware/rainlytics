@@ -25,10 +25,11 @@
 // added later. This is the one shape of schema change an immutable store
 // takes without argument.
 //
-// **The envelope is versioned and the payload is not, yet.** Every event
-// carries the three parameters below. What each event type puts beside them
-// is for the beacon's own issue, and `version` is what lets that arrive
-// without reinterpreting rows already written.
+// **The envelope is versioned and the payload is not.** Every event carries
+// the same three parameters, and #112 added two more that an event writes
+// only where it has them. `version` is what lets a later shape arrive without
+// reinterpreting rows already written, and it has not had to move yet,
+// because a reader takes the three back off a new row exactly as it did.
 //
 // This module is the browser's half of that definition, and it imports
 // nothing. Every page of a measured site downloads it, so the SQL reading
@@ -77,6 +78,12 @@ export const beaconParameters = {
 
   /** The page it happened on, which the beacon's own path cannot say. */
   page: "p",
+
+  /** A number the event measured, such as a web vital's value. */
+  value: "n",
+
+  /** Text the event carries, such as what an error said. */
+  message: "m",
 } as const;
 
 /** One event, as the beacon reports it. */
@@ -97,6 +104,28 @@ export interface BeaconEvent {
    * for, where the address bar has moved and no request was made.
    */
   readonly page: string;
+
+  /**
+   * A number the event measured, where it measured one.
+   *
+   * A web vital is the case this exists for. Left off an event that measured
+   * nothing, and the parameter is then absent from the query string rather
+   * than present and empty, which keeps a route change the length it was.
+   *
+   * Apart from {@link message} because a number can hold no personal data and
+   * text can. `docs/beacon/` has what that separation buys a site.
+   */
+  readonly value?: number | undefined;
+
+  /**
+   * Text the event carries, where it carries any.
+   *
+   * What an error said is the case this exists for. Whatever goes in here is
+   * written into the access log and kept for as long as the log objects are,
+   * so a site holding no personal data has to know what its own code puts in
+   * an error message. `docs/beacon/` has that in full.
+   */
+  readonly message?: string | undefined;
 }
 
 /**
@@ -108,18 +137,32 @@ export interface BeaconEvent {
  *
  * No leading `?`. The caller joins it to the path it is sending to.
  *
+ * Only the three parts of the envelope are always there. `value` and
+ * `message` are written where the event carries them and left out entirely
+ * where it does not, so an event measuring nothing is the length it always
+ * was. Neither addition changed how a reader takes the first three back off,
+ * which is why {@link beaconSchemaVersion} is still 1.
+ *
  * ```typescript
- * new Image().src = `${path}?${beaconQueryString({ event: "route", page })}`;
+ * beaconQueryString({ event: "lcp", page: "/", value: 2400 });
  * ```
  */
 export function beaconQueryString(event: BeaconEvent): string {
-  return [
+  const carried: [string, string][] = [
     [beaconParameters.version, String(beaconSchemaVersion)],
     [beaconParameters.event, event.event],
     [beaconParameters.page, event.page],
-  ]
-    .map(
-      ([name, value]) => `${String(name)}=${encodeURIComponent(String(value))}`,
-    )
+  ];
+
+  if (event.value !== undefined) {
+    carried.push([beaconParameters.value, String(event.value)]);
+  }
+
+  if (event.message !== undefined) {
+    carried.push([beaconParameters.message, event.message]);
+  }
+
+  return carried
+    .map(([name, value]) => `${name}=${encodeURIComponent(value)}`)
     .join("&");
 }

@@ -20,19 +20,25 @@ requests, which is the one thing the design exists to avoid.
 
 ## What it collects
 
-Every event carries three parameters, and nothing else.
+Every event carries the same three parameters. Two more travel where the event has them.
 
-| Parameter | Holds                                                  |
-| --------- | ------------------------------------------------------ |
-| `v`       | The envelope version, so an old row still reads later. |
-| `e`       | What happened, such as `route`.                        |
-| `p`       | The page it happened on, as a path.                    |
+| Parameter | Always | Holds                                                  |
+| --------- | ------ | ------------------------------------------------------ |
+| `v`       | yes    | The envelope version, so an old row still reads later. |
+| `e`       | yes    | What happened, such as `route` or `lcp`.               |
+| `p`       | yes    | The page it happened on, as a path.                    |
+| `n`       | no     | A number the event measured, such as a vital's value.  |
+| `m`       | no     | Text the event carries, such as what an error said.    |
 
 A route change reports itself under the name `route`. Anything else is the site's own call:
 
 ```typescript
 beacon.report({ event: "signup", page: location.pathname });
+beacon.report({ event: "inp", page: location.pathname, value: 180 });
 ```
+
+`n` and `m` are left out of the query string entirely where an event has neither, so a route change
+is the length it always was.
 
 The request carries no cookies. `credentials: "omit"` is on every send, which keeps the site's own
 cookies out of a header that would be paid for on each event and could reach a log. The beacon
@@ -52,24 +58,121 @@ second view.
 [Beacon events](../beacon-events/) has the rollup that reads these rows back, including the cap that
 bounds a flood of them.
 
-## What it costs a page
+## Core Web Vitals
 
-Measured on a bundle of the code below, minified and gzipped:
+Behind an import of its own, so a site reporting route changes does not pay for it:
 
 ```typescript
+import { startBeacon } from "@kensio/rainlytics/beacon";
+import { reportVitals } from "@kensio/rainlytics/beacon/vitals";
+
 const beacon = startBeacon();
-beacon.report({ event: "signup", page: location.pathname });
+reportVitals(beacon);
 ```
 
-| Measure         | Bytes |
-| --------------- | ----- |
-| Minified        | 925   |
-| Gzipped         | 545   |
-| Budget, gzipped | 640   |
+Four measurements, each sent once, each carrying its number in `n`.
 
-`pnpm check` fails over that budget. Brotli, which CloudFront serves to anything that asks, comes in
-under the gzip figure. A site importing less than the above pays less, since a bundler drops the
-exports nothing names.
+| Event  | Is                           | Read from                  | Sent                |
+| ------ | ---------------------------- | -------------------------- | ------------------- |
+| `ttfb` | Time To First Byte, ms       | the `navigation` entry     | straight away       |
+| `fcp`  | First Contentful Paint, ms   | a `paint` entry            | when it happens     |
+| `lcp`  | Largest Contentful Paint, ms | `largest-contentful-paint` | when the page hides |
+| `cls`  | Cumulative Layout Shift      | `layout-shift` entries     | when the page hides |
+
+TTFB and FCP are final as soon as they happen. LCP and CLS are not final until the page stops
+painting and stops moving, so both are held until `visibilitychange` reports the document hidden and
+sent then. That is the moment `keepalive` on the send exists for. Every ordinary way of leaving a
+page hides the document first, including following a link and closing the tab, and a page that is
+never hidden reports neither.
+
+CLS is scored on the worst session window rather than the sum of every shift. A window runs no
+longer than five seconds and ends after a second without a shift. A page that shifts a little every
+few seconds all day would otherwise score as though it had shifted once, enormously. A shift the
+reader caused is left out, which is the layout responding rather than the layout misbehaving.
+
+Each observer asks for `buffered` entries, so a paint that happened before the site's bundle ran
+still reports. Without that, every fast page would report nothing.
+
+**INP is not collected, and that is deliberate.** It is a Core Web Vital, and computing it means
+grouping event-timing entries by `interactionId` and taking a high percentile of the result. A
+version of that with a subtle mistake in it reports a plausible number rather than an obvious
+failure, which is the failure this project is least able to detect. A site that wants INP runs the
+`web-vitals` library itself and hands the number over:
+
+```typescript
+import { onINP } from "web-vitals";
+
+onINP(({ value }) => {
+  beacon.report({ event: "inp", page: location.pathname, value });
+});
+```
+
+That is also the measured trade. `web-vitals` covering LCP, CLS and INP bundles to 3209 bytes
+gzipped. The four above cost 550.
+
+## JavaScript errors
+
+Behind an import of its own as well, and that is a privacy decision as much as a page weight one:
+
+```typescript
+import { reportErrors } from "@kensio/rainlytics/beacon/errors";
+
+reportErrors(beacon);
+```
+
+An uncaught exception reports as `error` and an unhandled promise rejection as `rejection`, each
+carrying what it said in `m`. The page is read when the error happens, so an error in a single-page
+app is reported against the route it happened on. Neither listener handles the error. The browser
+still logs to the console and any other handler on the page still runs.
+
+**No stack.** A stack names the URL of every frame and often a good deal more, none of it fits in a
+query string worth storing, and the name and message are what a rollup counting errors would group
+by. The message is cut at 200 characters, because the whole query string is stored for as long as
+the log objects are.
+
+## What a site holding no personal data gets
+
+[Counting visitors](../visitors/) has the field set that delivers no viewer address. A deployment
+running it holds no personal data, and the beacon can hand some back. This is what each part does
+about that.
+
+- **Route changes and vitals cannot.** A path the site publishes and a number are not personal data,
+  whoever is reading.
+- **`event` and `page` are the site's own values.** The beacon sends what it is handed. A router
+  that puts an account name in a path puts it in the log.
+- **An error message is the risk.** It is the site's own text, written by the site's own code, and
+  nobody audits it for what it interpolates. This is why errors are behind an import rather than a
+  flag. Importing them is the decision.
+
+`redact` is where a site takes it back out. It runs on every message before it is sent, and
+answering `undefined` reports nothing for that error:
+
+```typescript
+reportErrors(beacon, {
+  redact: (message) => message.replace(/\S+@\S+/gu, "[email]"),
+});
+```
+
+Nothing already written comes back out. The raw store is immutable and keeps whatever was written
+into it until the [log bucket](../log-bucket/) expiry reaches it, so this is a decision to take
+before turning error reporting on rather than after.
+
+## What it costs a page
+
+Each import is measured on a bundle of what a site actually writes, minified and gzipped.
+
+| What a site imports | Minified | Gzipped | Budget |
+| ------------------- | -------- | ------- | ------ |
+| The beacon          | 1042     | 586     | 640    |
+| With vitals         | 2290     | 1136    | 1250   |
+| With errors         | 1489     | 756     | 880    |
+| All of it           | 2853     | 1349    | 1500   |
+
+`pnpm check` fails over any of those budgets. Brotli, which CloudFront serves to anything that asks,
+comes in under the gzip figure.
+
+Vitals and errors are separate imports so that these are separate numbers. A site reporting route
+changes alone pays the first row and nothing else.
 
 Bytes are not the only cost. The beacon adds no DNS lookup, no TLS handshake and no connection,
 because the collection path is on the origin the page is already talking to. One event is a request
@@ -131,9 +234,11 @@ rather call its own router's hook.
 `beacon-events` bounds a flood in the query. Sampling would cost bytes on every page to save nothing
 worth saving, and it would put a scaling factor in front of numbers that are otherwise counts.
 
-**No Core Web Vitals and no JavaScript errors.** Both need fields beyond the three-parameter
-envelope. They are tracked as
-[#112](https://github.com/KensioSoftware/rainlytics/issues/112).
+**No INP.** The section on vitals above has why, and what to do about it.
+
+**No rollup over any of this yet.** The rows are here and no shipped question reads `n` or `m`.
+`rainlytics query` answers one in the meantime, and the columns are `beaconValueColumn` and
+`beaconMessageColumn`.
 
 **No `navigator.sendBeacon`.** It is POST-only, and the whole design rests on a GET whose query
 string CloudFront writes into `cs-uri-query`.

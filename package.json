@@ -23,6 +23,14 @@
       "types": "./dist/beacon/index.d.ts",
       "import": "./dist/beacon/index.js"
     },
+    "./beacon/vitals": {
+      "types": "./dist/beacon/vitals.d.ts",
+      "import": "./dist/beacon/vitals.js"
+    },
+    "./beacon/errors": {
+      "types": "./dist/beacon/errors.d.ts",
+      "import": "./dist/beacon/errors.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
