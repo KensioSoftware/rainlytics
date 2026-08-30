@@ -67,8 +67,8 @@ describe("delivering CloudFront access logs", () => {
    * The distribution is deployed rather than invented. A delivery source
    * names a distribution by ARN, and AWS refuses one naming a distribution
    * that does not exist, so a fabricated id makes the whole delivery a thing
-   * production would have rejected. See KensioSoftware/yulin#993, which is
-   * about the simulation catching up to that.
+   * production would have rejected. Simulated CloudWatch Logs refuses it as
+   * well, since KensioSoftware/yulin#993.
    *
    * Everything goes in one us-east-1 stack. A real consumer keeps the
    * distribution wherever their site is, and the cases about that split are
