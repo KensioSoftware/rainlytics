@@ -152,6 +152,34 @@ describe("reporting uncaught errors", () => {
     await endpoint.close();
   });
 
+  it("redacts the whole message before cutting it short", async () => {
+    // Given an address that starts before the limit and ends after it, and a
+    // redactor that matches a whole address the way one would be written.
+    const endpoint = await collectionEndpoint();
+    const { stop } = watching({
+      redact: (message) => message.replaceAll(/\S+@\S+\.\w+/gu, "[email]"),
+    });
+    const padding = "x".repeat(182);
+
+    // When such an error goes uncaught.
+    dispatchEvent(
+      new ErrorEvent("error", {
+        error: new Error(`${padding} liju@example.com`),
+      }),
+    );
+
+    // Then no part of it is sent. Cutting first hands the redactor an
+    // address with its domain missing, which its pattern does not match, and
+    // the half that survives goes to the log.
+    const [request] = await endpoint.received(1);
+
+    expect(messageOf(request ?? "")).not.toContain("liju@");
+    expect(messageOf(request ?? "")).toContain("[email]");
+
+    stop();
+    await endpoint.close();
+  });
+
   it("takes the message a site would rather send", async () => {
     // Given a deployment that holds no personal data, whose own code puts an
     // address in a message.

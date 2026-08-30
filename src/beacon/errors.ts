@@ -30,6 +30,9 @@ export const errorEventNames = {
  * as the log objects last. A message long enough to matter is long enough to
  * read at this length, and CloudFront caps a URL well below what an
  * unbounded one could reach.
+ *
+ * Applied after {@link ErrorOptions.redact} rather than before it, so a
+ * redactor always sees the whole message.
  */
 export const errorMessageLimit = 200;
 
@@ -91,10 +94,17 @@ export function reportErrors(
   const redact = options.redact ?? ((message: string): string => message);
 
   const report = (event: string, thrown: unknown): void => {
-    const message = redact(said(thrown).slice(0, errorMessageLimit));
+    // Redacted whole, then cut. Cutting first would hand the redactor a
+    // value with its end missing, and a pattern written for the whole of one
+    // then matches nothing while the half that survives goes to the log.
+    const message = redact(said(thrown));
 
     if (message !== undefined) {
-      beacon.report({ event, page: location.pathname, message });
+      beacon.report({
+        event,
+        page: location.pathname,
+        message: message.slice(0, errorMessageLimit),
+      });
     }
   };
 

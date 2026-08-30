@@ -144,8 +144,9 @@ about that.
   nobody audits it for what it interpolates. This is why errors are behind an import rather than a
   flag. Importing them is the decision.
 
-`redact` is where a site takes it back out. It runs on every message before it is sent, and
-answering `undefined` reports nothing for that error:
+`redact` is where a site takes it back out. It runs on the whole message, before the 200-character
+cut and not after it, so a pattern written for a whole address still matches one that would have
+been cut in half. Answering `undefined` reports nothing for that error:
 
 ```typescript
 reportErrors(beacon, {
