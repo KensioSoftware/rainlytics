@@ -48,12 +48,16 @@ expected=(
   package/docs/query/README.md
   package/docs/query-workgroup/README.md
   package/docs/rollups/README.md
+  package/docs/beacon/README.md
   package/src/index.ts
   package/src/cdk/index.ts
+  package/src/beacon/index.ts
   package/dist/index.js
   package/dist/index.d.ts
   package/dist/cdk/index.js
   package/dist/cdk/index.d.ts
+  package/dist/beacon/index.js
+  package/dist/beacon/index.d.ts
   # The CLI's entry point. `bin` in package.json is a third list that has to
   # agree with `files` and with `exports`, and npm links it onto a consumer's
   # PATH without ever checking the target is there. A missing one shows up as
@@ -102,12 +106,19 @@ fi
 # one source file.
 tar --extract --file "$tarball" --directory "$tmp"
 
-# The root module, and the beacon once it exists. `./cdk` is deliberately not
-# on this list.
-browser_reachable=("$tmp/package/dist/index.js")
-if [[ -d "$tmp/package/dist/beacon" ]]; then
-  browser_reachable+=("$tmp/package/dist/beacon")
-fi
+# The root module and the beacon. `./cdk` is deliberately not on this list.
+#
+# Both are required. A build that stopped emitting the beacon would otherwise
+# leave this checking less and still reporting a pass.
+browser_reachable=("$tmp/package/dist/index.js" "$tmp/package/dist/beacon")
+
+for reachable in "${browser_reachable[@]}"; do
+  if [[ ! -e "$reachable" ]]; then
+    echo "Browser-reachable code is missing from the tarball:" >&2
+    echo "  ${reachable#"$tmp/package/"}" >&2
+    exit 1
+  fi
+done
 
 # Three import forms reach a module specifier, and only the first carries a
 # `from`:

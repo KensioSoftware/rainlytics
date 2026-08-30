@@ -44,6 +44,12 @@
     "test/.coverage/",
     "node_modules/",
     "scripts/sh/",
+    // Build tooling, not shipped code, and its rules are different. Console
+    // output is the interface and a non-zero exit is the contract, which
+    // `no-console` and `no-process-exit` both read as mistakes. Nothing here
+    // is under `tsconfig.json` either, so the type-aware rules resolve no
+    // types and report every call as unsafe.
+    "scripts/js/",
     ".cache/",
     // Throwaway design spikes. They are written to be read and run once, print
     // their findings to stdout, and answer a question — not to be maintained,

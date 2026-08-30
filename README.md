@@ -10,9 +10,10 @@ already writes. A measured page downloads no analytics JavaScript, opens no
 extra connection, and resolves no extra hostname.
 
 An optional beacon covers what an access log cannot see accurately, such as
-route changes in a single-page app, Core Web Vitals, custom events and
-JavaScript errors. It is bundled into the site's own JavaScript and reports back
-through the site's own domain (no second host, no separate script tag).
+route changes in a single-page app and events the site raises itself. It is
+bundled into the site's own JavaScript and reports back through the site's own
+domain (no second host, no separate script tag). Core Web Vitals and JavaScript
+errors need fields beyond the current envelope and are not there yet.
 
 Everything runs on usage-priced AWS services, batched and precomputed on a
 schedule rather than processed per request. Nothing in the pipeline is always
@@ -87,6 +88,8 @@ One more construct runs those questions on a schedule and writes each answer
 to S3:
 
 ```typescript
+import { RollupSummaries } from "@kensio/rainlytics/cdk";
+
 new RollupSummaries(this, "RainlyticsSummaries", { table, workgroup });
 ```
 
@@ -97,6 +100,31 @@ hundredth of a cent. `--query` sends the question to Athena for a fresher
 answer, at what a query costs. See the [summary
 schedule](docs/summary-schedule/) and [rollup summaries](docs/summaries/)
 pages.
+
+The optional beacon covers what the access log cannot see. A construct answers
+a collection path with a 204 at the CloudFront edge, and a module bundled into
+the site's own JavaScript reports to it:
+
+```typescript
+import { BeaconPath } from "@kensio/rainlytics/cdk";
+
+new BeaconPath(this, "RainlyticsBeacon", { distribution, origin });
+```
+
+```typescript
+import { startBeacon } from "@kensio/rainlytics/beacon";
+
+const beacon = startBeacon();
+beacon.report({ event: "signup", page: location.pathname });
+```
+
+Route changes in a single-page app report themselves. The request stops at the
+edge, and CloudFront writes it to the same log objects, the same partitions and
+the same table as every page request, so the beacon adds rows rather than a
+pipeline. It weighs 545 bytes gzipped, sends no cookies, generates no
+identifier, and `pnpm check` fails if it grows past its budget. See the [browser
+beacon](docs/beacon/), [beacon path](docs/beacon-path/) and [beacon
+events](docs/beacon-events/) pages.
 
 ## Status
 
