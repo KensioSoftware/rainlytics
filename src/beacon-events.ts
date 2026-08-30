@@ -1,5 +1,4 @@
-// What a beacon event is, and how it survives the round trip through a
-// CloudFront access log.
+// What a beacon event is, and the query string it travels in.
 //
 // The beacon sends a GET to a path on the site's own domain and puts its
 // payload in the query string. CloudFront records `cs-uri-query` whatever the
@@ -31,12 +30,11 @@
 // is for the beacon's own issue, and `version` is what lets that arrive
 // without reinterpreting rows already written.
 //
-// Both halves of the package read this. The beacon builds a query string from
-// it in a browser, so nothing here may reach a Node built-in or `aws-cdk-lib`,
-// and a rollup reads the same parameters back as SQL.
-
-import { decodedParameter } from "./log-encoding.js";
-import { quoted } from "./sql-text.js";
+// This module is the browser's half of that definition, and it imports
+// nothing. Every page of a measured site downloads it, so the SQL reading
+// these same parameters back off a row lives in `beacon-rows.ts` next door.
+// KensioSoftware/rainlytics#110 has what keeping the two together cost a
+// bundle.
 
 /**
  * The path a beacon reports to, where a site chooses none.
@@ -106,7 +104,7 @@ export interface BeaconEvent {
  *
  * The browser's own encoding, which is the single pass a request carries.
  * CloudFront adds its own on the way into the record, and
- * {@link beaconEventColumn} reads both back off.
+ * `beaconEventColumn` in `beacon-rows.ts` reads both back off.
  *
  * No leading `?`. The caller joins it to the path it is sending to.
  *
@@ -125,53 +123,3 @@ export function beaconQueryString(event: BeaconEvent): string {
     )
     .join("&");
 }
-
-/** The envelope version a row was written under, as SQL. */
-export const beaconVersionColumn = decodedParameter(beaconParameters.version);
-
-/** What happened, as SQL. */
-export const beaconEventColumn = decodedParameter(beaconParameters.event);
-
-/** The page it happened on, as SQL. */
-export const beaconPageColumn = decodedParameter(beaconParameters.page);
-
-/**
- * The rows a beacon event is, as conditions for `rowsFor`.
- *
- * The path is not among them. A rollup narrows to the beacon's path through
- * the request's own `paths`, the way any other question narrows to a section
- * of a site, and a site that moved its beacon then says so in one place.
- *
- * These leave out anything else reaching the same path. A crawler following
- * a beacon URL out of a page's source carries no version parameter, and the
- * bot filter `rowsFor` applies has already taken most of them.
- *
- * ```typescript
- * rowsFor({ ...request, paths: [defaultBeaconPath] }, aBeaconEvent);
- * ```
- */
-export const aBeaconEvent: readonly string[] = [
-  "cs_method = 'GET'",
-  "cs_uri_query <> '-'",
-  `${beaconVersionColumn} <> ''`,
-];
-
-/**
- * The rows outside the beacon's path, as a condition for `rowsFor`.
- *
- * The other direction from {@link aBeaconEvent}, and it names the path that
- * one leaves out. A question about beacon events narrows to the beacon
- * through the request's own `paths`. A question about what the site answered
- * has to take the beacon's requests back out, and `status-codes` is the one
- * that does.
- *
- * Matched against the column as CloudFront delivered it, where `--path`
- * decodes twice first. The path here is a constant this package chose and it
- * carries nothing a browser or CloudFront escapes, so a record holds it as it
- * was sent. An address somebody typed can hold anything.
- *
- * A prefix, the way every path match in Rainlytics is one.
- */
-export const outsideTheBeaconPath = `strpos(cs_uri_stem, ${quoted(
-  defaultBeaconPath,
-)}) <> 1`;

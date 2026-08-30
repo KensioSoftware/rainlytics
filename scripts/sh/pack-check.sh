@@ -150,6 +150,47 @@ if [[ -n "$forbidden" ]]; then
   exit 1
 fi
 
+# The beacon envelope, which has to stand on its own.
+#
+# `beaconQueryString` is the one thing in this package that runs on every page
+# of a measured site. A bundler reaches it through the package root, and the
+# root re-exports everything, so what actually decides the page weight is
+# which modules the envelope itself pulls in. Its module answers that with
+# nothing, and this is what keeps the answer that way.
+#
+# KensioSoftware/rainlytics#110 is what this is guarding. The SQL reading the
+# same parameters back used to sit in the same file, and a minified bundle of
+# a beacon-shaped entry carried `url_decode`, `url_extract_parameter` and
+# `strpos` that no browser runs. Splitting the file took that bundle from 464
+# bytes to 241.
+#
+# The forbidden-import check above cannot see this. The root legitimately
+# reaches SQL, and every one of those imports is a relative path it allows.
+
+envelope="$tmp/package/dist/beacon-events.js"
+
+if [[ ! -f "$envelope" ]]; then
+  echo "The beacon envelope is not at dist/beacon-events.js." >&2
+  echo "Point this check at wherever beaconQueryString moved to." >&2
+  exit 1
+fi
+
+envelope_imports="$(
+  grep --only-matching --extended-regexp \
+    "(from|import)[[:space:]]*\(?[[:space:]]*[\"'][^\"']+[\"']" \
+    "$envelope" || true
+)"
+
+if [[ -n "$envelope_imports" ]]; then
+  echo "The beacon envelope imports something:" >&2
+  sed 's/^/  /' <<<"$envelope_imports" >&2
+  echo >&2
+  echo "Every page of a measured site downloads this module. Whatever it" >&2
+  echo "imports is downloaded with it, however little of that a browser" >&2
+  echo "runs. SQL belongs in dist/beacon-rows.js, which no browser reaches." >&2
+  exit 1
+fi
+
 # The CLI, run out of the tarball.
 #
 # Running it proves more than that the file was packed. The extracted tarball

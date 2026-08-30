@@ -6,7 +6,8 @@
 // rollup that filtered differently would answer a different question from
 // its neighbours without saying so.
 
-import { defaultBeaconPath, outsideTheBeaconPath } from "./beacon-events.js";
+import { defaultBeaconPath } from "./beacon-events.js";
+import { outsideTheBeaconPath } from "./beacon-rows.js";
 import { qualifiedTableName } from "./dataset.js";
 import { decodedColumn, decodedParameter } from "./log-encoding.js";
 import {

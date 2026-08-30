@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { defaultLogDataset, qualifiedTableName } from "./dataset.js";
 import { decodedParameter } from "./log-encoding.js";
-import { defaultBeaconPath, outsideTheBeaconPath } from "./beacon-events.js";
+import { defaultBeaconPath } from "./beacon-events.js";
+import { outsideTheBeaconPath } from "./beacon-rows.js";
 import { rollups } from "./rollup-questions.js";
 import type { Rollup, RollupRequest } from "./rollups.js";
 import {
