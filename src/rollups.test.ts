@@ -284,8 +284,9 @@ describe("the SQL a rollup runs", () => {
     const sql = sqlFor("cache-hit-ratio");
 
     // Then the denominator is hits and misses, and not every request. A
-    // redirect or an error is one the cache was never asked about, and
-    // counting those would move the ratio without the cache having changed.
+    // redirect never reached the cache, and an error says too little either
+    // way, so counting them would move the ratio without the cache having
+    // changed.
     expect(sql).toContain(
       "x_edge_result_type IN ('Hit', 'RefreshHit', 'Miss')",
     );

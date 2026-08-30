@@ -39,9 +39,12 @@ reference site an unfiltered version of this is topped by its own stylesheet.
 stylesheet returning 404 is worth seeing and a rollup looking only at pages never would. Requests to
 the [beacon's own path](#the-beacons-own-requests) are the exception.
 
-**`cache-hit-ratio`** counts over the requests the cache had a say in, being a Hit, a RefreshHit or
-a Miss. A redirect, an error and a response a CloudFront Function generated are requests the cache
-was never asked about, and counting them would move the ratio without the cache having changed.
+**`cache-hit-ratio`** counts over the values that say whether the cache served the request, being a
+Hit, a RefreshHit and a Miss. A redirect and the `FunctionGeneratedResponse` a beacon event comes
+back as never reached the cache, so counting them would move the ratio without the cache having
+changed. An `Error` is left out for a different reason: CloudFront caches error responses, and
+`Error` also covers a viewer who disconnected after being served one, so it says too little either
+way.
 
 A sixth question, [`beacon-events`](../beacon-events/), counts what the optional beacon reported. It
 waits to be asked for, because a site with no beacon would be paying for a scheduled query over rows

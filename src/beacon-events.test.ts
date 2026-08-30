@@ -446,9 +446,9 @@ describe("a window holding beacon events", () => {
     // When the cache is counted.
     const rows = await answerTo("cache-hit-ratio");
 
-    // Then the denominator is the two requests the cache had a say in. A
-    // CloudFront Function answered every beacon event, and the cache was
-    // never asked about any of them.
+    // Then the denominator is the two requests whose result type says the
+    // cache served or missed them. A CloudFront Function answered every
+    // beacon event, and none of those reached the cache at all.
     expect(rows[0]?.["hits"]).toBe("1");
     expect(rows[0]?.["misses"]).toBe("1");
     expect(Number(rows[0]?.["hit_percent"])).toBe(50);

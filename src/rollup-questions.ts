@@ -174,11 +174,14 @@ export const cacheHitRatio: Rollup = {
   description: `\
 Shows how much CloudFront served from its own cache.
 
-Counted over the requests where the cache had a say, being a Hit, a
-RefreshHit or a Miss. Everything else CloudFront reports is a request the
-cache was never asked about, such as a redirect, an error, or the
-\`FunctionGeneratedResponse\` a beacon event comes back as. Counting those
-would move the ratio without anything about the cache having changed.
+Counted over the values that say whether the cache served the request,
+being a Hit, a RefreshHit and a Miss. Every other value is left out.
+
+A redirect and the \`FunctionGeneratedResponse\` a beacon event comes back
+as never reached the cache, so counting them would move the ratio without
+anything about the cache having changed. An \`Error\` is left out for a
+different reason: it says too little. CloudFront caches error responses,
+and \`Error\` also covers a viewer who disconnected after being served one.
 
 One row, so \`--limit\` does nothing here.`,
   body: (request) =>
