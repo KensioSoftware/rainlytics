@@ -234,6 +234,7 @@ describe("the named questions, run through Athena", () => {
     const firefox =
       "Mozilla/5.0%20(X11;%20Linux%20x86_64;%20rv:126.0)%20" +
       "Gecko/20100101%20Firefox/126.0";
+    const operaMini = "Opera%20Mini/36.2%20Mobile";
 
     await putDelivered(deployed, rightNow, [
       aRecord(rightNow, { "cs(User-Agent)": edge }),
@@ -243,6 +244,7 @@ describe("the named questions, run through Athena", () => {
       aRecord(rightNow, { "cs(User-Agent)": chromeTablet }),
       aRecord(rightNow, { "cs(User-Agent)": safariTablet }),
       aRecord(rightNow, { "cs(User-Agent)": firefox }),
+      aRecord(rightNow, { "cs(User-Agent)": operaMini }),
       aRecord(rightNow, { "cs(User-Agent)": "curl/8.8.0" }),
       aRecord(rightNow, {
         "cs(User-Agent)": `${edge}%20ClaudeBot/1.0`,
@@ -266,6 +268,7 @@ describe("the named questions, run through Athena", () => {
       { browser: "Chrome family", device: "Mobile", views: "1" },
       { browser: "Chrome family", device: "Tablet", views: "1" },
       { browser: "Firefox", device: "Desktop", views: "1" },
+      { browser: "Opera", device: "Mobile", views: "1" },
       { browser: "Other", device: "Other", views: "1" },
       { browser: "Safari family", device: "Tablet", views: "1" },
       { browser: "Samsung Internet", device: "Mobile", views: "1" },

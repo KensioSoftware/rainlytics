@@ -290,9 +290,10 @@ export interface Rollup {
    * and `docs/visitors/` has what the number means.
    *
    * It costs a second Athena query per window per run. The six shipped
-   * questions on both cadences, recomputing two windows, come to 300 queries
-   * a day and about 45 cents a month. Turning this on for one of them adds
-   * 50 queries, which is about 8 cents.
+   * questions on both cadences, recomputing two windows, make a rollup-only
+   * subtotal of 300 queries a day and about 45 cents a month. The visitor
+   * count enabled on `pageviews` adds 50 queries and about 8 cents, making the
+   * default total 350 queries and about 53 cents.
    */
   readonly countsVisitors?: boolean | undefined;
 

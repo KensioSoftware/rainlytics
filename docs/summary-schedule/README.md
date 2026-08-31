@@ -99,18 +99,19 @@ One Athena query per window per question per run. Athena bills a ten million byt
 query reads. That is $0.00005 a query (the [query](../query/) page has where the per-byte figure
 comes from).
 
-The six default questions on both cadences, recomputing two windows, come to 300 queries a day.
-That is about 45 cents a month, plus a few cents of Lambda and a rounding error of S3. The default
-`recomputedWindows` of 2 doubles the query cost and leaves the object count alone, since a
-recomputed window overwrites its own key.
+The six default questions on both cadences, recomputing two windows, make a rollup-only subtotal of
+300 queries a day. That is about 45 cents a month. The visitor count on `pageviews` adds 50 queries
+and about 8 cents, making the default total 350 queries and about 53 cents. Lambda adds a few cents
+and S3 is a rounding error at this scale. The default `recomputedWindows` of 2 doubles the query
+cost and leaves the object count alone, since a recomputed window overwrites its own key.
 
 Lowering `recomputedWindows` to 1 halves the Athena bill. Computing hours alone, with
 `granularities: ["hourly"]`, is the other lever, at the price of a reader assembling a day out of 24
 objects.
 
-A question that counts visitors runs a second query per window. `pageviews` does, which adds 50
-queries a day to the 300 above and about 8 cents a month. [Counting visitors](../visitors/) has what
-that number means.
+A question that counts visitors runs a second query per window. `pageviews` accounts for the 50
+visitor queries in the default total above. [Counting visitors](../visitors/) has what that number
+means.
 
 ## Reading the query a schedule runs
 

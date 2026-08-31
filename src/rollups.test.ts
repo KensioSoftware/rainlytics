@@ -126,6 +126,7 @@ describe("the SQL a rollup runs", () => {
     ]).toStrictEqual([true, true, true]);
     expect(
       [
+        "opera(%20| )mini/",
         "THEN 'Tablet'",
         "THEN 'Mobile'",
         "THEN 'Desktop'",

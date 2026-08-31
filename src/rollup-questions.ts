@@ -103,7 +103,7 @@ const browserFamily = userAgentClassifier([
     value: "Edge",
   },
   {
-    when: `regexp_like(${userAgent}, '(opr|opera|opios)/')`,
+    when: `regexp_like(${userAgent}, '(opr|opera|opios)/|opera(%20| )mini/')`,
     value: "Opera",
   },
   {

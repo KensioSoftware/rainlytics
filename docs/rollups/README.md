@@ -150,7 +150,7 @@ The other five questions leave beacon rows out already, for reasons they had any
 - **`cache-hit-ratio`** counts a Hit, a RefreshHit or a Miss. A CloudFront Function answers every
   event, and the cache is never asked.
 
-Those four are checked against delivered beacon records rather than taken on trust, in
+Those five are checked against delivered beacon records rather than taken on trust, in
 `src/beacon-events.test.ts`. Each of them leaves the rows out through a condition it has for its own
 reasons, and a rollup of your own gets none of that for free.
 
