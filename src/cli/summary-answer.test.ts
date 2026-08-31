@@ -22,6 +22,8 @@ import { LogTable } from "../cdk/log-table.js";
 import { QueryWorkgroup } from "../cdk/query-workgroup.js";
 import { RollupSummaries } from "../cdk/rollup-summaries.js";
 import type { RollupSummariesProps } from "../cdk/summary-configuration.js";
+import { errorEventNames } from "../error-events.js";
+import { javascriptErrors } from "../javascript-errors-rollup.js";
 import { partitionPrefix } from "../partitions.js";
 import { cacheHitRatio, pageviews } from "../rollup-questions.js";
 import { defaultVisitorSaltParameter } from "../visitor-identity.js";
@@ -300,6 +302,92 @@ describe("the named questions, answered from stored summaries", () => {
       { vital: "fcp", p75: "800", samples: "1" },
       { vital: "lcp", p75: "2500", samples: "5" },
       { vital: "ttfb", p75: "120", samples: "1" },
+    ]);
+    expect(run.error).toContain("1 GET");
+    expect(run.error).not.toContain("Scanned");
+  });
+
+  it("answers JavaScript errors from the summary a deployment opted into", async () => {
+    // Given one hour holding an exception and a rejection with the same
+    // message, the same exception on another page, two interpolated messages,
+    // and messages carried by events outside this question.
+    const deployed = await deployAnalytics({ rollups: [javascriptErrors] });
+    const repeated = "TypeError: Cannot read properties of undefined";
+    await putDelivered(deployed, anHour, [
+      aBeaconRecord({
+        event: errorEventNames.uncaught,
+        page: "/checkout/",
+        message: repeated,
+      }),
+      aBeaconRecord({
+        event: errorEventNames.uncaught,
+        page: "/checkout/",
+        message: repeated,
+      }),
+      aBeaconRecord({
+        event: errorEventNames.rejection,
+        page: "/checkout/",
+        message: repeated,
+      }),
+      aBeaconRecord({
+        event: errorEventNames.uncaught,
+        page: "/account/",
+        message: repeated,
+      }),
+      aBeaconRecord({
+        event: errorEventNames.uncaught,
+        page: "/checkout/",
+        message: "Error: Order 41 failed",
+      }),
+      aBeaconRecord({
+        event: errorEventNames.uncaught,
+        page: "/checkout/",
+        message: "Error: Order 42 failed",
+      }),
+      aBeaconRecord({ event: "route", page: "/checkout/", message: repeated }),
+      aBeaconRecord({
+        event: "lcp",
+        page: "/checkout/",
+        value: 2500,
+        message: repeated,
+      }),
+      {
+        ...aBeaconRecord({
+          event: errorEventNames.uncaught,
+          page: "/checkout/",
+          message: "Error: Outside the collection path",
+        }),
+        "cs-uri-stem": "/_somewhere-else",
+      },
+    ]);
+    await untilTheScheduleFires(deployed);
+
+    // When the shipped subcommand reads the closed hour.
+    const run = await cli([
+      "javascript-errors",
+      "--last",
+      "2h",
+      "--summaries",
+      deployed.summariesBucketName,
+    ]);
+
+    // Then exceptions and rejections share a group when their page and exact
+    // message match. The other page and interpolated values have rows of
+    // their own. Route changes, Web Vitals and another path contribute none.
+    expect(run.code).toBe(0);
+    expect(run.rows).toStrictEqual([
+      { page: "/checkout/", message: repeated, errors: "3" },
+      { page: "/account/", message: repeated, errors: "1" },
+      {
+        page: "/checkout/",
+        message: "Error: Order 41 failed",
+        errors: "1",
+      },
+      {
+        page: "/checkout/",
+        message: "Error: Order 42 failed",
+        errors: "1",
+      },
     ]);
     expect(run.error).toContain("1 GET");
     expect(run.error).not.toContain("Scanned");
