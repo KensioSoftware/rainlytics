@@ -33,6 +33,7 @@ runs on every `pnpm check`.
 - [Searches](searches/), what readers typed into a search box.
 - [Query](query/), running SQL against the log table with `rainlytics query`.
 - [Rollup summaries](summaries/), the schema for the precomputed answers the commands read.
+- [Calendar reports](reports/), the versioned document for several questions over one closed period.
 - [Counting visitors](visitors/), what a visitor count means and over what window.
 
 ## Cost

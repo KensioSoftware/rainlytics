@@ -1,3 +1,9 @@
+import {
+  assertArrayNotIncludes,
+  assertObjectEquals,
+  assertStringIncludes,
+  assertTrue,
+} from "@kensio/smartass";
 import { gzipSync } from "node:zlib";
 
 import { faker } from "@faker-js/faker";
@@ -5,7 +11,7 @@ import { Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { Bucket } from "aws-cdk-lib/aws-s3";
 import { type App, CfnOutput, Stack } from "aws-cdk-lib/core";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { deployStacks } from "#test/simulated-deployment.js";
 
@@ -231,9 +237,7 @@ describe("counting what the beacon reported", () => {
     // Then the five readers are counted as five and the flood as the cap. The
     // collection path is open by design and nothing at the edge can keep a
     // count, so this is where a million requests stop being a million events.
-    expect(rows).toStrictEqual([
-      ["/liju/", "route", String(5 + beaconEventCap)],
-    ]);
+    assertObjectEquals(rows, [["/liju/", "route", String(5 + beaconEventCap)]]);
   });
 
   it("counts real traffic as it arrived", async () => {
@@ -249,7 +253,7 @@ describe("counting what the beacon reported", () => {
     // Then every one of them is counted. A rule that bounds a flood has to
     // leave a popular page alone, which is what a cap per visitor buys over a
     // cap per path.
-    await expect(answered(deployed, beaconSql())).resolves.toStrictEqual([
+    assertObjectEquals(await answered(deployed, beaconSql()), [
       ["/grammar/", "route", "30"],
     ]);
   });
@@ -268,7 +272,7 @@ describe("counting what the beacon reported", () => {
     // Then each pair is capped on its own. The cap is about one visitor
     // repeating one event on one page, and somebody reading a site produces
     // events on every page they open.
-    await expect(answered(deployed, beaconSql())).resolves.toStrictEqual([
+    assertObjectEquals(await answered(deployed, beaconSql()), [
       ["/grammar/", "route", String(beaconEventCap)],
       ["/liju/", "route", String(beaconEventCap)],
       ["/liju/", "vital", String(beaconEventCap)],
@@ -292,7 +296,7 @@ describe("counting what the beacon reported", () => {
     // Then it comes to the cap twice. The hour is the row's own rather than
     // the window being computed, so a day answers what its 24 hourly
     // summaries add up to, and one query text serves both cadences.
-    expect(rows).toStrictEqual([["/", "click", String(2 * beaconEventCap)]]);
+    assertObjectEquals(rows, [["/", "click", String(2 * beaconEventCap)]]);
   });
 
   it("counts nothing a crawler sent", async () => {
@@ -310,7 +314,7 @@ describe("counting what the beacon reported", () => {
     // Then the crawler filter every question applies has already taken them,
     // before the cap is reached for. The two rules stack, and the cap is
     // about a flood that says nothing about itself.
-    await expect(answered(deployed, beaconSql())).resolves.toStrictEqual([
+    assertObjectEquals(await answered(deployed, beaconSql()), [
       ["/", "route", "1"],
     ]);
   });
@@ -323,16 +327,17 @@ describe("counting what the beacon reported", () => {
       // Then it counts GETs carrying an envelope version, under that path.
       // A request reaching the same path without one is a crawler following
       // a URL out of a page's source.
-      expect(sql).toContain(`strpos(url_decode(url_decode(cs_uri_stem)),`);
-      expect(sql).toContain(`'${defaultBeaconPath}') = 1`);
-      expect(sql).toContain("cs_method = 'GET'");
+      assertStringIncludes(sql, `strpos(url_decode(url_decode(cs_uri_stem)),`);
+      assertStringIncludes(sql, `'${defaultBeaconPath}') = 1`);
+      assertStringIncludes(sql, "cs_method = 'GET'");
     });
 
     it("leaves automated traffic out like every other question", () => {
       // Then the crawler filter is written by the shared builder rather than
       // by this question, which is what keeps it answering the same question
       // as its neighbours.
-      expect(beaconSql()).toContain(
+      assertStringIncludes(
+        beaconSql(),
         `NOT regexp_like(lower(cs_user_agent), '${botUserAgentPattern}')`,
       );
     });
@@ -342,20 +347,20 @@ describe("counting what the beacon reported", () => {
       // only part deciding what the question reads and pays for.
       const sql = beaconSql();
 
-      expect(sql).toContain("year IN ('2026')");
-      expect(sql).toContain("day IN ('23', '24')");
+      assertStringIncludes(sql, "year IN ('2026')");
+      assertStringIncludes(sql, "day IN ('23', '24')");
     });
 
     it("takes the row limit it was given", () => {
       // Then a ranked answer is bounded the way every ranked answer is.
-      expect(beaconSql({ limit: 3 })).toContain("LIMIT 3");
+      assertStringIncludes(beaconSql({ limit: 3 }), "LIMIT 3");
     });
   });
 
   it("adds its counts across stored windows", () => {
     // Then a reader asking about seven days adds the events of each window,
     // matched on the page and the event name beside them.
-    expect(beaconEvents.totals).toStrictEqual({ added: ["events"] });
+    assertObjectEquals(beaconEvents.totals, { added: ["events"] });
   });
 
   it("says it identifies viewers", () => {
@@ -363,13 +368,13 @@ describe("counting what the beacon reported", () => {
     // than left to fail hourly against a column that is not there. The cap
     // is keyed on the viewer, and there is no version of this question
     // without one.
-    expect(beaconEvents.identifiesViewers).toBe(true);
+    assertTrue(beaconEvents.identifiesViewers);
   });
 
   it("is not one of the questions every deployment computes", () => {
     // Then a site with no beacon computes nothing for it. Layer 2 is
     // optional, and a scheduled question over rows nobody writes is an
     // Athena charge per window for an empty answer.
-    expect(rollups).not.toContain(beaconEvents);
+    assertArrayNotIncludes(rollups, beaconEvents);
   });
 });

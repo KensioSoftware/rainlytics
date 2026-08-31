@@ -1,5 +1,11 @@
+import {
+  assertIdentical,
+  assertStringIncludes,
+  assertStringMatches,
+  assertThrowsError,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import {
   assertQueryableName,
@@ -13,8 +19,8 @@ describe("what the log dataset is called", () => {
     // Then they are the ones a construct creates and a query names. Two
     // literals that happen to match today is how a query comes to name a
     // table nobody made, and nothing between here and Athena would catch it.
-    expect(defaultLogDataset.databaseName).toBe("rainlytics");
-    expect(defaultLogDataset.tableName).toBe("cloudfront_logs");
+    assertIdentical(defaultLogDataset.databaseName, "rainlytics");
+    assertIdentical(defaultLogDataset.tableName, "cloudfront_logs");
   });
 
   it("quotes the pair the way a query writes them", () => {
@@ -25,8 +31,11 @@ describe("what the log dataset is called", () => {
     };
 
     // Then the qualified name is what goes after FROM.
-    expect(qualifiedTableName(dataset)).toBe('"site_analytics"."edge_logs"');
-    expect(qualifiedTableName()).toBe('"rainlytics"."cloudfront_logs"');
+    assertIdentical(
+      qualifiedTableName(dataset),
+      '"site_analytics"."edge_logs"',
+    );
+    assertIdentical(qualifiedTableName(), '"rainlytics"."cloudfront_logs"');
   });
 
   it("refuses to quote a name Athena would not find", () => {
@@ -41,7 +50,10 @@ describe("what the log dataset is called", () => {
     // Then it refuses here rather than quoting it into SQL. The construct
     // checks the same names at synthesis, and a caller writing a query has
     // its own names and need never have gone through the construct.
-    expect(naming).toThrow(/Rainlytics Logs/u);
+    {
+      const error = assertThrowsError(naming);
+      assertStringMatches(error.message, /Rainlytics Logs/u);
+    }
   });
 
   it("accepts the names Athena reads back plainly", () => {
@@ -51,7 +63,7 @@ describe("what the log dataset is called", () => {
     };
 
     // Then nothing objects.
-    expect(naming).not.toThrow();
+    naming();
   });
 
   it.each([
@@ -69,7 +81,10 @@ describe("what the log dataset is called", () => {
     // Then it is refused where somebody can still change it. Athena
     // lowercases what it stores, so the alternative is a deployed dataset
     // answering to a name the caller has to work out.
-    expect(naming).toThrow(/database/u);
+    {
+      const error = assertThrowsError(naming);
+      assertStringMatches(error.message, /database/u);
+    }
   });
 
   it("names what it refused, so the message can be acted on", () => {
@@ -77,8 +92,11 @@ describe("what the log dataset is called", () => {
     const name = `${faker.word.noun()} ${faker.word.noun()}`;
 
     // Then the refusal quotes it back.
-    expect(() => {
-      assertQueryableName("table", name);
-    }).toThrow(name);
+    {
+      const error = assertThrowsError(() => {
+        assertQueryableName("table", name);
+      });
+      assertStringIncludes(error.message, name);
+    }
   });
 });

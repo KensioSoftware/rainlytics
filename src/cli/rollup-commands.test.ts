@@ -1,3 +1,9 @@
+import {
+  assertIdentical,
+  assertObjectEquals,
+  assertStringIncludes,
+  assertTrue,
+} from "@kensio/smartass";
 import { gzipSync } from "node:zlib";
 
 import { AthenaClient } from "@aws-sdk/client-athena";
@@ -6,7 +12,7 @@ import { SimSdk } from "@kensio/yulin/sdk";
 import { Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { type App, CfnOutput, Stack } from "aws-cdk-lib/core";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { readingAthenaCaller } from "#test/reading-athena-caller.js";
 import { deployStacks } from "#test/simulated-deployment.js";
@@ -205,8 +211,8 @@ describe("the named questions, run through Athena", () => {
 
     // Then only the pages count. The stylesheet answered `text/css`, the 404
     // did not succeed, and the crawler is filtered out below.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [
       { path: "/", views: "2" },
       { path: "/grammar/", views: "1" },
     ]);
@@ -262,8 +268,8 @@ describe("the named questions, run through Athena", () => {
     // Then specific Chromium browsers win over the compatibility tokens.
     // The crawler and stylesheet contribute no view, and each device class
     // is read from the same user-agent row as its browser family.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [
       { browser: "Edge", device: "Desktop", views: "2" },
       { browser: "Chrome family", device: "Mobile", views: "1" },
       { browser: "Chrome family", device: "Tablet", views: "1" },
@@ -317,8 +323,8 @@ describe("the named questions, run through Athena", () => {
 
     // Then the terms read as somebody typed them, the redirects are counted
     // beside them, and the tool's own parameter is left out.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [
       { term: "家", searches: "3", redirected: "2" },
       { term: "talent", searches: "1", redirected: "0" },
     ]);
@@ -361,8 +367,8 @@ describe("the named questions, run through Athena", () => {
     // and a reader gets one whatever they typed. Counting the 308 would
     // report `happy` as a term the site publishes a page for, on the same
     // line as the term it does publish one for.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [
       { term: "happy", searches: "2", redirected: "0" },
       { term: "家", searches: "1", redirected: "1" },
     ]);
@@ -396,8 +402,8 @@ describe("the named questions, run through Athena", () => {
 
     // Then the column is right for that site. One value carrying commas,
     // where `--path` is given again for each path.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [
       { term: "happy", searches: "2", redirected: "1" },
     ]);
   });
@@ -408,9 +414,12 @@ describe("the named questions, run through Athena", () => {
 
     // Then it says what it takes before anything reaches Athena, the way a
     // mistyped row count does.
-    expect(run.code).toBe(2);
-    expect(run.error).toContain("--redirect-status takes HTTP status codes");
-    expect(run.error).toContain('Run "rainlytics searches --help"');
+    assertIdentical(run.code, 2);
+    assertStringIncludes(
+      run.error,
+      "--redirect-status takes HTTP status codes",
+    );
+    assertStringIncludes(run.error, 'Run "rainlytics searches --help"');
   });
 
   it("leaves the redirect statuses off a question that counts none", async () => {
@@ -420,8 +429,8 @@ describe("the named questions, run through Athena", () => {
     // Then it has no redirects to be told about. The option sits on the one
     // question separating a search sent to its answer from one that produced
     // a list, the way `--param` sits on the one that reads a parameter.
-    expect(run.code).toBe(2);
-    expect(run.error).toContain("--redirect-status");
+    assertIdentical(run.code, 2);
+    assertStringIncludes(run.error, "--redirect-status");
   });
 
   it("counts two spellings of one search as one term", async () => {
@@ -448,7 +457,7 @@ describe("the named questions, run through Athena", () => {
 
     // Then they are one row. Two rows would split one question in half and
     // rank both below a term nobody had trouble spelling.
-    expect(run.rows).toStrictEqual([
+    assertObjectEquals(run.rows, [
       { term: "old man", searches: "2", redirected: "0" },
     ]);
   });
@@ -478,7 +487,7 @@ describe("the named questions, run through Athena", () => {
 
     // Then it is read the same way `q` would have been. One site can hold
     // several of these, and each is its own question.
-    expect(run.rows).toStrictEqual([
+    assertObjectEquals(run.rows, [
       { term: "家", searches: "1", redirected: "0" },
     ]);
   });
@@ -507,8 +516,8 @@ describe("the named questions, run through Athena", () => {
     // Then the other section and the page above both are left out. The
     // home page is a prefix of nothing here, which is what separates a
     // prefix match from a substring one.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [
       { path: "/guides/one/", views: "1" },
       { path: "/guides/two/", views: "1" },
     ]);
@@ -559,8 +568,8 @@ describe("the named questions, run through Athena", () => {
     // Each row carries the box it came from, so the term searched in both
     // is two rows and each says which corpus answered it. One run reads
     // both, where two would have been two questions.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [
       {
         term: "talent",
         section: "/words/search/",
@@ -610,8 +619,8 @@ describe("the named questions, run through Athena", () => {
     // Then the answer is the terms alone. Every row would carry the same
     // section, and a column repeating one value tells the reader what they
     // typed.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [
       { term: "talent", searches: "1", redirected: "0" },
     ]);
   });
@@ -638,7 +647,7 @@ describe("the named questions, run through Athena", () => {
 
     // Then only that one is counted. An unescaped LIKE would have counted
     // both, and the count would have looked right.
-    expect(run.rows).toStrictEqual([{ path: "/a_b/", views: "1" }]);
+    assertObjectEquals(run.rows, [{ path: "/a_b/", views: "1" }]);
   });
 
   it("counts one of the hosts a distribution serves", async () => {
@@ -662,7 +671,7 @@ describe("the named questions, run through Athena", () => {
     ]);
 
     // Then the other site's requests are left out.
-    expect(run.rows).toStrictEqual([{ status: "200", responses: "2" }]);
+    assertObjectEquals(run.rows, [{ status: "200", responses: "2" }]);
   });
 
   it("reads a path back out of CloudFront's encoding", async () => {
@@ -685,7 +694,7 @@ describe("the named questions, run through Athena", () => {
     // Then the address reads as the reader would recognise it. One pass
     // would answer `/words/%E5%A5%BD/`, which is the URI the browser sent
     // and is no more readable than the record.
-    expect(run.rows).toStrictEqual([
+    assertObjectEquals(run.rows, [
       { path: "/words/好/", views: "2" },
       { path: "/words/人/", views: "1" },
     ]);
@@ -703,9 +712,7 @@ describe("the named questions, run through Athena", () => {
     // Then Google is the only one. The referral from this site's own host is
     // somebody moving around rather than arriving, and the crawler's is
     // filtered out with the crawler.
-    expect(run.rows).toStrictEqual([
-      { referrer: "www.google.com", views: "1" },
-    ]);
+    assertObjectEquals(run.rows, [{ referrer: "www.google.com", views: "1" }]);
   });
 
   it("counts every response, whatever it answered", async () => {
@@ -719,7 +726,7 @@ describe("the named questions, run through Athena", () => {
     // Then the stylesheet is in there too, unlike in the pageview count.
     // A stylesheet returning 404 is worth seeing and a rollup looking only
     // at pages never would.
-    expect(run.rows).toStrictEqual([
+    assertObjectEquals(run.rows, [
       { status: "200", responses: "4" },
       { status: "404", responses: "1" },
     ]);
@@ -738,9 +745,9 @@ describe("the named questions, run through Athena", () => {
     // miss. The error is not one the cache was asked about, so it moves
     // neither the count nor the ratio.
     const [ratio] = run.rows as Readonly<Record<string, string>>[];
-    expect(ratio?.["hits"]).toBe("3");
-    expect(ratio?.["misses"]).toBe("1");
-    expect(Number(ratio?.["hit_percent"])).toBe(75);
+    assertIdentical(ratio?.["hits"], "3");
+    assertIdentical(ratio["misses"], "1");
+    assertIdentical(Number(ratio["hit_percent"]), 75);
   });
 
   it("leaves crawlers out until it is told not to", async () => {
@@ -762,11 +769,11 @@ describe("the named questions, run through Athena", () => {
     // quiet site's traffic, so the default is the number that says something
     // about people, and the flag is what makes the difference visible rather
     // than hidden.
-    expect(filtered.rows).toStrictEqual([
+    assertObjectEquals(filtered.rows, [
       { path: "/", views: "2" },
       { path: "/grammar/", views: "1" },
     ]);
-    expect(everything.rows).toStrictEqual([
+    assertObjectEquals(everything.rows, [
       { path: "/", views: "2" },
       { path: "/grammar/", views: "2" },
     ]);
@@ -788,7 +795,7 @@ describe("the named questions, run through Athena", () => {
     ]);
 
     // Then that is what comes back.
-    expect(run.rows).toStrictEqual([{ path: "/", views: "2" }]);
+    assertObjectEquals(run.rows, [{ path: "/", views: "2" }]);
   });
 
   it("reads only the partitions the range covers", async () => {
@@ -827,10 +834,10 @@ describe("the named questions, run through Athena", () => {
     // Then the shorter range reads less. `--last` becomes partition
     // predicates rather than a filter on the record's own timestamp, which
     // would answer the same and read everything to do it.
-    expect(scannedBytes(aDay.error)).toBeLessThan(scannedBytes(aMonth.error));
+    assertTrue(scannedBytes(aDay.error) < scannedBytes(aMonth.error));
 
     // And the longer one finds what the shorter one could not reach.
-    expect(aMonth.rows[0]).toStrictEqual({ path: "/", views: "402" });
+    assertObjectEquals(aMonth.rows[0], { path: "/", views: "402" });
   });
 
   it("reports a rollup Athena would not run", async () => {
@@ -851,8 +858,8 @@ describe("the named questions, run through Athena", () => {
     // Then it fails the way `query` does, since the two run the same way
     // once the SQL is written. A rollup in the wrong workgroup is a rollup
     // with no ceiling on it.
-    expect(run.code).toBe(1);
-    expect(run.error).toContain("not-a-workgroup");
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "not-a-workgroup");
   });
 
   it("asks Athena in the region it was told to", async () => {
@@ -873,9 +880,9 @@ describe("the named questions, run through Athena", () => {
     // Then it goes there, finds no workgroup, and says where it looked.
     // Every command that reaches Athena takes the region, since the four
     // named questions run the same way `query` does once the SQL is written.
-    expect(run.code).toBe(1);
-    expect(run.error).toContain("WorkGroup rainlytics is not found");
-    expect(run.error).toContain("Athena was asked in eu-west-1");
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "WorkGroup rainlytics is not found");
+    assertStringIncludes(run.error, "Athena was asked in eu-west-1");
   });
 
   it("names the actions --query takes, where the caller has none", async () => {
@@ -892,16 +899,18 @@ describe("the named questions, run through Athena", () => {
 
     // Then the four actions are named, and so is the question this identity
     // can answer without them. Dropping --query costs it a GET.
-    expect(run.code).toBe(1);
-    expect(run.error).toContain(
+    assertIdentical(run.code, 1);
+    assertStringIncludes(
+      run.error,
       "Running a query takes athena:StartQueryExecution and" +
         " athena:StopQueryExecution",
     );
-    expect(run.error).toContain("s3:PutObject and s3:AbortMultipartUpload");
-    expect(run.error).toContain(
+    assertStringIncludes(run.error, "s3:PutObject and s3:AbortMultipartUpload");
+    assertStringIncludes(
+      run.error,
       "(pageviews, referrers, browsers, status-codes,",
     );
-    expect(run.error).toContain("summary on s3:GetObject alone");
+    assertStringIncludes(run.error, "summary on s3:GetObject alone");
   });
 
   it("refuses a span it cannot read", async () => {
@@ -910,9 +919,9 @@ describe("the named questions, run through Athena", () => {
 
     // Then it says what it takes, and exits as the command-line mistake it
     // is rather than as a query that failed.
-    expect(run.code).toBe(2);
-    expect(run.error).toContain("24h, 7d or 2w");
-    expect(run.error).toContain('Run "rainlytics pageviews --help"');
+    assertIdentical(run.code, 2);
+    assertStringIncludes(run.error, "24h, 7d or 2w");
+    assertStringIncludes(run.error, 'Run "rainlytics pageviews --help"');
   });
 
   it("refuses a row count that is not one", async () => {
@@ -920,8 +929,8 @@ describe("the named questions, run through Athena", () => {
     const run = await cli(["pageviews", "--query", "--limit", "lots"]);
 
     // Then it says so before running anything.
-    expect(run.code).toBe(2);
-    expect(run.error).toContain("--limit takes a whole number");
+    assertIdentical(run.code, 2);
+    assertStringIncludes(run.error, "--limit takes a whole number");
   });
 
   /** The bytes a scan report names, whichever unit it wrote them in. */

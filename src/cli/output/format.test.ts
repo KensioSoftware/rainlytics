@@ -1,5 +1,11 @@
+import {
+  assertObjectEquals,
+  assertSetSize,
+  assertStringIncludes,
+  assertStringMatches,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { defaultOutputFormat, outputFormats, render } from "./format.js";
 import type { CommandResult } from "./result.js";
@@ -23,7 +29,7 @@ describe("choosing an output format", () => {
     const written = render(result, defaultOutputFormat(false));
 
     // Then it parses, so `rainlytics ... | jq` works with no flag passed.
-    expect(JSON.parse(written)).toStrictEqual(result.rows);
+    assertObjectEquals(JSON.parse(written), result.rows);
   });
 
   it("gives a person at a terminal the aligned table", () => {
@@ -35,7 +41,7 @@ describe("choosing an output format", () => {
 
     // Then it is the table, headed and ruled off rather than quoted and
     // braced.
-    expect(written.split("\n")[1]).toMatch(/^-+ +-+$/u);
+    assertStringMatches(written.split("\n")[1], /^-+ +-+$/u);
   });
 
   it("writes every format it says it accepts", () => {
@@ -47,7 +53,7 @@ describe("choosing an output format", () => {
     // format that parsed and rendered as another one would be a flag that
     // quietly does nothing.
     const written = outputFormats.map((format) => render(result, format));
-    expect(new Set(written).size).toBe(outputFormats.length);
+    assertSetSize(new Set(written), outputFormats.length);
   });
 
   it("carries the same data whichever format is asked for", () => {
@@ -59,7 +65,7 @@ describe("choosing an output format", () => {
     // Then the value is in all of them. The flag chooses a shape and never a
     // subset.
     for (const format of outputFormats) {
-      expect(render(result, format)).toContain(value);
+      assertStringIncludes(render(result, format), value);
     }
   });
 });

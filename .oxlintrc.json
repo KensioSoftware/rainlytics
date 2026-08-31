@@ -201,7 +201,15 @@
     // built from; the rule's advice is to mutate instead.
     "oxc/no-map-spread": "off",
 
-    "smartass/prefer-specific-assertions": "warn",
+    "smartass/prefer-specific-assertions": "error",
+    "eslint/no-restricted-imports": [
+      "error",
+      {
+        "name": "vitest",
+        "importNames": ["expect"],
+        "message": "Use @kensio/smartass for test assertions."
+      }
+    ],
 
     // The vitest plugin has no file scoping of its own, so these have to be
     // switched off for the whole tree; the rules kept for tests are turned

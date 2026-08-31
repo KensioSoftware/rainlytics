@@ -1,5 +1,11 @@
+import {
+  assertIdentical,
+  assertSetSize,
+  assertStringMatches,
+  assertThrowsError,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { pageviews, rollups, searches } from "../rollup-questions.js";
 import type { Rollup } from "../rollups.js";
@@ -14,9 +20,7 @@ describe("what a set of scheduled questions can be", () => {
   it("takes the questions Rainlytics ships", () => {
     // Given the shipped questions, each named once.
     // Then nothing is refused.
-    expect(() => {
-      assertOneSummaryEach(rollups);
-    }).not.toThrow();
+    assertOneSummaryEach(rollups);
   });
 
   it("refuses two questions computed under one name", () => {
@@ -31,8 +35,14 @@ describe("what a set of scheduled questions can be", () => {
 
     // Then it is refused at synthesis, naming what would have happened. Both
     // would write to one key, and whichever ran last would be the answer.
-    expect(checking).toThrow(/"pageviews"/u);
-    expect(checking).toThrow(/same key/u);
+    {
+      const error = assertThrowsError(checking);
+      assertStringMatches(error.message, /"pageviews"/u);
+    }
+    {
+      const error = assertThrowsError(checking);
+      assertStringMatches(error.message, /same key/u);
+    }
   });
 
   it("refuses a deployment computing no windows", () => {
@@ -42,7 +52,10 @@ describe("what a set of scheduled questions can be", () => {
     };
 
     // Then it is refused, rather than deploying a function nothing invokes.
-    expect(checking).toThrow(/no granularity/u);
+    {
+      const error = assertThrowsError(checking);
+      assertStringMatches(error.message, /no granularity/u);
+    }
   });
 
   it("refuses a deployment computing no questions", () => {
@@ -53,7 +66,10 @@ describe("what a set of scheduled questions can be", () => {
     };
 
     // Then it is refused too, for the same reason.
-    expect(checking).toThrow(/no questions/u);
+    {
+      const error = assertThrowsError(checking);
+      assertStringMatches(error.message, /no questions/u);
+    }
   });
 });
 
@@ -68,7 +84,7 @@ describe("what a schedule is called in the template", () => {
     // Then its logical id reads as both, in the case CDK expects. An id built
     // from a position in a list would renumber every schedule after one that
     // was added, and CloudFormation would replace resources nothing changed.
-    expect(scheduleId(run)).toBe("CacheHitRatioHourly");
+    assertIdentical(scheduleId(run), "CacheHitRatioHourly");
   });
 
   it("gives the two cadences of one question different ids", () => {
@@ -78,6 +94,6 @@ describe("what a schedule is called in the template", () => {
     );
 
     // Then they are two schedules and not one.
-    expect(new Set(ids).size).toBe(2);
+    assertSetSize(new Set(ids), 2);
   });
 });

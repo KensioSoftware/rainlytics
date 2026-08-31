@@ -1,7 +1,8 @@
+import { assertIdentical, assertObjectEquals } from "@kensio/smartass";
 // @vitest-environment happy-dom
 
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { watchRoutes } from "./routes.js";
 
@@ -29,7 +30,7 @@ describe("watching a single-page app change route", () => {
 
     // Then the change is reported with the page it moved to. Reporting
     // before the address bar moved would name the page being left.
-    expect(pages).toStrictEqual([page]);
+    assertObjectEquals(pages, [page]);
 
     stop();
   });
@@ -45,7 +46,7 @@ describe("watching a single-page app change route", () => {
 
     // Then that is reported too. Neither method fires an event of its own,
     // so both are wrapped.
-    expect(pages).toStrictEqual([page]);
+    assertObjectEquals(pages, [page]);
 
     stop();
   });
@@ -69,7 +70,7 @@ describe("watching a single-page app change route", () => {
 
     // Then the page they went back to is reported. `popstate` is the only
     // one of the three that fires an event without being wrapped.
-    expect(pages.at(-1)).toBe(first);
+    assertIdentical(pages.at(-1), first);
 
     stop();
   });
@@ -94,8 +95,8 @@ describe("watching a single-page app change route", () => {
     // Putting the original back here would take the router's wrapper off the
     // page with it, and the site would lose whatever it does on a route
     // change with no error to find it by.
-    expect(alsoSeen).toStrictEqual([page]);
-    expect(pages).toStrictEqual([]);
+    assertObjectEquals(alsoSeen, [page]);
+    assertObjectEquals(pages, []);
 
     history.pushState = ours;
   });
@@ -112,7 +113,7 @@ describe("watching a single-page app change route", () => {
 
     // Then neither reaches it. Stopping puts back the methods it wrapped, so
     // a site starting and stopping a beacon several times stacks nothing.
-    expect(pages).toStrictEqual([]);
+    assertObjectEquals(pages, []);
   });
 
   it("leaves a wrapper somebody else added still running", () => {
@@ -131,8 +132,8 @@ describe("watching a single-page app change route", () => {
 
     // Then both wrappers ran. Every wrapper on the page calls the one it
     // found, and this is the beacon holding up its end of that.
-    expect(pages).toStrictEqual([page]);
-    expect(alsoSeen).toStrictEqual([page]);
+    assertObjectEquals(pages, [page]);
+    assertObjectEquals(alsoSeen, [page]);
 
     stop();
   });

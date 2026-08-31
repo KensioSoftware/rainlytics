@@ -1,9 +1,21 @@
+import {
+  assertArrayIncludes,
+  assertArrayLength,
+  assertArrayNotIncludes,
+  assertFalse,
+  assertInstanceOf,
+  assertObjectEquals,
+  assertStringIncludes,
+  assertStringMatches,
+  assertThrowsError,
+  assertUndefined,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
 import type { Policy } from "aws-cdk-lib/aws-iam";
 import { Bucket } from "aws-cdk-lib/aws-s3";
 import type { CfnSchedule } from "aws-cdk-lib/aws-scheduler";
 import { App, Stack } from "aws-cdk-lib/core";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { logFieldNamesWithoutAddress } from "../log-fields.js";
 import { beaconEvents } from "../beacon-rollup.js";
@@ -72,11 +84,13 @@ describe("what a deployment of the summaries computes", () => {
 
     // Then it gets an hourly and a daily schedule for each of the questions
     // `rainlytics` answers, named after the question and the cadence.
-    expect(summaries.schedules).toHaveLength(rollups.length * 2);
-    expect(summaries.schedules.map((schedule) => schedule.name)).toContain(
+    assertArrayLength(summaries.schedules, rollups.length * 2);
+    assertArrayIncludes(
+      summaries.schedules.map((schedule) => schedule.name),
       "rainlytics-pageviews-hourly",
     );
-    expect(summaries.schedules.map((schedule) => schedule.name)).toContain(
+    assertArrayIncludes(
+      summaries.schedules.map((schedule) => schedule.name),
       "rainlytics-cache-hit-ratio-daily",
     );
   });
@@ -98,9 +112,9 @@ describe("what a deployment of the summaries computes", () => {
 
     // Then the job is told what to count and what to run, and the query is
     // legible in the template rather than assembled at run time.
-    expect(sent.question.paths).toStrictEqual(["/guides/"]);
-    expect(sent.sql).toContain("strpos");
-    expect(sent.sql).toContain("SELECT");
+    assertObjectEquals(sent.question.paths, ["/guides/"]);
+    assertStringIncludes(sent.sql, "strpos");
+    assertStringIncludes(sent.sql, "SELECT");
   });
 
   it("keeps a second deployment's schedules apart from the first one's", () => {
@@ -114,9 +128,10 @@ describe("what a deployment of the summaries computes", () => {
     });
 
     // Then the schedules are named for that deployment.
-    expect(summaries.schedules.map((schedule) => schedule.name)).toStrictEqual([
-      "docs-pageviews-hourly",
-    ]);
+    assertObjectEquals(
+      summaries.schedules.map((schedule) => schedule.name),
+      ["docs-pageviews-hourly"],
+    );
   });
 
   it("counts visitors where the table carries the viewer's address", () => {
@@ -128,8 +143,8 @@ describe("what a deployment of the summaries computes", () => {
 
     // Then the schedule carries a second query counting them, salted per day,
     // and the job may read the salt.
-    expect(visitorSqlOf(summaries.schedules[0])).toContain("c_ip");
-    expect(grantedActions(summaries)).toContain("ssm:GetParameter");
+    assertStringIncludes(visitorSqlOf(summaries.schedules[0]), "c_ip");
+    assertArrayIncludes(grantedActions(summaries), "ssm:GetParameter");
   });
 
   it("counts no visitors where the delivery left the address out", () => {
@@ -142,9 +157,9 @@ describe("what a deployment of the summaries computes", () => {
 
     // Then it still computes every shipped question, and none of them carries
     // a query naming a column the table has never heard of.
-    expect(summaries.schedules).toHaveLength(rollups.length);
+    assertArrayLength(summaries.schedules, rollups.length);
     for (const schedule of summaries.schedules) {
-      expect(visitorSqlOf(schedule)).toBeUndefined();
+      assertUndefined(visitorSqlOf(schedule));
     }
   });
 
@@ -161,8 +176,8 @@ describe("what a deployment of the summaries computes", () => {
     // Then it was granted nothing on Systems Manager, while keeping the reads
     // its queries need. A site running no count has no parameter to point
     // that permission at.
-    expect(actions).toContain("athena:StartQueryExecution");
-    expect(actions).not.toContain("ssm:GetParameter");
+    assertArrayIncludes(actions, "athena:StartQueryExecution");
+    assertArrayNotIncludes(actions, "ssm:GetParameter");
   });
 
   it("takes a named question whose visitor count was turned off", () => {
@@ -174,8 +189,8 @@ describe("what a deployment of the summaries computes", () => {
     );
 
     // Then it deploys, and the schedule carries the question without a count.
-    expect(summaries.schedules).toHaveLength(1);
-    expect(visitorSqlOf(summaries.schedules[0])).toBeUndefined();
+    assertArrayLength(summaries.schedules, 1);
+    assertUndefined(visitorSqlOf(summaries.schedules[0]));
   });
 
   it("refuses a question that counts visitors the table cannot identify", () => {
@@ -190,8 +205,14 @@ describe("what a deployment of the summaries computes", () => {
     // Then it is refused at synthesis. Dropping the count silently would run
     // a deployment computing something other than what its code asked for,
     // and running it would fail hourly against a missing column.
-    expect(building).toThrow(/counts visitors/u);
-    expect(building).toThrow(/c-ip/u);
+    {
+      const error = assertThrowsError(building);
+      assertStringMatches(error.message, /counts visitors/u);
+    }
+    {
+      const error = assertThrowsError(building);
+      assertStringMatches(error.message, /c-ip/u);
+    }
   });
 
   it("computes the beacon question where the table can identify viewers", () => {
@@ -203,7 +224,7 @@ describe("what a deployment of the summaries computes", () => {
 
     // Then it deploys, with a schedule for each question. The beacon's own
     // question is opt-in, so a site with no beacon pays for none of this.
-    expect(summaries.schedules).toHaveLength(rollups.length + 1);
+    assertArrayLength(summaries.schedules, rollups.length + 1);
   });
 
   it("refuses the beacon question where the table cannot identify viewers", () => {
@@ -219,9 +240,18 @@ describe("what a deployment of the summaries computes", () => {
     // what one visitor sent, and a delivery with no address has no column to
     // key that on. Computing it without the cap would count a flood of a
     // million as a million.
-    expect(building).toThrow(/bounds a flood/u);
-    expect(building).toThrow(/beacon-events/u);
-    expect(building).toThrow(/c-ip/u);
+    {
+      const error = assertThrowsError(building);
+      assertStringMatches(error.message, /bounds a flood/u);
+    }
+    {
+      const error = assertThrowsError(building);
+      assertStringMatches(error.message, /beacon-events/u);
+    }
+    {
+      const error = assertThrowsError(building);
+      assertStringMatches(error.message, /c-ip/u);
+    }
   });
 
   it("names the identifying field a narrowed delivery actually left out", () => {
@@ -237,8 +267,18 @@ describe("what a deployment of the summaries computes", () => {
     // Then the refusal names the user agent and leaves the address out of it.
     // Being told to add a field already delivered sends its author looking in
     // the wrong place.
-    expect(building).toThrow(/cs\(User-Agent\)/u);
-    expect(building).not.toThrow(/c-ip/u);
+    {
+      const error = assertThrowsError(building);
+      assertStringMatches(error.message, /cs\(User-Agent\)/u);
+    }
+    (() => {
+      try {
+        building();
+      } catch (error) {
+        assertInstanceOf(error, Error);
+        assertFalse(/c-ip/u.test(error.message));
+      }
+    })();
   });
 
   it("refuses a deployment that would compute nothing", () => {
@@ -248,7 +288,10 @@ describe("what a deployment of the summaries computes", () => {
 
     // Then it is refused at synthesis, rather than deploying a function
     // nothing invokes and a bucket nothing writes to.
-    expect(building).toThrow(/computes nothing/u);
+    {
+      const error = assertThrowsError(building);
+      assertStringMatches(error.message, /computes nothing/u);
+    }
   });
 
   it("refuses a request naming a question it is not computing", () => {
@@ -262,6 +305,9 @@ describe("what a deployment of the summaries computes", () => {
 
     // Then it is refused at synthesis, where somebody can still read the
     // message. Left alone, the narrowing would go quietly unapplied.
-    expect(building).toThrow(/No rollup/u);
+    {
+      const error = assertThrowsError(building);
+      assertStringMatches(error.message, /No rollup/u);
+    }
   });
 });

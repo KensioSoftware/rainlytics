@@ -1,8 +1,16 @@
+import {
+  assertFalse,
+  assertIdentical,
+  assertStringIncludes,
+  assertStringMatches,
+  assertStringNotIncludes,
+  assertThrowsErrorAsync,
+} from "@kensio/smartass";
 import { SSMClient } from "@aws-sdk/client-ssm";
 import { faker } from "@faker-js/faker";
 import { SimAws, SimFixedClock } from "@kensio/yulin";
 import { SimSdk } from "@kensio/yulin/sdk";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { simStartedAt } from "#test/simulated-deployment.js";
 
@@ -45,9 +53,7 @@ describe("the secret a deployment counts visitors under", () => {
       });
 
     // Then the job reads it back decrypted.
-    await expect(visitorSecret(defaultVisitorSaltParameter)).resolves.toBe(
-      secret,
-    );
+    assertIdentical(await visitorSecret(defaultVisitorSaltParameter), secret);
   });
 
   it("refuses a deployment that has none, saying how to make one", async () => {
@@ -56,12 +62,18 @@ describe("the secret a deployment counts visitors under", () => {
 
     // Then the run fails naming it and the command that creates one. A run
     // that invented a salt would write a count no re-run could reproduce.
-    await expect(visitorSecret(defaultVisitorSaltParameter)).rejects.toThrow(
-      defaultVisitorSaltParameter,
-    );
-    await expect(visitorSecret(defaultVisitorSaltParameter)).rejects.toThrow(
-      /put-parameter/u,
-    );
+    {
+      const error = await assertThrowsErrorAsync(() =>
+        visitorSecret(defaultVisitorSaltParameter),
+      );
+      assertStringIncludes(error.message, defaultVisitorSaltParameter);
+    }
+    {
+      const error = await assertThrowsErrorAsync(() =>
+        visitorSecret(defaultVisitorSaltParameter),
+      );
+      assertStringMatches(error.message, /put-parameter/u);
+    }
   });
 
   it("refuses a parameter holding nothing worth hashing under", async () => {
@@ -82,9 +94,12 @@ describe("the secret a deployment counts visitors under", () => {
 
     // Then it reads as a deployment with no secret. A salt keyed on
     // whitespace is a salt anybody can guess.
-    await expect(visitorSecret(defaultVisitorSaltParameter)).rejects.toThrow(
-      /holds nothing/u,
-    );
+    {
+      const error = await assertThrowsErrorAsync(() =>
+        visitorSecret(defaultVisitorSaltParameter),
+      );
+      assertStringMatches(error.message, /holds nothing/u);
+    }
   });
 });
 
@@ -105,7 +120,7 @@ describe("the salt one day is counted under", () => {
     // Then both runs count under the same salt. KensioSoftware/rainlytics#54
     // is built on a re-run overwriting what was there, and a salt taken from
     // the clock would make the second run disagree with the first.
-    expect(visitorSalt(secret, window)).toBe(visitorSalt(secret, window));
+    assertIdentical(visitorSalt(secret, window), visitorSalt(secret, window));
   });
 
   it("is the same for every window inside one day", () => {
@@ -121,7 +136,7 @@ describe("the salt one day is counted under", () => {
     // the hours of a day add up to more than the day because people came
     // back.
     for (const hour of hours) {
-      expect(visitorSalt(secret, hour)).toBe(visitorSalt(secret, day));
+      assertIdentical(visitorSalt(secret, hour), visitorSalt(secret, day));
     }
   });
 
@@ -131,9 +146,9 @@ describe("the salt one day is counted under", () => {
 
     // Then the same visitor takes a different identifier tomorrow. This is
     // what `VisitorCount.additive` says in the document.
-    expect(visitorSalt(secret, anHourOn("2026-08-23", 8))).not.toBe(
-      visitorSalt(secret, anHourOn("2026-08-24", 8)),
-    );
+    const today = visitorSalt(secret, anHourOn("2026-08-23", 8));
+    const tomorrow = visitorSalt(secret, anHourOn("2026-08-24", 8));
+    assertFalse(Object.is(today, tomorrow));
   });
 
   it("is a different one under a different secret", () => {
@@ -142,9 +157,9 @@ describe("the salt one day is counted under", () => {
 
     // Then neither can reproduce the other's identifiers. A site that
     // replaced its secret is counting somebody new from that day on.
-    expect(visitorSalt(aSecret(), window)).not.toBe(
-      visitorSalt(aSecret(), window),
-    );
+    const first = visitorSalt(aSecret(), window);
+    const second = visitorSalt(aSecret(), window);
+    assertFalse(Object.is(first, second));
   });
 
   it("says nothing about the secret it came from", () => {
@@ -154,7 +169,7 @@ describe("the salt one day is counted under", () => {
 
     // Then it is a SHA-256 in hex and holds none of the secret. It reaches
     // Athena as literal text, and Athena keeps 45 days of query history.
-    expect(salt).toMatch(/^[0-9a-f]{64}$/u);
-    expect(salt).not.toContain(secret);
+    assertStringMatches(salt, /^[0-9a-f]{64}$/u);
+    assertStringNotIncludes(salt, secret);
   });
 });

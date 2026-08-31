@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { assertFalse, assertIdentical } from "@kensio/smartass";
+import { describe, it } from "vitest";
 
 import { exitCodes } from "./failure.js";
 
@@ -10,9 +11,9 @@ describe("the codes the CLI exits with", () => {
     // 1 and 2 is the thing that breaks when they move.
     //
     // 2 for a usage error is the convention getopt set and argparse kept.
-    expect(exitCodes.success).toBe(0);
-    expect(exitCodes.failure).toBe(1);
-    expect(exitCodes.usage).toBe(2);
+    assertIdentical(exitCodes.success, 0);
+    assertIdentical(exitCodes.failure, 1);
+    assertIdentical(exitCodes.usage, 2);
   });
 
   it("tells a command that failed apart from a command line that was wrong", () => {
@@ -20,6 +21,6 @@ describe("the codes the CLI exits with", () => {
     // Then they differ. A retry sometimes gets past the first and never past
     // the second, and a caller can only act on that if the two are told
     // apart.
-    expect(exitCodes.failure).not.toBe(exitCodes.usage);
+    assertFalse(Object.is(exitCodes.failure, exitCodes.usage));
   });
 });

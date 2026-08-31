@@ -1,5 +1,13 @@
+import {
+  assertIdentical,
+  assertObjectEquals,
+  assertSetSize,
+  assertStringEndsWith,
+  assertStringIncludes,
+  assertStringMatches,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { type Command, rainlyticsCommands } from "./command.js";
 import { exitCodes } from "./failure.js";
@@ -70,9 +78,9 @@ describe("running a command line", () => {
 
       // Then the help is the result of the command. It can be piped into a
       // pager or a file like anything else, and the run succeeded.
-      expect(ran.code).toBe(exitCodes.success);
-      expect(ran.stdout).toContain("rainlytics <command> [options]");
-      expect(ran.stderr).toBe("");
+      assertIdentical(ran.code, exitCodes.success);
+      assertStringIncludes(ran.stdout, "rainlytics <command> [options]");
+      assertIdentical(ran.stderr, "");
     });
 
     it("prints the help to standard error when nothing was asked for", async () => {
@@ -82,9 +90,9 @@ describe("running a command line", () => {
       // Then the help is a diagnostic and standard output stays empty, so
       // `rainlytics | jq` is handed nothing rather than a page of prose shaped
       // like data. The exit says the line was wrong.
-      expect(ran.code).toBe(exitCodes.usage);
-      expect(ran.stdout).toBe("");
-      expect(ran.stderr).toContain("rainlytics <command> [options]");
+      assertIdentical(ran.code, exitCodes.usage);
+      assertIdentical(ran.stdout, "");
+      assertStringIncludes(ran.stderr, "rainlytics <command> [options]");
     });
 
     it("prints the version on its own line", async () => {
@@ -92,9 +100,9 @@ describe("running a command line", () => {
       const ran = await run(["--version"]);
 
       // Then a bare version, which is what a script reading it expects.
-      expect(ran.code).toBe(exitCodes.success);
-      expect(ran.stdout).toMatch(/^\d+\.\d+\.\d+/u);
-      expect(ran.stdout.endsWith("\n")).toBe(true);
+      assertIdentical(ran.code, exitCodes.success);
+      assertStringMatches(ran.stdout, /^\d+\.\d+\.\d+/u);
+      assertStringEndsWith(ran.stdout, "\n");
     });
 
     it("says a command has to come before its options", async () => {
@@ -104,9 +112,9 @@ describe("running a command line", () => {
 
       // Then it says what to do about it rather than reporting an unknown
       // flag, because `--output` is a flag and it does exist.
-      expect(ran.code).toBe(exitCodes.usage);
-      expect(ran.stderr).toContain("comes before its options");
-      expect(ran.stderr).toContain("views");
+      assertIdentical(ran.code, exitCodes.usage);
+      assertStringIncludes(ran.stderr, "comes before its options");
+      assertStringIncludes(ran.stderr, "views");
     });
 
     it("refuses a command it does not have", async () => {
@@ -118,10 +126,10 @@ describe("running a command line", () => {
 
       // Then the name that failed is in the message, and standard output
       // stays clean.
-      expect(ran.code).toBe(exitCodes.usage);
-      expect(ran.stdout).toBe("");
-      expect(ran.stderr).toContain(missing);
-      expect(ran.stderr).toContain('Run "rainlytics --help"');
+      assertIdentical(ran.code, exitCodes.usage);
+      assertIdentical(ran.stdout, "");
+      assertStringIncludes(ran.stderr, missing);
+      assertStringIncludes(ran.stderr, 'Run "rainlytics --help"');
     });
   });
 
@@ -141,9 +149,9 @@ describe("running a command line", () => {
       const ran = await run([command.name], [command]);
 
       // Then the row is on standard output and the run succeeded.
-      expect(ran.code).toBe(exitCodes.success);
-      expect(ran.stdout).toContain(path);
-      expect(ran.stdout).toContain(String(views));
+      assertIdentical(ran.code, exitCodes.success);
+      assertStringIncludes(ran.stdout, path);
+      assertStringIncludes(ran.stdout, String(views));
     });
 
     it("gives a pipe JSON and a terminal the table", async () => {
@@ -158,8 +166,8 @@ describe("running a command line", () => {
 
       // Then the pipe gets something that parses and the terminal gets
       // something aligned, with no flag passed either time.
-      expect(JSON.parse(piped.stdout)).toStrictEqual([{ path, views }]);
-      expect(terminal.stdout.split("\n")[1]).toMatch(/^-+ +-+$/u);
+      assertObjectEquals(JSON.parse(piped.stdout), [{ path, views }]);
+      assertStringMatches(terminal.stdout.split("\n")[1], /^-+ +-+$/u);
     });
 
     it("writes the format that was asked for", async () => {
@@ -172,7 +180,7 @@ describe("running a command line", () => {
       const ran = await run([command.name, "--output", "csv"], [command], true);
 
       // Then the flag wins over what the streams imply.
-      expect(ran.stdout).toBe(`path,views\n${path},${views}\n`);
+      assertIdentical(ran.stdout, `path,views\n${path},${views}\n`);
     });
 
     it("refuses a format it cannot write", async () => {
@@ -184,9 +192,9 @@ describe("running a command line", () => {
 
       // Then the run stops before the command does any work, and the message
       // lists what it would have taken.
-      expect(ran.code).toBe(exitCodes.usage);
-      expect(ran.stdout).toBe("");
-      expect(ran.stderr).toContain("json, csv or table");
+      assertIdentical(ran.code, exitCodes.usage);
+      assertIdentical(ran.stdout, "");
+      assertStringIncludes(ran.stderr, "json, csv or table");
     });
 
     it("hands the command its arguments", async () => {
@@ -205,7 +213,7 @@ describe("running a command line", () => {
       const ran = await run([command.name, first, second], [command]);
 
       // Then both reach it, in order, with the command name removed.
-      expect(JSON.parse(ran.stdout)).toStrictEqual([
+      assertObjectEquals(JSON.parse(ran.stdout), [
         { given: first },
         { given: second },
       ]);
@@ -233,7 +241,7 @@ describe("running a command line", () => {
       const ran = await run([command.name, "--since", since], [command]);
 
       // Then the value reaches the command.
-      expect(JSON.parse(ran.stdout)).toStrictEqual([{ since }]);
+      assertObjectEquals(JSON.parse(ran.stdout), [{ since }]);
     });
 
     it("explains the command without running it", async () => {
@@ -244,8 +252,8 @@ describe("running a command line", () => {
       const ran = await run([command.name, "--help"], [command]);
 
       // Then the help is written and the command was never reached.
-      expect(ran.code).toBe(exitCodes.success);
-      expect(ran.stdout).toContain(`rainlytics ${command.name} [options]`);
+      assertIdentical(ran.code, exitCodes.success);
+      assertStringIncludes(ran.stdout, `rainlytics ${command.name} [options]`);
     });
 
     it("points at the command's own help when the mistake was in its options", async () => {
@@ -257,8 +265,11 @@ describe("running a command line", () => {
 
       // Then the help offered is that command's, which is where the option
       // would have been listed.
-      expect(ran.code).toBe(exitCodes.usage);
-      expect(ran.stderr).toContain(`Run "rainlytics ${command.name} --help"`);
+      assertIdentical(ran.code, exitCodes.usage);
+      assertStringIncludes(
+        ran.stderr,
+        `Run "rainlytics ${command.name} --help"`,
+      );
     });
 
     it("exits non-zero and says why when a command fails", async () => {
@@ -276,9 +287,9 @@ describe("running a command line", () => {
 
       // Then the shell sees a failure, the reason is on standard error, and
       // standard output carries nothing that could be mistaken for a result.
-      expect(ran.code).toBe(exitCodes.failure);
-      expect(ran.stdout).toBe("");
-      expect(ran.stderr).toContain(because);
+      assertIdentical(ran.code, exitCodes.failure);
+      assertIdentical(ran.stdout, "");
+      assertStringIncludes(ran.stderr, because);
     });
 
     it("reports a failure that was not thrown as an Error", async () => {
@@ -297,8 +308,8 @@ describe("running a command line", () => {
       const ran = await run([command.name], [command]);
 
       // Then it still reports rather than crashing on a missing `.message`.
-      expect(ran.code).toBe(exitCodes.failure);
-      expect(ran.stderr).toContain(because);
+      assertIdentical(ran.code, exitCodes.failure);
+      assertStringIncludes(ran.stderr, because);
     });
 
     it("waits for a command that takes its time", async () => {
@@ -319,7 +330,7 @@ describe("running a command line", () => {
 
       // Then the result is written, rather than an empty table going out
       // while the work is still in flight.
-      expect(JSON.parse(ran.stdout)).toStrictEqual([{ path }]);
+      assertObjectEquals(JSON.parse(ran.stdout), [{ path }]);
     });
   });
 
@@ -330,10 +341,10 @@ describe("running a command line", () => {
 
       // Then the help runs, and every command it ships is named in it. Empty
       // today, and this is what makes it wrong to add one silently.
-      expect(ran.code).toBe(exitCodes.success);
+      assertIdentical(ran.code, exitCodes.success);
 
       for (const command of rainlyticsCommands) {
-        expect(ran.stdout).toContain(command.name);
+        assertStringIncludes(ran.stdout, command.name);
       }
     });
 
@@ -343,7 +354,7 @@ describe("running a command line", () => {
 
       // Then no two answer to the same word, which would make one of them
       // unreachable.
-      expect(new Set(names).size).toBe(names.length);
+      assertSetSize(new Set(names), names.length);
     });
   });
 });

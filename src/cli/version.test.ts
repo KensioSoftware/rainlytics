@@ -1,9 +1,14 @@
+import {
+  assertIdentical,
+  assertStringMatches,
+  assertThrowsError,
+} from "@kensio/smartass";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { readPackageVersion } from "./version.js";
 
@@ -28,7 +33,10 @@ describe("the version the CLI reports", () => {
 
     // When the version is read from it.
     // Then it is that version, and not a number kept anywhere else.
-    expect(versionIn({ name: "@kensio/rainlytics", version })).toBe(version);
+    assertIdentical(
+      versionIn({ name: "@kensio/rainlytics", version }),
+      version,
+    );
   });
 
   it("refuses a package that carries no version", () => {
@@ -37,7 +45,10 @@ describe("the version the CLI reports", () => {
 
     // Then it fails, so `--version` cannot print the word "undefined" at
     // somebody who is filling in a bug report.
-    expect(reading).toThrow(/no version string/iu);
+    {
+      const error = assertThrowsError(reading);
+      assertStringMatches(error.message, /no version string/iu);
+    }
   });
 
   it("finds this package's own version with nothing to point it at", () => {
@@ -48,6 +59,6 @@ describe("the version the CLI reports", () => {
     // When the version is read with no path given.
     // Then it is this package's. That path has to hold from `src/cli` and
     // from the published `dist/cli` alike.
-    expect(readPackageVersion()).toBe((own as { version: string }).version);
+    assertIdentical(readPackageVersion(), (own as { version: string }).version);
   });
 });

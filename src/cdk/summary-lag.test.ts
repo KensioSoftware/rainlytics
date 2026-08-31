@@ -1,6 +1,12 @@
+import {
+  assertIdentical,
+  assertStringMatches,
+  assertThrowsError,
+  assertTrue,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
 import { Duration } from "aws-cdk-lib/core";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { defaultSummaryLag, summaryScheduleExpression } from "./summary-lag.js";
 
@@ -13,7 +19,7 @@ describe("when a run happens", () => {
     const expression = summaryScheduleExpression("hourly", lag);
 
     // Then it fires twenty minutes into every hour.
-    expect(expression).toBe("cron(20 * * * ? *)");
+    assertIdentical(expression, "cron(20 * * * ? *)");
   });
 
   it("fires once a day, in the hour after midnight UTC", () => {
@@ -23,7 +29,7 @@ describe("when a run happens", () => {
 
     // Then it fires once, a quarter of an hour after the day it computes
     // closed. The windows underneath are UTC and so is the run.
-    expect(expression).toBe("cron(15 0 * * ? *)");
+    assertIdentical(expression, "cron(15 0 * * ? *)");
   });
 
   it("waits long enough for CloudFront to have delivered the hour", () => {
@@ -34,9 +40,7 @@ describe("when a run happens", () => {
     // Then the default leaves margin over it. An hour's objects have all
     // landed by four minutes past the next hour, and a run on the hour would
     // drop the tail of every hour without anything saying so.
-    expect(defaultSummaryLag.toSeconds()).toBeGreaterThan(
-      slowestDelivery.toSeconds(),
-    );
+    assertTrue(defaultSummaryLag.toSeconds() > slowestDelivery.toSeconds());
   });
 
   it("refuses a lag of an hour or more", () => {
@@ -50,7 +54,10 @@ describe("when a run happens", () => {
     // Then it is refused. The lag decides which minute of the hour a run
     // fires on, and an hour of it would be a run computing a window two hours
     // old under a schedule that reads as though it kept up.
-    expect(writing).toThrow(/whole number of minutes/u);
+    {
+      const error = assertThrowsError(writing);
+      assertStringMatches(error.message, /whole number of minutes/u);
+    }
   });
 
   it("refuses a lag Scheduler cannot write as a minute", () => {
@@ -59,6 +66,9 @@ describe("when a run happens", () => {
       summaryScheduleExpression("hourly", Duration.seconds(90));
 
     // Then it is refused rather than rounded to something nobody asked for.
-    expect(writing).toThrow(/whole number of minutes/u);
+    {
+      const error = assertThrowsError(writing);
+      assertStringMatches(error.message, /whole number of minutes/u);
+    }
   });
 });

@@ -1,5 +1,12 @@
+import {
+  assertIdentical,
+  assertInstanceOf,
+  assertObjectEquals,
+  assertObjectMatches,
+  assertThrowsError,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import {
   browserTotals,
@@ -59,7 +66,8 @@ describe("adding several stored windows into one answer", () => {
 
     // Then the page appears once, carrying both hours. Two rows would
     // report one page twice and rank each half of it on its own.
-    expect(rows).toContainEqual({ path: "/grammar/", views: "6" });
+    const grammar = rows.find((row) => row["path"] === "/grammar/");
+    assertObjectMatches(grammar, { path: "/grammar/", views: "6" });
   });
 
   it("keeps device classes apart inside one browser family", () => {
@@ -84,7 +92,7 @@ describe("adding several stored windows into one answer", () => {
 
     // Then browser and device together identify a row. Grouping on the
     // browser alone would erase the device breakdown while appearing to add.
-    expect(rows).toStrictEqual([
+    assertObjectEquals(rows, [
       { browser: "Chrome family", device: "Mobile", views: "7" },
       { browser: "Chrome family", device: "Desktop", views: "2" },
     ]);
@@ -98,7 +106,7 @@ describe("adding several stored windows into one answer", () => {
 
     // Then the order is the one a query over both hours would have given,
     // most looked at first with the path breaking a tie.
-    expect(rows).toStrictEqual([
+    assertObjectEquals(rows, [
       { path: "/grammar/", views: "6" },
       { path: "/", views: "5" },
       { path: "/liju/", views: "1" },
@@ -111,7 +119,7 @@ describe("adding several stored windows into one answer", () => {
 
     // Then the top row of the total comes back. Cutting each window to one
     // row first would have answered with the home page.
-    expect(rows).toStrictEqual([{ path: "/grammar/", views: "6" }]);
+    assertObjectEquals(rows, [{ path: "/grammar/", views: "6" }]);
   });
 
   it("works the cache percentage out again from the counts it added", () => {
@@ -134,7 +142,7 @@ describe("adding several stored windows into one answer", () => {
     // Then the percentage is 35 hits in 40 decided requests. Averaging the
     // two percentages would have answered 75, which is a figure about
     // neither hour.
-    expect(rows).toStrictEqual([
+    assertObjectEquals(rows, [
       { hits: "35", misses: "5", hit_percent: "87.5" },
     ]);
   });
@@ -161,7 +169,7 @@ describe("adding several stored windows into one answer", () => {
     // Then the column holds nothing, the way `nullif` leaves it in the
     // query. A zero there would report a cache that answered nothing as a
     // cache that missed everything.
-    expect(row?.["hit_percent"]).toBeNull();
+    assertIdentical(row?.["hit_percent"], null);
   });
 
   it("names its columns even where every window was quiet", () => {
@@ -178,7 +186,7 @@ describe("adding several stored windows into one answer", () => {
     // Then the answer is empty. It is a different answer from a window
     // nobody computed, and whatever fetched them has already told them
     // apart.
-    expect(rows).toStrictEqual([]);
+    assertObjectEquals(rows, []);
   });
 
   it("keeps one malformed row out of a whole column", () => {
@@ -194,7 +202,7 @@ describe("adding several stored windows into one answer", () => {
 
     // Then the hour that counted is still there. `NaN` in the column would
     // have taken the other hour with it.
-    expect(rows).toStrictEqual([{ path: "/", views: "3" }]);
+    assertObjectEquals(rows, [{ path: "/", views: "3" }]);
   });
 
   it("matches rows on a key column holding nothing", () => {
@@ -213,7 +221,7 @@ describe("adding several stored windows into one answer", () => {
     // Then the two are one row. Treating an empty cell as its own key would
     // report the same nothing twice.
     // oxlint-disable-next-line unicorn/no-null
-    expect(rows).toStrictEqual([{ path: null, views: "7" }]);
+    assertObjectEquals(rows, [{ path: null, views: "7" }]);
   });
 
   it("breaks a tie on the key, the way the query does", () => {
@@ -235,7 +243,7 @@ describe("adding several stored windows into one answer", () => {
     // Then the path decides, as `ORDER BY 2 DESC, 1` does for one window. A
     // reader comparing this week against last wants the tie broken the same
     // way both times.
-    expect(rows).toStrictEqual([
+    assertObjectEquals(rows, [
       { path: "/grammar/", views: "2" },
       { path: "/liju/", views: "2" },
     ]);
@@ -246,6 +254,9 @@ describe("adding several stored windows into one answer", () => {
     // would arrive with.
     // Then it says so. The columns come from the summaries, and an empty
     // pile names none.
-    expect(() => totalledRows([], pageviewTotals)).toThrow(RangeError);
+    assertInstanceOf(
+      assertThrowsError(() => totalledRows([], pageviewTotals)),
+      RangeError,
+    );
   });
 });

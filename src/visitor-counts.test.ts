@@ -1,3 +1,10 @@
+import {
+  assertArrayLength,
+  assertFalse,
+  assertIdentical,
+  assertSetSize,
+  assertStringIncludes,
+} from "@kensio/smartass";
 import { gzipSync } from "node:zlib";
 
 import { AthenaClient } from "@aws-sdk/client-athena";
@@ -7,7 +14,7 @@ import { SimSdk } from "@kensio/yulin/sdk";
 import { Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { type App, CfnOutput, Stack } from "aws-cdk-lib/core";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { deployStacks } from "#test/simulated-deployment.js";
 
@@ -44,9 +51,9 @@ describe("the query that counts visitors", () => {
     // Then it names neither yet. The window and the salt both arrive when the
     // job runs, which is what keeps the salt out of the CloudFormation
     // template and out of a schedule's target input.
-    expect(sql).toContain(windowPlaceholder);
-    expect(sql).toContain(visitorSaltPlaceholder);
-    expect(sql).toContain(`AS ${visitorColumn}`);
+    assertStringIncludes(sql, windowPlaceholder);
+    assertStringIncludes(sql, visitorSaltPlaceholder);
+    assertStringIncludes(sql, `AS ${visitorColumn}`);
   });
 
   it("counts over the pages a request was narrowed to", () => {
@@ -62,10 +69,10 @@ describe("the query that counts visitors", () => {
     // Then the count covers exactly the rows the question beside it covers.
     // A summary reporting 412 views and 317 visitors is two numbers over one
     // set of rows.
-    expect(sql).toContain("x_host_header = 'www.example.com'");
-    expect(sql).toContain("'/grammar/'");
-    expect(sql).toContain("sc_content_type LIKE 'text/html%'");
-    expect(sql).toContain("c_ip <> '-'");
+    assertStringIncludes(sql, "x_host_header = 'www.example.com'");
+    assertStringIncludes(sql, "'/grammar/'");
+    assertStringIncludes(sql, "sc_content_type LIKE 'text/html%'");
+    assertStringIncludes(sql, "c_ip <> '-'");
   });
 });
 
@@ -195,7 +202,7 @@ describe("who one identifier stands for", () => {
       region: "us-east-1",
     });
 
-    expect(outcome.state).toBe("SUCCEEDED");
+    assertIdentical(outcome.state, "SUCCEEDED");
 
     return outcome.rows.map((row) => String(row["visitor"]));
   };
@@ -212,9 +219,7 @@ describe("who one identifier stands for", () => {
     await putView(deployed, anHour, "203.0.113.7");
 
     // Then the hour holds one visitor.
-    await expect(
-      identifiersIn(anHourly(anHour), "a-salt"),
-    ).resolves.toHaveLength(1);
+    assertArrayLength(await identifiersIn(anHourly(anHour), "a-salt"), 1);
   });
 
   it("is two identifiers for two addresses on one day", async () => {
@@ -227,7 +232,7 @@ describe("who one identifier stands for", () => {
     // Then the hour holds two visitors.
     const identifiers = await identifiersIn(anHourly(anHour), "a-salt");
 
-    expect(new Set(identifiers).size).toBe(2);
+    assertSetSize(new Set(identifiers), 2);
   });
 
   it("is two identifiers for one address on two days", async () => {
@@ -245,9 +250,9 @@ describe("who one identifier stands for", () => {
 
     // Then the same person is a different visitor. This is why a month is not
     // the sum of its days, and why `VisitorCount` says `additive: false`.
-    expect(today).toHaveLength(1);
-    expect(tomorrow).toHaveLength(1);
-    expect(today[0]).not.toBe(tomorrow[0]);
+    assertArrayLength(today, 1);
+    assertArrayLength(tomorrow, 1);
+    assertFalse(Object.is(today[0], tomorrow[0]));
   });
 
   it("hashes nothing for a record delivered without an address", async () => {
@@ -264,6 +269,6 @@ describe("who one identifier stands for", () => {
     // hashes to an identifier of its own, and leaving it in would show up
     // here as a second visitor. Every record of the days before the delivery
     // changed would gather into that one and report somebody nobody was.
-    expect(identifiers).toHaveLength(1);
+    assertArrayLength(identifiers, 1);
   });
 });

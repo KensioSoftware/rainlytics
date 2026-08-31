@@ -1,8 +1,18 @@
+import {
+  assertArrayLength,
+  assertIdentical,
+  assertObjectEquals,
+  assertStringIncludes,
+  assertStringLength,
+  assertStringMatches,
+  assertStringNotIncludes,
+  assertThrowsErrorAsync,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
 import { Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { type App, Stack } from "aws-cdk-lib/core";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { deployStacks } from "#test/simulated-deployment.js";
 
@@ -82,14 +92,17 @@ describe("the rollups saved in Athena", () => {
     // Then each is in the catalog under its own name. Somebody in the
     // console can read what `rainlytics pageviews` counts without reading
     // this repository.
-    expect(saved.map((query) => query.name)).toStrictEqual([
-      "rainlytics-pageviews",
-      "rainlytics-referrers",
-      "rainlytics-browsers",
-      "rainlytics-status-codes",
-      "rainlytics-cache-hit-ratio",
-      "rainlytics-searches",
-    ]);
+    assertObjectEquals(
+      saved.map((query) => query.name),
+      [
+        "rainlytics-pageviews",
+        "rainlytics-referrers",
+        "rainlytics-browsers",
+        "rainlytics-status-codes",
+        "rainlytics-cache-hit-ratio",
+        "rainlytics-searches",
+      ],
+    );
   });
 
   it("saves the SQL the command runs, not a description of it", async () => {
@@ -100,7 +113,8 @@ describe("the rollups saved in Athena", () => {
     // range. The command and the console copy come out of one builder, so
     // the two cannot drift into different answers to the same question.
     for (const [index, rollup] of rollups.entries()) {
-      expect(saved[index]?.queryString).toBe(
+      assertIdentical(
+        saved[index]?.queryString,
         rollupSql(
           rollup,
           rollupRequest({ range: currentMonth, dataset: defaultLogDataset }),
@@ -117,8 +131,8 @@ describe("the rollups saved in Athena", () => {
     // holding the table. A saved query opened in the console runs where the
     // command would have run it.
     for (const query of saved) {
-      expect(query.workGroupName).toBe(defaultWorkgroupName);
-      expect(query.database).toBe(defaultLogDataset.databaseName);
+      assertIdentical(query.workGroupName, defaultWorkgroupName);
+      assertIdentical(query.database, defaultLogDataset.databaseName);
     }
   });
 
@@ -128,8 +142,8 @@ describe("the rollups saved in Athena", () => {
 
     // Then the description names it. A console full of SQL with no
     // provenance is a console nobody trusts to edit.
-    expect(saved[0]?.description).toContain('"rainlytics pageviews" runs');
-    expect(saved[0]?.description).toContain("current month");
+    assertStringIncludes(saved[0]?.description, '"rainlytics pageviews" runs');
+    assertStringIncludes(saved[0].description, "current month");
   });
 
   it("narrows a saved query to the page and the parameter it was given", async () => {
@@ -146,8 +160,8 @@ describe("the rollups saved in Athena", () => {
     // Then the saved SQL holds both. Without them it counts every query
     // string on the distribution, under a name and a description promising
     // the search box.
-    expect(search?.queryString).toContain(quoted(searchPage));
-    expect(search?.queryString).toContain(quoted(param));
+    assertStringIncludes(search?.queryString, quoted(searchPage));
+    assertStringIncludes(search.queryString, quoted(param));
   });
 
   it("saves a query counting the statuses one site's search answers with", async () => {
@@ -162,8 +176,11 @@ describe("the rollups saved in Athena", () => {
     // description says so. `SavedRollupRequest` is the rollup request minus
     // the two parts the construct settles, so a field added to the request
     // reaches `requests` with no edit here.
-    expect(search?.queryString).toContain("sc_status IN ('301', '302')");
-    expect(search?.description).toContain("counting 301 or 302 as redirected");
+    assertStringIncludes(search?.queryString, "sc_status IN ('301', '302')");
+    assertStringIncludes(
+      search.description,
+      "counting 301 or 302 as redirected",
+    );
   });
 
   it("says so where a saved copy counts no search as redirected", async () => {
@@ -174,8 +191,11 @@ describe("the rollups saved in Athena", () => {
 
     // Then the console says what the column of zeros means. `IN ()` is not
     // something Athena parses, so the SQL counts nothing instead.
-    expect(search?.description).toContain("counting no search as redirected");
-    expect(search?.queryString).toContain("WHEN false THEN");
+    assertStringIncludes(
+      search?.description,
+      "counting no search as redirected",
+    );
+    assertStringIncludes(search.queryString, "WHEN false THEN");
   });
 
   it("leaves the default statuses out of a description that kept them", async () => {
@@ -185,7 +205,7 @@ describe("the rollups saved in Athena", () => {
     // Then its description says nothing about them. The three a search
     // counts by default are in the rollup's own description, and a line
     // repeating them on every copy says nothing about that copy.
-    expect(search?.description).not.toContain("redirected");
+    assertStringNotIncludes(search?.description, "redirected");
   });
 
   it("leaves the questions it was told nothing about alone", async () => {
@@ -200,8 +220,9 @@ describe("the rollups saved in Athena", () => {
     // Then `pageviews` still counts the whole site. One set of options
     // across every saved query would put the same fault the other way
     // round, with `rainlytics-pageviews` counting the search page.
-    expect(views?.queryString).not.toContain(searchPage);
-    expect(views?.queryString).toBe(
+    assertStringNotIncludes(views?.queryString, searchPage);
+    assertIdentical(
+      views.queryString,
       rollupSql(
         pageviews,
         rollupRequest({ range: currentMonth, dataset: defaultLogDataset }),
@@ -222,7 +243,8 @@ describe("the rollups saved in Athena", () => {
 
     // Then the description says so. A reader in the console sees which
     // question the SQL underneath answers without reading the SQL.
-    expect(search?.description).toBe(
+    assertIdentical(
+      search?.description,
       `${searches.summary} What "rainlytics searches" runs.` +
         ` Over the current month, on ${host}, under ${searchPage},` +
         ` reading the "${param}" parameter.`,
@@ -242,13 +264,13 @@ describe("the rollups saved in Athena", () => {
     // Then the description names both, joined the way the SQL joins them. A
     // copy counting two sections under a line naming one would be the same
     // silence the narrowing was written to end.
-    expect(search?.description).toContain(`under ${words} or ${sentences}`);
-    expect(search?.queryString).toContain(quoted(words));
-    expect(search?.queryString).toContain(quoted(sentences));
+    assertStringIncludes(search?.description, `under ${words} or ${sentences}`);
+    assertStringIncludes(search.queryString, quoted(words));
+    assertStringIncludes(search.queryString, quoted(sentences));
 
     // And the saved SQL says which of them each row came from, the way the
     // command does.
-    expect(search?.queryString).toContain("AS section");
+    assertStringIncludes(search.queryString, "AS section");
   });
 
   it("names the parameter a search reads even where nobody chose one", async () => {
@@ -259,7 +281,7 @@ describe("the rollups saved in Athena", () => {
     // Then the saved copy still says which parameter it reads. It falls
     // back to `q`, and a site whose box carries the term under another name
     // has a query counting nothing with no sign of why.
-    expect(search?.description).toContain('reading the "q" parameter');
+    assertStringIncludes(search?.description, 'reading the "q" parameter');
   });
 
   it("saves a copy counting automated traffic where a site asks for one", async () => {
@@ -271,17 +293,20 @@ describe("the rollups saved in Athena", () => {
 
     // Then the crawler filter is off and the description says so. Bots find
     // the broken links first and in numbers.
-    expect(codes?.queryString).not.toContain(botUserAgentPattern);
-    expect(codes?.description).toContain("counting automated traffic");
+    assertStringNotIncludes(codes?.queryString, botUserAgentPattern);
+    assertStringIncludes(codes.description, "counting automated traffic");
   });
 
   it("refuses a request naming a rollup it is not saving", async () => {
     // Given a rollup name with a letter missing.
     // Then synthesis fails and names it. A key matching nothing narrows
     // nothing, which is the silence this prop was added to end.
-    await expect(
-      deployRollups({ requests: { searche: { paths: ["/find/"] } } }),
-    ).rejects.toThrow(/"searche"/u);
+    {
+      const error = await assertThrowsErrorAsync(() =>
+        deployRollups({ requests: { searche: { paths: ["/find/"] } } }),
+      );
+      assertStringMatches(error.message, /"searche"/u);
+    }
   });
 
   /** A question Rainlytics does not ship, built from the exported parts. */
@@ -309,9 +334,9 @@ describe("the rollups saved in Athena", () => {
     // as well as the SQL.
     const own = saved.find((query) => query.name === "rainlytics-countries");
 
-    expect(own?.queryString).toContain("year = date_format(current_date");
-    expect(own?.queryString).toContain("sc_content_type LIKE 'text/html%'");
-    expect(saved).toHaveLength(rollups.length + 1);
+    assertStringIncludes(own?.queryString, "year = date_format(current_date");
+    assertStringIncludes(own.queryString, "sc_content_type LIKE 'text/html%'");
+    assertArrayLength(saved, rollups.length + 1);
   });
 
   it("narrows a rollup a site wrote for itself", async () => {
@@ -328,8 +353,9 @@ describe("the rollups saved in Athena", () => {
     // Then it takes narrowing the way the built-in ones do. A site writing
     // its own question gets the console copy of that question and not of a
     // wider one.
-    expect(own?.queryString).toContain(quoted(section));
-    expect(own?.description).toBe(
+    assertStringIncludes(own?.queryString, quoted(section));
+    assertIdentical(
+      own.description,
       `Count views by country. Over the current month, under ${section}.`,
     );
   });
@@ -357,8 +383,8 @@ describe("the rollups saved in Athena", () => {
     // sharing a name, and leaving the built-in out is the way to do it.
     const search = saved.find((query) => query.name === "rainlytics-searches");
 
-    expect(search?.queryString).toContain("count(*) AS searches");
-    expect(saved).toHaveLength(rollups.length);
+    assertStringIncludes(search?.queryString, "count(*) AS searches");
+    assertArrayLength(saved, rollups.length);
   });
 
   it("refuses two rollups saved under one name", async () => {
@@ -369,9 +395,15 @@ describe("the rollups saved in Athena", () => {
     // Then synthesis fails, naming the rollup, the query the two would
     // share and the way to replace a built-in. CDK refuses the repeated
     // construct id on its own, under a message naming none of the three.
-    await expect(deployRollups({ rollups: both })).rejects.toThrow(
-      /"searches".+"rainlytics-searches".+rollup\.name !== "searches"/su,
-    );
+    {
+      const error = await assertThrowsErrorAsync(() =>
+        deployRollups({ rollups: both }),
+      );
+      assertStringMatches(
+        error.message,
+        /"searches".+"rainlytics-searches".+rollup\.name !== "searches"/su,
+      );
+    }
   });
 
   it("claims a command only where there is one", async () => {
@@ -391,7 +423,8 @@ describe("the rollups saved in Athena", () => {
     // Then its description says what it covers and stops. Naming
     // `rainlytics elsewhere` would send whoever reads it to a command that
     // does not exist.
-    expect(saved[0]?.description).toBe(
+    assertIdentical(
+      saved[0]?.description,
       "Count something else. Over the current month.",
     );
   });
@@ -408,9 +441,12 @@ describe("the rollups saved in Athena", () => {
 
     // Then synthesis fails, rather than a deploy landing a query under a
     // name CDK had to mangle to make a logical id out of.
-    await expect(deployRollups({ rollups: [shouting] })).rejects.toThrow(
-      /Reader Searches/u,
-    );
+    {
+      const error = await assertThrowsErrorAsync(() =>
+        deployRollups({ rollups: [shouting] }),
+      );
+      assertStringMatches(error.message, /Reader Searches/u);
+    }
   });
 
   /** A question of a site's own, named and summarised to order. */
@@ -435,7 +471,7 @@ describe("the rollups saved in Athena", () => {
 
     // Then it is saved. The check has to admit the longest usable name, or
     // it is refusing something Athena would have taken.
-    expect(saved[0]?.name).toHaveLength(128);
+    assertStringLength(saved[0]?.name, 128);
   });
 
   it("refuses a name longer than Athena would hold", async () => {
@@ -444,9 +480,12 @@ describe("the rollups saved in Athena", () => {
 
     // Then synthesis fails. A deploy would run for a while and come back
     // with a validation message naming a field rather than a rollup.
-    await expect(deployRollups({ rollups: [overlong] })).rejects.toThrow(
-      /129 characters/u,
-    );
+    {
+      const error = await assertThrowsErrorAsync(() =>
+        deployRollups({ rollups: [overlong] }),
+      );
+      assertStringMatches(error.message, /129 characters/u);
+    }
   });
 
   it("refuses a summary that would overrun the description", async () => {
@@ -455,8 +494,11 @@ describe("the rollups saved in Athena", () => {
     const wordy = sized("countries", "Counts where readers were. ".repeat(40));
 
     // Then synthesis fails, and says which field to shorten.
-    await expect(deployRollups({ rollups: [wordy] })).rejects.toThrow(
-      /Shorten the rollup's summary/u,
-    );
+    {
+      const error = await assertThrowsErrorAsync(() =>
+        deployRollups({ rollups: [wordy] }),
+      );
+      assertStringMatches(error.message, /Shorten the rollup's summary/u);
+    }
   });
 });

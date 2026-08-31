@@ -1,3 +1,10 @@
+import {
+  assertIdentical,
+  assertObjectEquals,
+  assertStringIncludes,
+  assertStringMatches,
+  assertThrowsErrorAsync,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
 import { SimAwsHttp } from "@kensio/yulin/serve";
 import {
@@ -9,7 +16,7 @@ import { S3BucketOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { PolicyStatement, ServicePrincipal } from "aws-cdk-lib/aws-iam";
 import { Bucket } from "aws-cdk-lib/aws-s3";
 import { type App, CfnOutput, RemovalPolicy, Stack } from "aws-cdk-lib/core";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { deployStacks } from "#test/simulated-deployment.js";
 
@@ -99,8 +106,8 @@ describe("answering the beacon's collection path", () => {
     // Then CloudFront answers 204 with nothing in it. The event is the log
     // record the request produced, and a body would be bytes charged for on
     // every event for a browser that reads none of them.
-    expect(response.status).toBe(204);
-    await expect(response.text()).resolves.toBe("");
+    assertIdentical(response.status, 204);
+    assertIdentical(await response.text(), "");
   });
 
   it("answers without asking the origin", async () => {
@@ -118,7 +125,7 @@ describe("answering the beacon's collection path", () => {
     // Then it is answered at the edge. A request that reached the bucket
     // would come back as an S3 refusal, and a flood of them would be
     // arriving at the site itself rather than stopping at CloudFront.
-    expect(response.status).toBe(204);
+    assertIdentical(response.status, 204);
   });
 
   it("tells a browser to keep no copy of the answer", async () => {
@@ -137,8 +144,8 @@ describe("answering the beacon's collection path", () => {
     // Then neither answer is one a browser may store. A cached 204 would be
     // served out of the browser's own cache and that event would reach no
     // log.
-    expect(first.headers.get("cache-control")).toBe("no-store");
-    expect(second.status).toBe(204);
+    assertIdentical(first.headers.get("cache-control"), "no-store");
+    assertIdentical(second.status, 204);
   });
 
   it("leaves the rest of the site to the origin", async () => {
@@ -157,8 +164,8 @@ describe("answering the beacon's collection path", () => {
 
     // Then the origin serves it. The behaviour covers one path and the
     // distribution carries on doing what it did before the beacon arrived.
-    expect(response.status).toBe(200);
-    await expect(response.text()).resolves.toContain("Liju");
+    assertIdentical(response.status, 200);
+    assertStringIncludes(await response.text(), "Liju");
   });
 
   it("serves the path it is given", async () => {
@@ -172,7 +179,7 @@ describe("answering the beacon's collection path", () => {
     const response = await get(
       `${path}?${beaconQueryString({ event: "route", page: "/" })}`,
     );
-    expect(response.status).toBe(204);
+    assertIdentical(response.status, 204);
   });
 
   it("refuses a path CloudFront would never match", async () => {
@@ -183,8 +190,14 @@ describe("answering the beacon's collection path", () => {
     // Then synthesis fails, naming the path. Deployed, it would match no
     // request the beacon sends, and the first sign of that is a dataset with
     // no beacon rows in it.
-    await expect(deploying).rejects.toThrow(/_rainlytics/u);
-    await expect(deploying).rejects.toThrow(/leading slash/u);
+    {
+      const error = await assertThrowsErrorAsync(() => deploying);
+      assertStringMatches(error.message, /_rainlytics/u);
+    }
+    {
+      const error = await assertThrowsErrorAsync(() => deploying);
+      assertStringMatches(error.message, /leading slash/u);
+    }
   });
 
   it("refuses a path carrying a query string", async () => {
@@ -193,7 +206,10 @@ describe("answering the beacon's collection path", () => {
 
     // Then synthesis fails. A path pattern is matched against the path
     // alone, and the query string is where every event differs.
-    await expect(deploying).rejects.toThrow(/query string/u);
+    {
+      const error = await assertThrowsErrorAsync(() => deploying);
+      assertStringMatches(error.message, /query string/u);
+    }
   });
 
   describe("what the distribution is given", () => {
@@ -231,7 +247,7 @@ describe("answering the beacon's collection path", () => {
       // Then the behaviour carries the managed policy that keys on the path
       // alone. The payload travels in the query string, and a policy keying
       // on it would make every event a cache entry of its own.
-      expect(behaviour?.CachePolicyId).toBe(cachingOptimized);
+      assertIdentical(behaviour?.CachePolicyId, cachingOptimized);
     });
 
     it("takes a cache policy a site would rather use", async () => {
@@ -243,7 +259,7 @@ describe("answering the beacon's collection path", () => {
       const behaviour = await beaconBehaviour({ cachePolicy });
 
       // Then that is the policy on the behaviour.
-      expect(behaviour?.CachePolicyId).toBe(cachePolicy.cachePolicyId);
+      assertIdentical(behaviour?.CachePolicyId, cachePolicy.cachePolicyId);
     });
 
     it("refuses plain HTTP by default", async () => {
@@ -254,7 +270,7 @@ describe("answering the beacon's collection path", () => {
       // Then the behaviour is HTTPS-only. CloudFront answers an HTTP request
       // with 403, so a keepalive send never depends on a redirected second
       // request surviving the page that started it.
-      expect(behaviour?.ViewerProtocolPolicy).toBe("https-only");
+      assertIdentical(behaviour?.ViewerProtocolPolicy, "https-only");
     });
 
     it("takes a viewer protocol policy a site would rather use", async () => {
@@ -266,7 +282,7 @@ describe("answering the beacon's collection path", () => {
       const behaviour = await beaconBehaviour({ viewerProtocolPolicy });
 
       // Then the deployed behaviour carries the site's choice.
-      expect(behaviour?.ViewerProtocolPolicy).toBe("redirect-to-https");
+      assertIdentical(behaviour?.ViewerProtocolPolicy, "redirect-to-https");
     });
 
     it("runs the function before the cache is consulted", async () => {
@@ -276,11 +292,12 @@ describe("answering the beacon's collection path", () => {
       // Then the function is associated at viewer-request. CloudFront
       // reaches that event before the cache lookup and before any origin
       // request, and it is what makes the 204 free of both.
-      expect(
+      assertObjectEquals(
         behaviour?.FunctionAssociations?.Items?.map(
           (association) => association.EventType,
         ),
-      ).toStrictEqual(["viewer-request"]);
+        ["viewer-request"],
+      );
     });
 
     it("deploys the function on the JS 2.0 runtime", async () => {
@@ -290,7 +307,7 @@ describe("answering the beacon's collection path", () => {
       // Then the function names the runtime its source is written against.
       // The lint rules on `beacon-204.cff.js` hold it to JS 2.0's
       // restrictions, and JS 1.0 has its own.
-      expect(summary?.FunctionConfig.Runtime).toBe("cloudfront-js-2.0");
+      assertIdentical(summary?.FunctionConfig.Runtime, "cloudfront-js-2.0");
     });
 
     it("takes a function name where the account needs a chosen one", async () => {
@@ -303,7 +320,7 @@ describe("answering the beacon's collection path", () => {
       const summary = await publishedFunction({ functionName });
 
       // Then that is the name it carries.
-      expect(summary?.Name).toBe(functionName);
+      assertIdentical(summary?.Name, functionName);
     });
   });
 });

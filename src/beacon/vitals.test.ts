@@ -1,6 +1,11 @@
+import {
+  assertIdentical,
+  assertObjectEquals,
+  assertUndefined,
+} from "@kensio/smartass";
 // @vitest-environment happy-dom
 
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { collectionEndpoint } from "#test/collection-endpoint.js";
 import { performanceTimeline } from "#test/performance-timeline.js";
@@ -56,8 +61,8 @@ describe("reporting Core Web Vitals", () => {
     // later can change it, so nothing is gained by holding it.
     const [request] = await endpoint.received(1);
 
-    expect(eventOf(request ?? "")).toBe(vitalEventNames.timeToFirstByte);
-    expect(valueOf(request ?? "")).toBe("128");
+    assertIdentical(eventOf(request ?? ""), vitalEventNames.timeToFirstByte);
+    assertIdentical(valueOf(request ?? ""), "128");
 
     stop();
     await endpoint.close();
@@ -81,8 +86,11 @@ describe("reporting Core Web Vitals", () => {
     // fast page would report nothing.
     const [request] = await endpoint.received(1);
 
-    expect(eventOf(request ?? "")).toBe(vitalEventNames.firstContentfulPaint);
-    expect(valueOf(request ?? "")).toBe("211");
+    assertIdentical(
+      eventOf(request ?? ""),
+      vitalEventNames.firstContentfulPaint,
+    );
+    assertIdentical(valueOf(request ?? ""), "211");
 
     stop();
     await endpoint.close();
@@ -105,7 +113,8 @@ describe("reporting Core Web Vitals", () => {
     // whichever element happened to be largest at the time.
     const requests = await endpoint.received(2);
 
-    expect(reported(requests)[vitalEventNames.largestContentfulPaint]).toBe(
+    assertIdentical(
+      reported(requests)[vitalEventNames.largestContentfulPaint],
       "1601",
     );
 
@@ -133,7 +142,8 @@ describe("reporting Core Web Vitals", () => {
     // score as though it had shifted once, enormously.
     const requests = await endpoint.received(1);
 
-    expect(reported(requests)[vitalEventNames.cumulativeLayoutShift]).toBe(
+    assertIdentical(
+      reported(requests)[vitalEventNames.cumulativeLayoutShift],
       "0.11",
     );
 
@@ -158,7 +168,8 @@ describe("reporting Core Web Vitals", () => {
     // Then only the shift nobody asked for is counted.
     const requests = await endpoint.received(1);
 
-    expect(reported(requests)[vitalEventNames.cumulativeLayoutShift]).toBe(
+    assertIdentical(
+      reported(requests)[vitalEventNames.cumulativeLayoutShift],
       "0.02",
     );
 
@@ -183,9 +194,9 @@ describe("reporting Core Web Vitals", () => {
     const requests = await endpoint.received(2);
     const seen = reported(requests);
 
-    expect(seen[vitalEventNames.timeToFirstByte]).toBe("96");
-    expect(seen[vitalEventNames.cumulativeLayoutShift]).toBe("0");
-    expect(seen[vitalEventNames.largestContentfulPaint]).toBeUndefined();
+    assertIdentical(seen[vitalEventNames.timeToFirstByte], "96");
+    assertIdentical(seen[vitalEventNames.cumulativeLayoutShift], "0");
+    assertUndefined(seen[vitalEventNames.largestContentfulPaint]);
 
     stop();
     await endpoint.close();
@@ -207,7 +218,7 @@ describe("reporting Core Web Vitals", () => {
 
     // Then nothing more is sent. A vital counted twice would weight one
     // reader's page against everybody else's.
-    expect(endpoint.requests).toStrictEqual(first);
+    assertObjectEquals(endpoint.requests, first);
 
     stop();
     await endpoint.close();

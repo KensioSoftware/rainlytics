@@ -1,5 +1,15 @@
+import {
+  assertArrayLength,
+  assertIdentical,
+  assertSetSize,
+  assertStringIncludes,
+  assertStringMatches,
+  assertStringNotIncludes,
+  assertThrowsError,
+  assertTrue,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import type { SummaryWindow } from "./summary-windows.js";
 import {
@@ -21,7 +31,7 @@ describe("the day a window is counted under", () => {
 
     // Then the day is that day, whatever the clock said when the run
     // happened.
-    expect(visitorSaltDay(window)).toBe("2026-08-23");
+    assertIdentical(visitorSaltDay(window), "2026-08-23");
   });
 
   it("is the same for every hour of one day", () => {
@@ -40,7 +50,8 @@ describe("the day a window is counted under", () => {
     // Then all of them count under the day that holds them, and so does the
     // daily window over the top. The 24 hourly summaries and the daily one
     // are counting the same identifiers.
-    expect(counted).toStrictEqual(new Set([day]));
+    assertSetSize(counted, 1);
+    assertTrue(counted.has(day));
   });
 
   it("names the scheme in the message it is derived over", () => {
@@ -50,8 +61,8 @@ describe("the day a window is counted under", () => {
     // Then the message carries the day and says which scheme built it. A
     // change to how an identifier is built takes the number with it, and
     // every past day then derives the salt it was counted under.
-    expect(visitorSaltMessage(day)).toContain(day);
-    expect(visitorSaltMessage(day)).toMatch(/visitor-salt\/1\//u);
+    assertStringIncludes(visitorSaltMessage(day), day);
+    assertStringMatches(visitorSaltMessage(day), /visitor-salt\/1\//u);
   });
 });
 
@@ -60,16 +71,19 @@ describe("what a record hashes to", () => {
     // Then all three reach the text a digest is taken over. The address says
     // two requests came from one place, the user agent separates the people
     // behind one of them, and the salt is what keeps the digest to a day.
-    expect(visitorText).toContain("c_ip");
-    expect(visitorText).toContain("cs_user_agent");
-    expect(visitorText).toContain(visitorSaltPlaceholder);
+    assertStringIncludes(visitorText, "c_ip");
+    assertStringIncludes(visitorText, "cs_user_agent");
+    assertStringIncludes(visitorText, visitorSaltPlaceholder);
   });
 
   it("is a hex digest of that text", () => {
     // Then the identifier is a SHA-256 over it. Nothing stores one, and a
     // count of the distinct digests of a window is the whole of what leaves
     // Athena.
-    expect(visitorIdentifier).toBe(`to_hex(sha256(to_utf8(${visitorText})))`);
+    assertIdentical(
+      visitorIdentifier,
+      `to_hex(sha256(to_utf8(${visitorText})))`,
+    );
   });
 });
 
@@ -87,8 +101,8 @@ describe("filling a day's salt into a query", () => {
 
     // Then both are the salt as a quoted literal, and none of the
     // placeholder is left.
-    expect(sql).not.toContain(visitorSaltPlaceholder);
-    expect(sql.split(`'${salt}'`)).toHaveLength(3);
+    assertStringNotIncludes(sql, visitorSaltPlaceholder);
+    assertArrayLength(sql.split(`'${salt}'`), 3);
   });
 
   it("quotes a salt holding a quote", () => {
@@ -99,7 +113,7 @@ describe("filling a day's salt into a query", () => {
     const sql = saltedSql(template, "it's a salt");
 
     // Then the quote is doubled and the literal still closes where it should.
-    expect(sql).toContain("'it''s a salt'");
+    assertStringIncludes(sql, "'it''s a salt'");
   });
 
   it("refuses a query with nowhere to put it", () => {
@@ -109,6 +123,9 @@ describe("filling a day's salt into a query", () => {
 
     // Then it is refused. Filling a second window's query with the first
     // one's salt would count two days as one.
-    expect(filling).toThrow(/which day's salt/u);
+    {
+      const error = assertThrowsError(filling);
+      assertStringMatches(error.message, /which day's salt/u);
+    }
   });
 });

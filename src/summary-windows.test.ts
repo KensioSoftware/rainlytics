@@ -1,5 +1,10 @@
+import {
+  assertIdentical,
+  assertInstanceOf,
+  assertThrowsError,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import {
   type SummaryGranularity,
@@ -38,11 +43,12 @@ describe("the window a rollup summary covers", () => {
       // Then it opens at the window's own start and runs one window on. An
       // hour of traffic reported over 61 minutes is a number nothing else
       // agrees with.
-      expect(span.from).toBe(new Date(start).toISOString());
-      expect(span.until).toBe(
+      assertIdentical(span.from, new Date(start).toISOString());
+      assertIdentical(
+        span.until,
         new Date(start + lengthOf[granularity]).toISOString(),
       );
-      expect(span.granularity).toBe(granularity);
+      assertIdentical(span.granularity, granularity);
     },
   );
 
@@ -58,7 +64,8 @@ describe("the window a rollup summary covers", () => {
       // Then the first span runs up to where the second begins. Midnight
       // belongs to the day it opens, and a reader adding two windows together
       // counts no instant twice and misses none between them.
-      expect(summarySpan({ granularity, at: last }).until).toBe(
+      assertIdentical(
+        summarySpan({ granularity, at: last }).until,
         summarySpan({ granularity, at: next }).from,
       );
     },
@@ -71,6 +78,6 @@ describe("the window a rollup summary covers", () => {
 
     // Then it says so, rather than a span reading "Invalid Date" that every
     // later comparison quietly fails.
-    expect(describing).toThrow(RangeError);
+    assertInstanceOf(assertThrowsError(describing), RangeError);
   });
 });

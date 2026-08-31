@@ -1,4 +1,11 @@
-import { describe, expect, it } from "vitest";
+import {
+  assertIdentical,
+  assertObjectEquals,
+  assertStringMatches,
+  assertThrowsError,
+  assertUndefined,
+} from "@kensio/smartass";
+import { describe, it } from "vitest";
 
 import {
   currentMonth,
@@ -32,9 +39,9 @@ describe("what one firing of a schedule asks for", () => {
     const run = runFrom(payload);
 
     // Then it has the question, the cadence and the SQL to run.
-    expect(run.question).toStrictEqual(aQuestion());
-    expect(run.granularity).toBe("hourly");
-    expect(run.sql).toBe("SELECT 1\n");
+    assertObjectEquals(run.question, aQuestion());
+    assertIdentical(run.granularity, "hourly");
+    assertIdentical(run.sql, "SELECT 1\n");
   });
 
   it.each([
@@ -50,7 +57,10 @@ describe("what one firing of a schedule asks for", () => {
 
     // Then it is refused. A run that took it on trust would put a summary
     // under a key built from whatever it found.
-    expect(reading).toThrow(/cannot read/u);
+    {
+      const error = assertThrowsError(reading);
+      assertStringMatches(error.message, /cannot read/u);
+    }
   });
 
   it("refuses a question short of a field a summary records", () => {
@@ -65,7 +75,10 @@ describe("what one firing of a schedule asks for", () => {
     // Then it is refused, rather than writing a summary describing a question
     // nobody asked. A reader comparing it against what they wanted would find
     // the field missing rather than different.
-    expect(reading).toThrow(/limit/u);
+    {
+      const error = assertThrowsError(reading);
+      assertStringMatches(error.message, /limit/u);
+    }
   });
 
   it("asks for whatever fields a rollup request carries", () => {
@@ -82,9 +95,7 @@ describe("what one firing of a schedule asks for", () => {
       named.map((field) => [field, complete[field as keyof typeof complete]]),
     );
 
-    expect(() =>
-      runFrom(aPayload({ question: { ...question, name: "searches" } })),
-    ).not.toThrow();
+    runFrom(aPayload({ question: { ...question, name: "searches" } }));
   });
 
   it("carries the visitor count where the question asks for one", () => {
@@ -92,7 +103,7 @@ describe("what one firing of a schedule asks for", () => {
     const visitorSql = `SELECT count(*)\n  WHERE ${visitorSaltPlaceholder}\n`;
 
     // Then the run has the second query to run beside the first.
-    expect(runFrom(aPayload({ visitorSql })).visitorSql).toBe(visitorSql);
+    assertIdentical(runFrom(aPayload({ visitorSql })).visitorSql, visitorSql);
   });
 
   it("has none where the question counts something else", () => {
@@ -101,7 +112,7 @@ describe("what one firing of a schedule asks for", () => {
 
     // Then nothing counts visitors, and the summaries it writes carry no
     // `visitors` field at all.
-    expect(run.visitorSql).toBeUndefined();
+    assertUndefined(run.visitorSql);
   });
 
   it("refuses a visitor count that is not SQL", () => {
@@ -109,7 +120,10 @@ describe("what one firing of a schedule asks for", () => {
     const reading = (): unknown => runFrom(aPayload({ visitorSql: 41 }));
 
     // Then it is refused, rather than reaching Athena as the text "41".
-    expect(reading).toThrow(/cannot read/u);
+    {
+      const error = assertThrowsError(reading);
+      assertStringMatches(error.message, /cannot read/u);
+    }
   });
 
   it("refuses a question named something no key can carry", () => {
@@ -118,6 +132,9 @@ describe("what one firing of a schedule asks for", () => {
       runFrom(aPayload({ question: { ...aQuestion(), name: "Page Views" } }));
 
     // Then it is refused, because the key is built from that name.
-    expect(reading).toThrow(/lowercase words/u);
+    {
+      const error = assertThrowsError(reading);
+      assertStringMatches(error.message, /lowercase words/u);
+    }
   });
 });

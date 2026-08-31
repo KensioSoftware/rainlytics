@@ -1,5 +1,11 @@
+import {
+  assertObjectEquals,
+  assertStringIncludes,
+  assertStringMatches,
+  assertThrowsError,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { deploymentFrom, summaryEnvironment } from "./summary-deployment.js";
 
@@ -20,7 +26,7 @@ describe("where the job reads and writes", () => {
     const deployment = deploymentFrom(environment);
 
     // Then it knows the table, the workgroup and the bucket.
-    expect(deployment).toStrictEqual({
+    assertObjectEquals(deployment, {
       database: environment[summaryEnvironment.database],
       workgroup: environment[summaryEnvironment.workgroup],
       bucket: environment[summaryEnvironment.bucket],
@@ -43,7 +49,10 @@ describe("where the job reads and writes", () => {
 
     // Then it says which variable was missing. A default here would write
     // summaries somewhere nobody reads, and the run would report success.
-    expect(reading).toThrow(summaryEnvironment.bucket);
+    {
+      const error = assertThrowsError(reading);
+      assertStringIncludes(error.message, summaryEnvironment.bucket);
+    }
   });
 
   it("refuses a window count that is not a whole number of windows", () => {
@@ -59,8 +68,14 @@ describe("where the job reads and writes", () => {
     // Then the message names the variable. Left to the window arithmetic, it
     // would be refused a moment later without saying where the value came
     // from, and a log nobody is watching has one chance to say so.
-    expect(reading).toThrow(summaryEnvironment.windows);
-    expect(reading).toThrow(/"two"/u);
+    {
+      const error = assertThrowsError(reading);
+      assertStringIncludes(error.message, summaryEnvironment.windows);
+    }
+    {
+      const error = assertThrowsError(reading);
+      assertStringMatches(error.message, /"two"/u);
+    }
   });
 
   it("refuses a variable that is there and empty", () => {
@@ -68,8 +83,9 @@ describe("where the job reads and writes", () => {
     const environment = { ...anEnvironment(), [summaryEnvironment.bucket]: "" };
 
     // Then it is refused like a missing one.
-    expect(() => deploymentFrom(environment)).toThrow(
-      summaryEnvironment.bucket,
-    );
+    {
+      const error = assertThrowsError(() => deploymentFrom(environment));
+      assertStringIncludes(error.message, summaryEnvironment.bucket);
+    }
   });
 });

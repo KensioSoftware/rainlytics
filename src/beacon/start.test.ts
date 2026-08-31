@@ -1,7 +1,13 @@
+import {
+  assertIdentical,
+  assertObjectEquals,
+  assertStringIncludes,
+  assertStringNotIncludes,
+} from "@kensio/smartass";
 // @vitest-environment happy-dom
 
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import {
   collectionEndpoint,
@@ -50,7 +56,8 @@ describe("the beacon a site starts", () => {
     // is the gap the browser half exists to fill.
     const [request] = await endpoint.received(1);
 
-    expect(request).toBe(
+    assertIdentical(
+      request,
       `${defaultBeaconPath}?v=1&e=${routeEventName}&p=${encodeURIComponent(page)}`,
     );
 
@@ -70,11 +77,8 @@ describe("the beacon a site starts", () => {
     // Then that event is the first thing the collection path hears. Loading
     // the page was a request, CloudFront recorded it, and reporting it here
     // as well would count one view twice in two questions meant to agree.
-    expect(endpoint.requests[0]).toContain("e=signup");
-    expect(endpoint.requests).toStrictEqual([
-      endpoint.requests[0] ?? "",
-      marked,
-    ]);
+    assertStringIncludes(endpoint.requests[0], "e=signup");
+    assertObjectEquals(endpoint.requests, [endpoint.requests[0], marked]);
 
     beacon.stop();
     await endpoint.close();
@@ -92,7 +96,7 @@ describe("the beacon a site starts", () => {
 
     // Then nothing was reported. A query parameter is not a second view of
     // anything, and counting it as one would inflate every filtered page.
-    expect(endpoint.requests).toStrictEqual([marked]);
+    assertObjectEquals(endpoint.requests, [marked]);
 
     beacon.stop();
     await endpoint.close();
@@ -111,7 +115,8 @@ describe("the beacon a site starts", () => {
     // another row in the same log.
     const [request] = await endpoint.received(1);
 
-    expect(request).toBe(
+    assertIdentical(
+      request,
       `${defaultBeaconPath}?v=1&e=signup&p=${encodeURIComponent(page)}`,
     );
 
@@ -134,7 +139,7 @@ describe("the beacon a site starts", () => {
     // of it is a dataset with no beacon rows in it.
     const [request] = await endpoint.received(1);
 
-    expect(request).toBe(`${path}?v=1&e=signup&p=%2F`);
+    assertIdentical(request, `${path}?v=1&e=signup&p=%2F`);
 
     beacon.stop();
     await endpoint.close();
@@ -155,9 +160,9 @@ describe("the beacon a site starts", () => {
 
     // Then neither reached the collection path. This is what a site calls
     // when a consent banner is answered the other way.
-    expect(endpoint.requests.at(-1)).toBe(marked);
-    expect(endpoint.requests.join(" ")).not.toContain("withdrawn");
-    expect(endpoint.requests.join(" ")).not.toContain(routeEventName);
+    assertIdentical(endpoint.requests.at(-1), marked);
+    assertStringNotIncludes(endpoint.requests.join(" "), "withdrawn");
+    assertStringNotIncludes(endpoint.requests.join(" "), routeEventName);
 
     await endpoint.close();
   });
@@ -174,7 +179,7 @@ describe("the beacon a site starts", () => {
 
     // Then nothing was reported, and `report` is still the way an event is
     // sent.
-    expect(endpoint.requests).toStrictEqual([marked]);
+    assertObjectEquals(endpoint.requests, [marked]);
 
     beacon.stop();
     await endpoint.close();

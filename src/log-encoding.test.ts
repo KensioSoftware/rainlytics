@@ -1,5 +1,6 @@
+import { assertIdentical, assertStringIncludes } from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { decodedColumn, decodedParameter } from "./log-encoding.js";
 
@@ -8,7 +9,8 @@ describe("reading CloudFront's encoding back off a record", () => {
     // Given a column carrying the encoding CloudFront wrote.
     // Then it is decoded twice. One pass answers the URI the browser sent,
     // which reads no better than the record.
-    expect(decodedColumn("cs_uri_stem")).toBe(
+    assertIdentical(
+      decodedColumn("cs_uri_stem"),
       "url_decode(url_decode(cs_uri_stem))",
     );
   });
@@ -18,7 +20,8 @@ describe("reading CloudFront's encoding back off a record", () => {
     // Then it is decoded once. `url_extract_parameter` decodes its own
     // answer, and a second pass here would decode a term holding a percent
     // sequence twice.
-    expect(decodedParameter("q")).toBe(
+    assertIdentical(
+      decodedParameter("q"),
       "url_decode(url_extract_parameter(cs_uri_stem || '?' || cs_uri_query," +
         " 'q'))",
     );
@@ -29,7 +32,8 @@ describe("reading CloudFront's encoding back off a record", () => {
     // Then the two columns are joined with the `?` that was between them
     // before CloudFront split them up. A caller names neither, since a record
     // holds one query string in one column.
-    expect(decodedParameter(faker.word.noun())).toContain(
+    assertStringIncludes(
+      decodedParameter(faker.word.noun()),
       "cs_uri_stem || '?' || cs_uri_query",
     );
   });
@@ -41,7 +45,7 @@ describe("reading CloudFront's encoding back off a record", () => {
 
     // Then the function writes the literal, so a caller has no quoting rule
     // of its own to get right.
-    expect(decodedParameter(parameter)).toContain(`, '${parameter}')`);
+    assertStringIncludes(decodedParameter(parameter), `, '${parameter}')`);
   });
 
   it("takes a parameter holding a quote without breaking the statement", () => {
@@ -49,6 +53,6 @@ describe("reading CloudFront's encoding back off a record", () => {
     // about.
     // Then it is doubled, so the statement still parses and still names the
     // parameter that was asked for.
-    expect(decodedParameter("it's")).toContain("'it''s'");
+    assertStringIncludes(decodedParameter("it's"), "'it''s'");
   });
 });

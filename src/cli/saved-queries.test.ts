@@ -1,5 +1,10 @@
+import {
+  assertIdentical,
+  assertObjectEquals,
+  assertUndefined,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { defaultLogDataset } from "../dataset.js";
 import { savedQueryFrom } from "./saved-queries.js";
@@ -18,7 +23,7 @@ describe("one saved query, as Athena describes it", () => {
     });
 
     // Then the four things running it needs come through untouched.
-    expect(saved).toStrictEqual({
+    assertObjectEquals(saved, {
       name: "rainlytics-countries",
       description: "Count views by country.",
       database: "rainlytics",
@@ -40,9 +45,9 @@ describe("one saved query, as Athena describes it", () => {
     // creates, and the rest is empty rather than undefined. Athena refuses
     // to save a query missing any of this, so nothing here is inventing an
     // answer for a query that could exist.
-    expect(saved.database).toBe(defaultLogDataset.databaseName);
-    expect(saved.name).toBe("");
-    expect(saved.sql).toBe("");
-    expect(saved.description).toBeUndefined();
+    assertIdentical(saved.database, defaultLogDataset.databaseName);
+    assertIdentical(saved.name, "");
+    assertIdentical(saved.sql, "");
+    assertUndefined(saved.description);
   });
 });
