@@ -43,7 +43,7 @@ export function reportSourceCoverage(
   return {
     from,
     until,
-    complete: sources.some(
+    complete: sources.every(
       (source) =>
         source.complete &&
         source.from === period.from &&

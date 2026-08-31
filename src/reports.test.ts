@@ -459,6 +459,43 @@ describe("versioned report documents", () => {
     });
   });
 
+  it("requires every section source to cover the period completely", () => {
+    // Given one complete section and another section with only part of the week.
+    const period = utcWeek();
+    const complete = reportSection(
+      {
+        question: aQuestion("complete"),
+        rule: "additive",
+        sources: dailySources(period),
+        value: rowsValue(),
+      },
+      period,
+    );
+    const partial = reportSection(
+      {
+        question: aQuestion("partial"),
+        rule: "additive",
+        sources: dailySources(period).slice(0, -1),
+        value: rowsValue(),
+      },
+      period,
+    );
+
+    // When the document derives coverage across both sections.
+    const document = reportDocument({
+      period,
+      computedAt: new Date(period.until),
+      sections: [complete, partial],
+    });
+
+    // Then the partial section keeps the document coverage incomplete.
+    assertObjectEquals(document.sourceCoverage, {
+      from: period.from,
+      until: period.until,
+      complete: false,
+    });
+  });
+
   it("refuses a document computed before its period closed", () => {
     // Given a closed period and a claimed computation inside it.
     const period = utcDay();
