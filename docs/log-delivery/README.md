@@ -107,7 +107,7 @@ new CloudFrontLogDelivery(this, "RainlyticsDelivery", {
 
 That is the only line a site changes. The [log table](../log-table/) declares the columns the
 delivery asks for and gets no `c_ip`. The [summary schedule](../summary-schedule/) reads the table,
-computes the same five questions with the visitor count off, and is granted no permission to read
+computes the same six questions with the visitor count off, and is granted no permission to read
 the salt. The SSM parameter a default deployment needs before its first run never has to exist.
 
 Pageviews, referrers, devices, status codes and geography all carry on. The visitor count is the one

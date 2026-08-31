@@ -152,7 +152,7 @@ describe("the named questions, run through Athena", () => {
   };
 
   /**
-   * An hour of traffic covering everything the four rollups read.
+   * An hour of traffic covering everything the six default rollups read.
    *
    * Written out rather than generated, because each rollup's expected answer
    * is counted off this list by hand and a random fixture would make every
@@ -209,6 +209,69 @@ describe("the named questions, run through Athena", () => {
     expect(run.rows).toStrictEqual([
       { path: "/", views: "2" },
       { path: "/grammar/", views: "1" },
+    ]);
+  });
+
+  it("counts pageviews by browser family and device class", async () => {
+    // Given browsers whose compatibility strings overlap, two device forms
+    // of Chrome, an unknown agent, a crawler and an asset request.
+    const deployed = await deployAnalytics();
+    const edge =
+      "Mozilla/5.0%20(Windows%20NT%2010.0)%20AppleWebKit/537.36%20" +
+      "Chrome/126.0%20Safari/537.36%20Edg/126.0";
+    const samsung =
+      "Mozilla/5.0%20(Linux;%20Android%2014)%20AppleWebKit/537.36%20" +
+      "Chrome/124.0%20Mobile%20Safari/537.36%20SamsungBrowser/25.0";
+    const chromeMobile =
+      "Mozilla/5.0%20(Linux;%20Android%2014)%20AppleWebKit/537.36%20" +
+      "Chrome/124.0%20Mobile%20Safari/537.36";
+    const chromeTablet =
+      "Mozilla/5.0%20(Linux;%20Android%2014)%20AppleWebKit/537.36%20" +
+      "Chrome/124.0%20Safari/537.36";
+    const safariTablet =
+      "Mozilla/5.0%20(iPad;%20CPU%20OS%2017_5)%20AppleWebKit/605.1.15%20" +
+      "Version/17.0%20Mobile/15E148%20Safari/604.1";
+    const firefox =
+      "Mozilla/5.0%20(X11;%20Linux%20x86_64;%20rv:126.0)%20" +
+      "Gecko/20100101%20Firefox/126.0";
+    const operaMini = "Opera%20Mini/36.2%20Mobile";
+
+    await putDelivered(deployed, rightNow, [
+      aRecord(rightNow, { "cs(User-Agent)": edge }),
+      aRecord(rightNow, { "cs(User-Agent)": edge }),
+      aRecord(rightNow, { "cs(User-Agent)": samsung }),
+      aRecord(rightNow, { "cs(User-Agent)": chromeMobile }),
+      aRecord(rightNow, { "cs(User-Agent)": chromeTablet }),
+      aRecord(rightNow, { "cs(User-Agent)": safariTablet }),
+      aRecord(rightNow, { "cs(User-Agent)": firefox }),
+      aRecord(rightNow, { "cs(User-Agent)": operaMini }),
+      aRecord(rightNow, { "cs(User-Agent)": "curl/8.8.0" }),
+      aRecord(rightNow, {
+        "cs(User-Agent)": `${edge}%20ClaudeBot/1.0`,
+      }),
+      aRecord(rightNow, {
+        "cs(User-Agent)": edge,
+        "cs-uri-stem": "/app.css",
+        "sc-content-type": "text/css",
+      }),
+    ]);
+
+    // When the browser breakdown is asked for.
+    const run = await cli(["browsers", "--query", "--last", "24h"]);
+
+    // Then specific Chromium browsers win over the compatibility tokens.
+    // The crawler and stylesheet contribute no view, and each device class
+    // is read from the same user-agent row as its browser family.
+    expect(run.code).toBe(0);
+    expect(run.rows).toStrictEqual([
+      { browser: "Edge", device: "Desktop", views: "2" },
+      { browser: "Chrome family", device: "Mobile", views: "1" },
+      { browser: "Chrome family", device: "Tablet", views: "1" },
+      { browser: "Firefox", device: "Desktop", views: "1" },
+      { browser: "Opera", device: "Mobile", views: "1" },
+      { browser: "Other", device: "Other", views: "1" },
+      { browser: "Safari family", device: "Tablet", views: "1" },
+      { browser: "Samsung Internet", device: "Mobile", views: "1" },
     ]);
   });
 
@@ -835,7 +898,9 @@ describe("the named questions, run through Athena", () => {
         " athena:StopQueryExecution",
     );
     expect(run.error).toContain("s3:PutObject and s3:AbortMultipartUpload");
-    expect(run.error).toContain("(pageviews, referrers, status-codes,");
+    expect(run.error).toContain(
+      "(pageviews, referrers, browsers, status-codes,",
+    );
     expect(run.error).toContain("summary on s3:GetObject alone");
   });
 

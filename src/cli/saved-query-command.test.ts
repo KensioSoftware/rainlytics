@@ -399,7 +399,7 @@ describe("rainlytics saved-query", () => {
     expect(run.error).toContain("s3:PutObject and s3:AbortMultipartUpload");
 
     // And the summaries are offered here too, since a site's own question and
-    // the five shipped ones run the same way.
+    // the six shipped ones run the same way.
     expect(run.error).toContain("--summaries");
   });
 

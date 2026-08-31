@@ -99,18 +99,19 @@ One Athena query per window per question per run. Athena bills a ten million byt
 query reads. That is $0.00005 a query (the [query](../query/) page has where the per-byte figure
 comes from).
 
-The five default questions on both cadences, recomputing two windows, come to 250 queries a day.
-That is about 38 cents a month, plus a few cents of Lambda and a rounding error of S3. The default
-`recomputedWindows` of 2 doubles the query cost and leaves the object count alone, since a
-recomputed window overwrites its own key.
+The six default questions on both cadences, recomputing two windows, make a rollup-only subtotal of
+300 queries a day. That is about 45 cents a month. The visitor count on `pageviews` adds 50 queries
+and about 8 cents, making the default total 350 queries and about 53 cents. Lambda adds a few cents
+and S3 is a rounding error at this scale. The default `recomputedWindows` of 2 doubles the query
+cost and leaves the object count alone, since a recomputed window overwrites its own key.
 
 Lowering `recomputedWindows` to 1 halves the Athena bill. Computing hours alone, with
 `granularities: ["hourly"]`, is the other lever, at the price of a reader assembling a day out of 24
 objects.
 
-A question that counts visitors runs a second query per window. `pageviews` does, which adds 50
-queries a day to the 250 above and about 8 cents a month. [Counting visitors](../visitors/) has what
-that number means.
+A question that counts visitors runs a second query per window. `pageviews` accounts for the 50
+visitor queries in the default total above. [Counting visitors](../visitors/) has what that number
+means.
 
 ## Reading the query a schedule runs
 
@@ -197,7 +198,7 @@ A bucket of its own, created by the construct and available as `summaries.bucket
 never the log bucket, because the logs expire on a retention measured in months and the answers
 computed from them outlive the records.
 
-It carries no expiry rule. A year of five questions on both cadences is about 45,000 objects of a few
+It carries no expiry rule. A year of six questions on both cadences is about 55,000 objects of a few
 kilobytes, and a summary is the only remaining record of a window once the raw objects have gone.
 
 Pass `summariesBucket` to write into one of your own. That is worth doing where something outside
@@ -209,7 +210,7 @@ this stack reads the answers, such as a static site given read access to one pre
 | ---------------------- | -------------------------- | -------------------------------------------------- |
 | `table`                | required                   | The Glue table the questions read.                 |
 | `workgroup`            | required                   | Where the queries run, and their cutoff.           |
-| `rollups`              | the five default questions | What to compute.                                   |
+| `rollups`              | the six default questions  | What to compute.                                   |
 | `requests`             | none                       | What each question covers.                         |
 | `granularities`        | `["hourly", "daily"]`      | Which windows to compute.                          |
 | `lag`                  | 15 minutes                 | How long after a window closes a run fires.        |
@@ -220,7 +221,7 @@ this stack reads the answers, such as a static site given read access to one pre
 | `logRetention`         | a month                    | How long the function's logs are kept.             |
 | `schedulePrefix`       | `rainlytics-`              | What each schedule's name begins with.             |
 
-A default deployment reads the salt parameter. `pageviews` counts visitors, and it is one of the five
+A default deployment reads the salt parameter. `pageviews` counts visitors, and it is one of the six
 questions above. The `SecureString` has to be in Parameter Store before the first run ([creating the
 secret](../visitors/#creating-the-secret) has the command). A deployment that wants none passes
 `rollups` without a question that counts visitors, and never reads the parameter.

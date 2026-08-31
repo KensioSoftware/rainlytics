@@ -72,8 +72,8 @@ path         views
 /grammar/       97
 ```
 
-`referrers`, `status-codes` and `cache-hit-ratio` are the others, and `searches`
-counts what people typed into a search box. `javascript-errors` and
+`referrers`, `browsers`, `status-codes` and `cache-hit-ratio` are the others,
+and `searches` counts what people typed into a search box. `javascript-errors` and
 `web-vitals` read optional browser reports once a deployment opts into those
 rollups. `query` takes SQL for anything else. Crawlers are left out by default,
 which on the reference site is 39% of the traffic in a typical hour.

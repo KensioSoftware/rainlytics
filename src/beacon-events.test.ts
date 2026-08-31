@@ -93,11 +93,11 @@ describe("the beacon event envelope", () => {
 /*
  * What each shipped question does with a window holding beacon events.
  *
- * Run against delivered records rather than read off the SQL. Four of the
- * five leave beacon rows out through conditions they had for their own
+ * Run against delivered records rather than read off the SQL. Five of the
+ * six leave beacon rows out through conditions they had for their own
  * reasons, and a case asserting the condition is there says nothing about
  * whether it covers a beacon row. KensioSoftware/rainlytics#103 asked which
- * of the five were exposed, and this is the answer being checked rather than
+ * of the six were exposed, and this is the answer being checked rather than
  * argued.
  */
 describe("a window holding beacon events", () => {
@@ -423,6 +423,22 @@ describe("a window holding beacon events", () => {
       "news.example.org",
     ]);
     expect(rows[0]?.["views"]).toBe("1");
+  });
+
+  it("counts no beacon event in the browser breakdown", async () => {
+    // Given the same hour, where site responses and beacon events carry the
+    // same user agent.
+    const deployed = await deployAnalytics();
+    await seedTheHour(deployed);
+
+    // When pageviews are grouped by browser and device.
+    const rows = await answerTo("browsers");
+
+    // Then only the two HTML responses count. The beacon's 204 names no
+    // content type, so its events cannot multiply this browser's views.
+    expect(rows).toStrictEqual([
+      { browser: "Other", device: "Desktop", views: "2" },
+    ]);
   });
 
   it("counts no beacon event as a search", async () => {

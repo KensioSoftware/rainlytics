@@ -195,7 +195,7 @@ describe("what a deployment of the summaries computes", () => {
   });
 
   it("computes the beacon question where the table can identify viewers", () => {
-    // Given a site running the beacon and adding its question to the five.
+    // Given a site running the beacon and adding its question to the six.
     const summaries = summariesIn({
       rollups: [...rollups, beaconEvents],
       granularities: ["hourly"],

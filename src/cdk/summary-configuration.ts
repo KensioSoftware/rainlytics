@@ -82,7 +82,7 @@ export interface RollupSummariesProps extends SummaryBucketProps {
    * A `SecureString`, created outside this stack because CloudFormation
    * cannot create one and a secret in a template is not a secret.
    *
-   * `pageviews` counts visitors, and it is one of the five questions a
+   * `pageviews` counts visitors, and it is one of the six questions a
    * deployment that passes no `rollups` gets. The parameter therefore has to
    * exist before a default deployment's first run.
    *

@@ -14,10 +14,11 @@ path         views
 /grammar/       97
 ```
 
-`referrers`, `status-codes`, `cache-hit-ratio` and [`searches`](../searches/) are the other default
-questions. [`javascript-errors`](../javascript-errors/) and [`web-vitals`](../web-vitals/) are
-shipped commands for a deployment using the optional browser beacon. Each takes the same `--last`,
-the same `--path` and `--host`, the same output formats and the same bot filter.
+`referrers`, `browsers`, `status-codes`, `cache-hit-ratio` and [`searches`](../searches/) are the
+other default questions. [`javascript-errors`](../javascript-errors/) and
+[`web-vitals`](../web-vitals/) are shipped commands for a deployment using the optional browser
+beacon. Each takes the same `--last`, the same `--path` and `--host`, the same output formats and the
+same bot filter.
 
 Each of them answers from the [precomputed summaries](../summaries/) a schedule wrote, at the cost of
 a GET per window. `--query` runs the question through Athena for a fresher answer, and reports what
@@ -35,6 +36,23 @@ twice](#the-log-is-percent-encoded-twice) below.
 **`referrers`** counts where people arrived from, by host. Requests carrying no referrer are left
 out, and so are the ones this site sent itself. Those are somebody moving around inside it. On the
 reference site an unfiltered version of this is topped by its own stylesheet.
+
+**`browsers`** counts the same pageviews by browser family and device class. A browser is Edge,
+Opera, Samsung Internet, Firefox, Chrome family, Safari family or Other. A device is Tablet, Mobile,
+Desktop or Other. The answer groups on both, so Chrome family on Mobile and Chrome family on Desktop
+are separate rows.
+
+The classifier is a fixed `CASE` ladder in the Athena query. Specific Chromium browsers are checked
+before the Chrome and Safari compatibility tokens their user agents also carry. This keeps the
+scheduled summary and `rainlytics browsers --query` on one definition, with no parser or second pass
+in Lambda. New browsers fall into the family they present as or into Other. Existing raw rows are
+classified by the current query whenever they are read again.
+
+The user agent cannot support a precise answer. Chromium derivatives can present the same string as
+Chrome. iPadOS can present as macOS. Android without a Mobile token is called a tablet, which can
+also catch a television or another embedded device. Unusual and reduced agents can land under the
+wrong class or Other, and a client can write any user agent it likes. Browser versions are left out.
+This rollup reads the access log only and uses nothing reported by the optional beacon.
 
 **`status-codes`** counts every response, including the assets the pageview count leaves out. A
 stylesheet returning 404 is worth seeing and a rollup looking only at pages never would. Requests to
@@ -123,16 +141,16 @@ rainlytics query "SELECT sc_status, count(*) AS events FROM cloudfront_logs
 The path is one constant, `defaultBeaconPath`, that the beacon and the rollup both read. Naming a
 different one belongs to the beacon construct.
 
-The other four questions leave beacon rows out already, for reasons they had anyway:
+The other five questions leave beacon rows out already, for reasons they had anyway:
 
-- **`pageviews`** and **`referrers`** count a GET that answered `text/html` with a 200 or a 304. An
-  event answers 204 and names no content type.
+- **`pageviews`**, **`referrers`** and **`browsers`** count a GET that answered `text/html` with a
+  200 or a 304. An event answers 204 and names no content type.
 - **`searches`** wants its parameter non-empty. A payload names its parameters `v`, `e` and `p`, and
   carries no `q`.
 - **`cache-hit-ratio`** counts a Hit, a RefreshHit or a Miss. A CloudFront Function answers every
   event, and the cache is never asked.
 
-Those four are checked against delivered beacon records rather than taken on trust, in
+Those five are checked against delivered beacon records rather than taken on trust, in
 `src/beacon-events.test.ts`. Each of them leaves the rows out through a condition it has for its own
 reasons, and a rollup of your own gets none of that for free.
 

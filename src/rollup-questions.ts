@@ -1,4 +1,4 @@
-// The five default questions, written out.
+// The six default questions, written out.
 //
 // Each is a `SELECT` over the same filtered rows, so what differs between
 // them is the thing being counted. The filters are in `rollups.ts`, because
@@ -11,6 +11,7 @@ import { outsideTheBeaconPath } from "./beacon-rows.js";
 import { qualifiedTableName } from "./dataset.js";
 import { decodedColumn, decodedParameter } from "./log-encoding.js";
 import {
+  browserTotals,
   cacheTotals,
   pageviewTotals,
   referrerTotals,
@@ -19,7 +20,7 @@ import {
 } from "./rollup-question-totals.js";
 import type { Rollup, RollupRequest } from "./rollups.js";
 import { matchedPath, rowsFor } from "./rollups.js";
-import { oneOf } from "./sql-text.js";
+import { oneOf, quoted } from "./sql-text.js";
 
 /**
  * The `text/html` responses a person actually looked at.
@@ -66,6 +67,86 @@ const rankedOrder = "  ORDER BY 2 DESC, 1";
 /** How many rows a ranked rollup answers with. */
 const limitOf = (request: RollupRequest): string =>
   `  LIMIT ${String(request.limit)}`;
+
+/** The user agent as each classifier reads it. */
+const userAgent = "lower(cs_user_agent)";
+
+/** One branch in a user-agent classifier. */
+interface UserAgentClass {
+  /** The condition that assigns the class. */
+  readonly when: string;
+
+  /** The value written into the answer. */
+  readonly value: string;
+}
+
+/** A fixed classification ladder, with unmatched agents kept visible. */
+const userAgentClassifier = (classes: readonly UserAgentClass[]): string =>
+  [
+    "CASE",
+    ...classes.map(
+      (entry) => `    WHEN ${entry.when} THEN ${quoted(entry.value)}`,
+    ),
+    `    ELSE ${quoted("Other")}`,
+    "  END",
+  ].join("\n");
+
+/**
+ * A browser family read from compatibility tokens in a user agent.
+ *
+ * Specific Chromium browsers come before Chrome, and every Chromium branch
+ * comes before Safari. Their agents carry the more general tokens too.
+ */
+const browserFamily = userAgentClassifier([
+  {
+    when: `regexp_like(${userAgent}, 'edg(e|a|ios)?/')`,
+    value: "Edge",
+  },
+  {
+    when: `regexp_like(${userAgent}, '(opr|opera|opios)/|opera(%20| )mini/')`,
+    value: "Opera",
+  },
+  {
+    when: `regexp_like(${userAgent}, 'samsungbrowser/')`,
+    value: "Samsung Internet",
+  },
+  {
+    when: `regexp_like(${userAgent}, '(firefox|fxios)/')`,
+    value: "Firefox",
+  },
+  {
+    when: `regexp_like(${userAgent}, '(chrome|crios|chromium)/')`,
+    value: "Chrome family",
+  },
+  { when: `regexp_like(${userAgent}, 'safari/')`, value: "Safari family" },
+]);
+
+/**
+ * A coarse device class read from conventional user-agent tokens.
+ *
+ * An explicit tablet wins over `mobile`. Android agents left after the
+ * mobile branch are treated as tablets, following the convention that
+ * Android phones carry `Mobile` and Android tablets do not.
+ */
+const deviceClass = userAgentClassifier([
+  {
+    when: `regexp_like(${userAgent}, 'ipad|tablet|kindle|silk/|playbook')`,
+    value: "Tablet",
+  },
+  {
+    when:
+      `regexp_like(${userAgent},` +
+      ` 'mobile|iphone|ipod|windows(%20| )phone|blackberry|bb10')`,
+    value: "Mobile",
+  },
+  { when: `regexp_like(${userAgent}, 'android')`, value: "Tablet" },
+  {
+    when:
+      `regexp_like(${userAgent},` +
+      ` 'windows(%20| )nt|macintosh|x11|cros|linux')`,
+    value: "Desktop",
+  },
+]);
 
 /** The pages people looked at, most looked at first. */
 export const pageviews: Rollup = {
@@ -124,6 +205,46 @@ give, and browsers give less of it every year.`,
       ]),
       "  GROUP BY 1",
       rankedOrder,
+      limitOf(request),
+    ].join("\n"),
+};
+
+/** Pageviews by browser family and coarse device class. */
+export const browsers: Rollup = {
+  name: "browsers",
+  summary: "Count views by browser and device class.",
+  isRanked: true,
+  totals: browserTotals,
+  description: `\
+Counts pageviews by browser family and device class, most viewed first.
+
+A pageview is the same successful HTML GET that \`pageviews\` counts. Assets do
+not multiply a browser's number by however many files its page loaded.
+
+The browser families are Edge, Opera, Samsung Internet, Firefox, Chrome
+family, Safari family and Other. The fixed SQL ladder checks the specific
+browsers before the Chrome and Safari compatibility tokens their user agents
+also carry. A new browser either joins the family it presents as or stays
+under Other until the ladder changes. No historical row is rewritten.
+
+Device class is Tablet, Mobile, Desktop or Other. Explicit tablet tokens come
+first, then mobile tokens. An Android agent without Mobile counts as a tablet.
+Desktop covers the common Windows, macOS, ChromeOS and Linux tokens.
+
+A user agent is a claim made by the client. Chromium derivatives can present
+as Chrome, and iPadOS can present as macOS. Embedded browsers, televisions and
+agents with reduced or unusual strings can land under another class or Other.
+The rollup reports no browser version and cannot recover distinctions absent
+from the raw user agent.`,
+  body: (request) =>
+    [
+      `SELECT ${browserFamily} AS browser,`,
+      `  ${deviceClass} AS device,`,
+      "  count(*) AS views",
+      `  FROM ${qualifiedTableName(request.dataset)}`,
+      rowsFor(request, aPageView),
+      "  GROUP BY 1, 2",
+      "  ORDER BY 3 DESC, 1, 2",
       limitOf(request),
     ].join("\n"),
 };
@@ -287,6 +408,7 @@ carry the same value.`,
 export const rollups: readonly Rollup[] = [
   pageviews,
   referrers,
+  browsers,
   statusCodes,
   cacheHitRatio,
   searches,

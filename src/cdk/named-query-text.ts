@@ -14,7 +14,7 @@ import { defaultRedirectStatuses } from "../rollups.js";
  * What Athena holds a named query's name and description in.
  *
  * `CreateNamedQuery` takes 128 characters of the one and 1,024 of the other.
- * The five rollups built in are nowhere near either. A rollup a site wrote is
+ * The six rollups built in are nowhere near either. A rollup a site wrote is
  * bounded by nothing, since `summary` is meant to be one line and the type
  * has no way to say so.
  */
@@ -23,7 +23,7 @@ const athenaTakes = { name: 128, description: 1024 } as const;
 /**
  * What one saved query says about itself in the console.
  *
- * The five Rainlytics ships name the command that runs them, because somebody
+ * The six Rainlytics ships name the command that runs them, because somebody
  * reading one in the console wants to know which `rainlytics` subcommand it
  * answers. A rollup a site wrote has no subcommand, and naming one would send
  * its reader to a command that does not exist.

@@ -1,7 +1,11 @@
 import { faker } from "@faker-js/faker";
 import { describe, expect, it } from "vitest";
 
-import { cacheTotals, pageviewTotals } from "./rollup-question-totals.js";
+import {
+  browserTotals,
+  cacheTotals,
+  pageviewTotals,
+} from "./rollup-question-totals.js";
 import type { RollupSummary, SummaryRow } from "./rollup-summaries.js";
 import { summarySchemaVersion } from "./rollup-summaries.js";
 import { totalledRows } from "./summary-totals.js";
@@ -56,6 +60,34 @@ describe("adding several stored windows into one answer", () => {
     // Then the page appears once, carrying both hours. Two rows would
     // report one page twice and rank each half of it on its own.
     expect(rows).toContainEqual({ path: "/grammar/", views: "6" });
+  });
+
+  it("keeps device classes apart inside one browser family", () => {
+    // Given two windows where Chrome appears on mobile and desktop, with
+    // only the mobile row present in both.
+    const hours = [
+      aWindow(
+        ["browser", "device", "views"],
+        [
+          { browser: "Chrome family", device: "Mobile", views: "3" },
+          { browser: "Chrome family", device: "Desktop", views: "2" },
+        ],
+      ),
+      aWindow(
+        ["browser", "device", "views"],
+        [{ browser: "Chrome family", device: "Mobile", views: "4" }],
+      ),
+    ];
+
+    // When the stored windows are added.
+    const rows = totalledRows(hours, browserTotals);
+
+    // Then browser and device together identify a row. Grouping on the
+    // browser alone would erase the device breakdown while appearing to add.
+    expect(rows).toStrictEqual([
+      { browser: "Chrome family", device: "Mobile", views: "7" },
+      { browser: "Chrome family", device: "Desktop", views: "2" },
+    ]);
   });
 
   it("ranks the total, not the window that came first", () => {
