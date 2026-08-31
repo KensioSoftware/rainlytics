@@ -14,21 +14,22 @@ export const overview: readonly string[] = [
     " enough to have a name, and each leaves automated traffic out unless" +
     " told otherwise. `saved-query` runs a question a site saved in its own" +
     " Athena workgroup, which is how a rollup this package never shipped" +
-    " gets a command line. `query` takes SQL, for the rest.",
-  "Every one of them reads Athena, which costs a fraction of a penny a" +
-    " question and reports what it cost on standard error. The named ones" +
-    " will read a precomputed summary instead once those exist, and the" +
-    " commands will not change.",
+    " gets a command line. `report` reads a whole calendar report, and" +
+    " `query` takes SQL for the rest.",
+  "Named questions read precomputed summaries from S3 unless --query asks" +
+    " Athena for a fresh answer. `report` reads a precomputed JSON document" +
+    " from the same bucket and never runs Athena. Every command reports its" +
+    " read cost on standard error.",
   "Authentication is the AWS setup you already have. Commands use the AWS" +
     " SDK's default credential chain, the same one the AWS CLI uses. An SSO" +
     " session, a profile named in AWS_PROFILE, an assumed role or the" +
     " credentials of the machine it runs on all work with nothing configured" +
     " here. There is no Rainlytics account, password or API key, and" +
     " CloudTrail records who asked what.",
-  "Output is JSON, CSV or a table, picked with --output on any command. It" +
-    " defaults to a table when standard output is a terminal and to JSON" +
-    " when it is piped or redirected. Piping into jq therefore needs no" +
-    " flag.",
+  "Tabular output is JSON, CSV or a table. It defaults to a table when" +
+    " standard output is a terminal and to JSON when it is piped or" +
+    " redirected. A calendar report keeps its versioned JSON document at" +
+    " either destination. Piping into jq therefore needs no flag.",
   "A command writes its result to standard output and everything else to" +
     " standard error. A pipeline reads data and never prose. A command that" +
     " fails exits non-zero (2 for a command line that could not be read, 1" +

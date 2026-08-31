@@ -6,7 +6,7 @@ import {
 import { faker } from "@faker-js/faker";
 import { describe, it } from "vitest";
 
-import { toJson } from "./json.js";
+import { toJson, toJsonDocument } from "./json.js";
 
 describe("JSON output", () => {
   const aRow = (): Readonly<Record<string, string | number>> => ({
@@ -72,5 +72,20 @@ describe("JSON output", () => {
 
     // Then a shell prompt lands on a line of its own.
     assertStringEndsWith(json, "\n");
+  });
+
+  it("preserves a versioned document without a row-array envelope", () => {
+    // Given a report-shaped document whose metadata is part of its result.
+    const document = {
+      schemaVersion: 1,
+      period: { unit: "month", startsOn: "2026-08-01" },
+      sections: [{ accuracy: "exact", value: { views: 42 } }],
+    };
+
+    // When it is written as a document result and read back.
+    const parsed: unknown = JSON.parse(toJsonDocument(document));
+
+    // Then the versioned document is the root JSON value.
+    assertObjectEquals(parsed, document);
   });
 });

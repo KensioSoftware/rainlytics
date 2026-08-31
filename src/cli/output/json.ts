@@ -26,3 +26,8 @@ export function toJson(result: CommandResult): string {
 
   return `${JSON.stringify(objects, undefined, 2)}\n`;
 }
+
+/** A document as pretty-printed JSON, ending in a newline. */
+export function toJsonDocument(document: unknown): string {
+  return `${JSON.stringify(document, undefined, 2)}\n`;
+}

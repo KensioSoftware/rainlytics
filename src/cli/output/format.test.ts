@@ -68,4 +68,18 @@ describe("choosing an output format", () => {
       assertStringIncludes(render(result, format), value);
     }
   });
+
+  it("keeps a document as JSON when standard output is a terminal", () => {
+    // Given a versioned document result at a terminal.
+    const document = { schemaVersion: 1, sections: [] };
+
+    // When it is rendered under the terminal's ordinary table default.
+    const written = render(
+      { kind: "json-document", document },
+      defaultOutputFormat(true),
+    );
+
+    // Then the document remains JSON because no tabular report format exists.
+    assertObjectEquals(JSON.parse(written), document);
+  });
 });
