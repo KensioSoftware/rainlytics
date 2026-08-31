@@ -47,8 +47,19 @@ export async function handler(event: unknown): Promise<void> {
           sections,
         });
 
+        const key = reportKey(period);
+
         // oxlint-disable-next-line eslint/no-await-in-loop
-        await store.write(reportKey(period), document);
+        await store.write(key, document);
+        // oxlint-disable-next-line eslint/no-console
+        console.info(
+          JSON.stringify({
+            event: "calendar-report-written",
+            key,
+            unit: period.unit,
+            startsOn: period.startsOn,
+          }),
+        );
       } catch (error) {
         failures.push(
           new Error(

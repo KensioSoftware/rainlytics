@@ -6,9 +6,16 @@ import type {
   ReportPeriodUnit,
   ReportWeekday,
 } from "../report-periods.js";
-import { reportPeriod, reportPeriodUnits } from "../report-periods.js";
+import { reportPeriod } from "../report-periods.js";
 
-/** The periods closing on the latest closed local dates, shortest first. */
+const reportPeriodUnitsLongestFirst = [
+  "year",
+  "month",
+  "week",
+  "day",
+] as const satisfies readonly ReportPeriodUnit[];
+
+/** The periods closing on the latest closed local dates, longest first. */
 export function closingReportPeriods(
   now: Date,
   timeZone: string,
@@ -32,7 +39,7 @@ export function closingReportPeriods(
       now,
     );
 
-    for (const unit of reportPeriodUnits) {
+    for (const unit of reportPeriodUnitsLongestFirst) {
       const bounds = reportCalendarBounds(
         unit,
         insideClosedDay,

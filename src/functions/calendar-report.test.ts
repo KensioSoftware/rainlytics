@@ -128,14 +128,17 @@ describe("one direct run of the calendar report job", () => {
       defaultVisitorSaltParameter,
     );
 
+    const stack = stacks.get("ReportJobStack");
+    if (stack === undefined) {
+      throw new Error("The report job stack was not deployed.");
+    }
+
     return {
       simAws,
       run,
       logBucketName,
       summariesBucketName,
-      distributionId: String(
-        stacks.get("ReportJobStack")?.output("DistributionId"),
-      ),
+      distributionId: stack.output("DistributionId"),
     };
   };
 
@@ -290,7 +293,7 @@ describe("one direct run of the calendar report job", () => {
     };
     await atReportTime(deployed);
 
-    // When it runs once with no source and again with invalid JSON data.
+    // When it runs with no source.
     await handler(run);
     const absentReport = await readDay(deployed);
     assertObjectMatches(absentReport.sections[0], {
@@ -303,26 +306,46 @@ describe("one direct run of the calendar report job", () => {
       granularity: "daily",
       at: new Date("2026-08-23T12:00:00.000Z"),
     };
-    await deployed.simAws
-      .region("us-east-1")
-      .account()
-      .s3()
-      .putObject({
-        input: {
-          Bucket: deployed.summariesBucketName,
-          Key: summaryKey(question.question, window),
-          Body: "null",
-        },
-      });
-    await handler(run);
+    const summary = {
+      schemaVersion: summarySchemaVersion,
+      question: question.question,
+      window: summarySpan(window),
+      computedAt: "2026-08-24T00:15:00.000Z",
+      columns: ["path", "views"],
+      rows: [{ path: "/", views: "1" }],
+    };
+    const malformed = [
+      null,
+      { ...summary, columns: ["path", 4] },
+      { ...summary, rows: [null] },
+    ];
 
-    // Then malformed source data also stays visibly incomplete.
-    const malformedReport = await readDay(deployed);
-    assertObjectMatches(malformedReport.sections[0], {
-      accuracy: "unavailable",
-      reason: "incomplete-source",
-      value: null,
-    });
+    // When persisted columns or rows do not match the summary schema.
+    for (const candidate of malformed) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await deployed.simAws
+        .region("us-east-1")
+        .account()
+        .s3()
+        .putObject({
+          input: {
+            Bucket: deployed.summariesBucketName,
+            Key: summaryKey(question.question, window),
+            Body: JSON.stringify(candidate),
+          },
+        });
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await handler(run);
+
+      // Then the malformed source stays visibly incomplete.
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      const malformedReport = await readDay(deployed);
+      assertObjectMatches(malformedReport.sections[0], {
+        accuracy: "unavailable",
+        reason: "incomplete-source",
+        value: null,
+      });
+    }
   });
 
   it("closes the store and reports a failed period", async () => {

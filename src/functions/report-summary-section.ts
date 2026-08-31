@@ -4,16 +4,13 @@ import type { ReportPeriod } from "../report-periods.js";
 import type { ReportSection } from "../report-section-types.js";
 import { reportSection } from "../report-sections.js";
 import type { RollupSummary, SummaryQuestion } from "../rollup-summaries.js";
-import {
-  neverComputed,
-  summaryKey,
-  summarySchemaVersion,
-} from "../rollup-summaries.js";
+import { neverComputed, summaryKey } from "../rollup-summaries.js";
 import { totalledRows } from "../summary-totals.js";
-import type { SummarySpan, SummaryWindow } from "../summary-windows.js";
+import type { SummaryWindow } from "../summary-windows.js";
 import { summarySpan } from "../summary-windows.js";
 import type { ReportQuestionRun } from "./report-run.js";
 import type { ReportStore } from "./report-store.js";
+import { isExpectedSummary } from "./report-summary-validation.js";
 
 /** Rows calculated from the valid summaries under the expected keys. */
 export async function summarizedRowsSection(
@@ -82,25 +79,4 @@ async function sourceSummaries(
   }
 
   return summaries;
-}
-
-function isExpectedSummary(
-  candidate: unknown,
-  question: SummaryQuestion,
-  span: SummarySpan,
-): candidate is RollupSummary {
-  if (typeof candidate !== "object" || candidate === null) {
-    return false;
-  }
-
-  const found = candidate as Partial<RollupSummary>;
-
-  return (
-    found.schemaVersion === summarySchemaVersion &&
-    JSON.stringify(found.question) === JSON.stringify(question) &&
-    found.window?.from === span.from &&
-    found.window.until === span.until &&
-    Array.isArray(found.columns) &&
-    Array.isArray(found.rows)
-  );
 }

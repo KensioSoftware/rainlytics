@@ -25,6 +25,7 @@ export function reportRunFrom(payload: unknown): ReportRun {
     !Number.isSafeInteger(recomputedDays) ||
     Number(recomputedDays) < 1 ||
     !Array.isArray(granularities) ||
+    granularities.length === 0 ||
     !granularities.every((granularity) => isGranularity(granularity)) ||
     !Array.isArray(questions) ||
     questions.length === 0

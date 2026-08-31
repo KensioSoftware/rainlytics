@@ -17,14 +17,15 @@ describe("calendar periods closing before a report run", () => {
     // When periods closing in the latest local day are selected.
     const periods = closingReportPeriods(now, "UTC", "monday", 1);
 
-    // Then the day, week, month and year all appear, shortest first.
+    // Then the year, month, week and day all appear. The periods that close
+    // least often run first if the invocation approaches its timeout.
     assertObjectEquals(
       periods.map((period) => [period.unit, period.startsOn]),
       [
-        ["day", "2023-12-31"],
-        ["week", "2023-12-25"],
-        ["month", "2023-12-01"],
         ["year", "2023-01-01"],
+        ["month", "2023-12-01"],
+        ["week", "2023-12-25"],
+        ["day", "2023-12-31"],
       ],
     );
   });

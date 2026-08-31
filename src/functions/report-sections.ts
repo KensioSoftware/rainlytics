@@ -38,6 +38,7 @@ export async function sectionsForReport(
       const visitors = await visitorSection(
         period,
         question,
+        question.visitorSql,
         deployment,
         visitorSecret,
       );

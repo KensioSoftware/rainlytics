@@ -27,7 +27,7 @@ export class ReportSchedule extends Construct {
 
     props.lambda.grantInvoke(props.role);
     this.schedule = new CfnSchedule(this, "Schedule", {
-      name: `${props.namePrefix}reports-daily`,
+      name: `${props.namePrefix}_reports-daily`,
       description:
         "Rainlytics calendar reports for each local day, week, month and year that closes.",
       flexibleTimeWindow: { mode: "OFF" },

@@ -96,6 +96,7 @@ describe("what one firing of the report schedule asks for", () => {
     ["nothing", undefined],
     ["an unknown weekday", aPayload({ weekStartsOn: "workday" })],
     ["no closing days", aPayload({ recomputedDays: 0 })],
+    ["no granularities", aPayload({ granularities: [] })],
     ["an unknown granularity", aPayload({ granularities: ["monthly"] })],
     ["no questions", aPayload({ questions: [] })],
     [

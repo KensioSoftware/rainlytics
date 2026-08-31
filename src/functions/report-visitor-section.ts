@@ -16,11 +16,12 @@ import { reportVisitorSalt } from "./visitor-salt.js";
 export async function visitorSection(
   period: ReportPeriod,
   question: ReportQuestionRun,
+  visitorSql: string,
   deployment: ReportDeployment,
   secret: string,
 ): Promise<ReportSection> {
   const sql = saltedSql(
-    periodQuerySql(String(question.visitorSql), period),
+    periodQuerySql(visitorSql, period),
     reportVisitorSalt(secret, period),
   );
   const outcome = await runAthenaQuery({

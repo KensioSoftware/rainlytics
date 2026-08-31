@@ -82,13 +82,16 @@ describe("precomputing calendar report documents", () => {
         },
       });
 
+    const stack = stacks.get("ReportStack");
+    if (stack === undefined) {
+      throw new Error("The calendar report stack was not deployed.");
+    }
+
     return {
       simAws,
       logBucketName,
       summariesBucketName,
-      distributionId: String(
-        stacks.get("ReportStack")?.output("DistributionId"),
-      ),
+      distributionId: stack.output("DistributionId"),
     };
   };
 

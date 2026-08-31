@@ -6,6 +6,8 @@ import type { ReportDocument } from "../report-document.js";
 import type { SummaryLookup } from "../rollup-summaries.js";
 import { neverComputed } from "../rollup-summaries.js";
 
+const readBatchSize = 50;
+
 /** The S3 operations one report run uses. */
 export interface ReportStore {
   readonly read: (keys: readonly string[]) => Promise<readonly SummaryLookup[]>;
@@ -19,8 +21,7 @@ export async function openReportStore(bucket: string): Promise<ReportStore> {
   const client = new s3.S3Client({});
 
   return {
-    read: async (keys) =>
-      Promise.all(keys.map(async (key) => read(client, s3, bucket, key))),
+    read: async (keys) => readMany(client, s3, bucket, keys),
     write: async (key, document) => {
       await client.send(
         new s3.PutObjectCommand({
@@ -35,6 +36,29 @@ export async function openReportStore(bucket: string): Promise<ReportStore> {
       client.destroy();
     },
   };
+}
+
+/** Reads source objects in batches that fit the SDK client's socket pool. */
+async function readMany(
+  client: S3.S3Client,
+  s3: typeof S3,
+  bucket: string,
+  keys: readonly string[],
+): Promise<readonly SummaryLookup[]> {
+  const found: SummaryLookup[] = [];
+
+  for (let offset = 0; offset < keys.length; offset += readBatchSize) {
+    const batch = keys.slice(offset, offset + readBatchSize);
+
+    // One batch consumes at most the S3 client's default 50 sockets.
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    const batchFound = await Promise.all(
+      batch.map(async (key) => read(client, s3, bucket, key)),
+    );
+    found.push(...batchFound);
+  }
+
+  return found;
 }
 
 /** One source object, or the explicit missing value. */

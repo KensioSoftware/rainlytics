@@ -43,7 +43,7 @@ export interface ReportConfigurationProps {
   /**
    * How long one report run may take.
    *
-   * @default fifteen minutes
+   * @default fifteen minutes, being Lambda's maximum
    */
   readonly reportTimeout?: Duration | undefined;
 
