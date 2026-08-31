@@ -23,7 +23,7 @@ importers:
         version: 10.6.0
       '@kensio/smartass':
         specifier: ^1.37.5
-        version: 1.37.5
+        version: 1.37.6
       '@kensio/yulin':
         specifier: ^1.21.0
         version: 1.21.0(node-sql-parser@5.4.0)
@@ -389,8 +389,8 @@ packages:
     resolution: {integrity: sha512-P/qUVhAaMF98uZ4NsSfiEp5WhfCRSN44nGQDgGY8MA6w9CkCVs4IdxguPGfK7+qNBCViK/xXN/gpj099YiSf1A==}
     engines: {node: '>=22.0.0'}
 
-  '@kensio/smartass@1.37.5':
-    resolution: {integrity: sha512-Djp3HOC3s3U3axh/Phb31vJ1QCYls5DasmPAJZ466ArFE2aed5a1zQCHVLh3sCP7BjER/YRqBXqlRIwVpG+wkw==}
+  '@kensio/smartass@1.37.6':
+    resolution: {integrity: sha512-qaCsowK5YbHPpOOuqHXQt18sUCSKtRC7hCvRLot6S97S0s74wlkqz2FInra9C9w9r6HYkwmtMwxQwQ//Erb/yQ==}
     engines: {node: '>=24.0.0'}
 
   '@kensio/yulin@1.21.0':
@@ -2898,7 +2898,7 @@ snapshots:
 
   '@kensio/part-factory@1.10.1': {}
 
-  '@kensio/smartass@1.37.5': {}
+  '@kensio/smartass@1.37.6': {}
 
   '@kensio/yulin@1.21.0(node-sql-parser@5.4.0)':
     dependencies:
