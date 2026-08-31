@@ -28,7 +28,7 @@ import type { CfnSchedule } from "aws-cdk-lib/aws-scheduler";
  * bills per invocation, Lambda per millisecond, Athena per byte scanned and
  * S3 per request and per byte. A site with no traffic still runs the queries
  * and pays Athena's ten million byte minimum for each, which is a few cents a
- * month for the five shipped questions on both cadences.
+ * month for the five default questions on both cadences.
  *
  * The SQL is built at synthesis by the builder the `rainlytics` command uses,
  * with the window left as a placeholder the job fills in when it runs. So the

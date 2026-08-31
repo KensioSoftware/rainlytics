@@ -26,9 +26,9 @@
 // events, so a cap low enough to bound a flood clips real traffic and one
 // high enough to spare real traffic lets a flood through underneath it.
 //
-// This question is not one of the five the command line answers. It is
-// exported for a site running the beacon to add to its own summaries, and a
-// deployment with no beacon computes nothing for it.
+// This question has no subcommand. It is exported for a site running the
+// beacon to add to its own summaries, and a deployment with no beacon computes
+// nothing for it.
 
 import { defaultBeaconPath } from "./beacon-events.js";
 import {

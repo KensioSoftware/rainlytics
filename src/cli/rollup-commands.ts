@@ -1,8 +1,8 @@
-// The five questions as subcommands.
+// The named questions as subcommands.
 //
-// One shape, five instances. Each takes the same range, the same bot filter
+// One shape, several instances. Each takes the same range, the same bot filter
 // and the same output format, and differs only in the rollup it runs. Writing
-// them out five times would let them drift into five slightly different
+// them out one by one would let them drift into slightly different
 // commands.
 //
 // Nothing here computes an answer. A schedule counted it, `summary-answer.ts`
