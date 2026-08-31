@@ -5,6 +5,7 @@ import type { OptionValues } from "./command-line.js";
 import type { CliOption } from "./option.js";
 import type { CommandResult } from "./output/result.js";
 import { rollups } from "../rollup-questions.js";
+import { webVitals } from "../web-vitals-rollup.js";
 import { queryCommand } from "./query-command.js";
 import { rollupCommand } from "./rollup-commands.js";
 import { savedQueryCommand } from "./saved-query-command.js";
@@ -68,6 +69,7 @@ export interface Command {
  */
 export const rainlyticsCommands: readonly Command[] = [
   ...rollups.map((rollup) => rollupCommand(rollup)),
+  rollupCommand(webVitals),
   savedQueryCommand,
   queryCommand,
 ];

@@ -1,4 +1,4 @@
-// The five questions, written out.
+// The five default questions, written out.
 //
 // Each is a `SELECT` over the same filtered rows, so what differs between
 // them is the thing being counted. The filters are in `rollups.ts`, because

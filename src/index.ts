@@ -16,6 +16,8 @@ export {
   statusCodes,
 } from "./rollup-questions.js";
 export { beaconEventCap, beaconEvents } from "./beacon-rollup.js";
+export { webVitals, webVitalsPercentile } from "./web-vitals-rollup.js";
+export { vitalEventNames } from "./vital-events.js";
 export {
   assertRollupName,
   botUserAgentPattern,

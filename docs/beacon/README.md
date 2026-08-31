@@ -237,9 +237,9 @@ worth saving, and it would put a scaling factor in front of numbers that are oth
 
 **No INP.** The section on vitals above has why, and what to do about it.
 
-**No rollup over any of this yet.** The rows are here and no shipped question reads `n` or `m`.
-`rainlytics query` answers one in the meantime, and the columns are `beaconValueColumn` and
-`beaconMessageColumn`.
+**No JavaScript error rollup.** [`web-vitals`](../web-vitals/) reads the measurements in `n`.
+Nothing shipped reads the error text in `m` yet. `rainlytics query` answers one in the meantime,
+and the column is `beaconMessageColumn`.
 
 **No `navigator.sendBeacon`.** It is POST-only, and the whole design rests on a GET whose query
 string CloudFront writes into `cs-uri-query`.

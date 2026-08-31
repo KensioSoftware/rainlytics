@@ -21,6 +21,8 @@
 // behind that. `web-vitals` covering LCP, CLS and INP bundles to 3209 bytes
 // gzipped, against 550 for the four below.
 
+import { vitalEventNames } from "../vital-events.js";
+
 import type { Beacon } from "./start.js";
 import {
   largestPaint,
@@ -32,20 +34,7 @@ import {
 /** Stops reporting vitals and disconnects what was watching for them. */
 export type StopVitals = StopWatching;
 
-/** The names the vitals below are reported under. */
-export const vitalEventNames = {
-  /** Largest Contentful Paint, in milliseconds. */
-  largestContentfulPaint: "lcp",
-
-  /** Cumulative Layout Shift, as its unitless score. */
-  cumulativeLayoutShift: "cls",
-
-  /** First Contentful Paint, in milliseconds. */
-  firstContentfulPaint: "fcp",
-
-  /** Time To First Byte, in milliseconds. */
-  timeToFirstByte: "ttfb",
-} as const;
+export { vitalEventNames } from "../vital-events.js";
 
 /**
  * Rounds a measurement to something worth sending.

@@ -189,10 +189,11 @@ export interface RollupTotals {
 /**
  * One question, and the SQL that answers it.
  *
- * The five the command line answers are in `rollup-questions.ts`,
- * `beacon-rollup.ts` holds the one a site running the beacon opts into, and a
- * site can write its own. A rollup writes what it selects and groups by, and calls
- * {@link rowsFor} for the rows underneath. That is where the partition
+ * The five default questions are in `rollup-questions.ts`. The two opt-in
+ * questions over beacon rows sit in `beacon-rollup.ts` and
+ * `web-vitals-rollup.ts`, and a site can write its own. A rollup writes what
+ * it selects and groups by, and calls {@link rowsFor} for the rows underneath.
+ * That is where the partition
  * predicate, the bot filter and the host and paths a caller narrowed to are
  * written, and a question filtering its own way would answer a different
  * question from its neighbours without saying so.

@@ -91,7 +91,7 @@ log bucket is in.
 
 ## Where an answer comes from
 
-The five named questions read a precomputed summary off S3. A schedule counted the window once, the
+The named questions read a precomputed summary off S3. A schedule counted the window once, the
 command fetches the windows the range covers, and the whole read costs a GET each. `query` and
 `saved-query` run Athena, because ad-hoc SQL has no summary to read.
 
@@ -223,15 +223,15 @@ rainlytics --output csv <command>     # refused, with that sentence
 
 ## What it can do today
 
-Answer five named questions, with [`rainlytics pageviews`, `referrers`, `status-codes`,
-`cache-hit-ratio` and `searches`](../rollups/). Run a question a site saved for itself with
-[`rainlytics saved-query`](#running-a-query-saved-in-the-workgroup). Run SQL for anything else with
-[`rainlytics query`](../query/).
+Answer the five default questions with [`rainlytics pageviews`, `referrers`, `status-codes`,
+`cache-hit-ratio` and `searches`](../rollups/). A deployment using the browser beacon can add the
+shipped [`web-vitals`](../web-vitals/) question. Run a question a site saved for itself with
+[`rainlytics saved-query`](#running-a-query-saved-in-the-workgroup), and run SQL for anything else
+with [`rainlytics query`](../query/).
 
-The five named questions read a [precomputed summary](../summaries/) off S3 and each answer costs a
-GET. `query` and `saved-query` reach Athena, and so does a named question given `--query`. The
-commands and their options are where M2 left them, which is what makes the swap invisible from out
-here.
+The named questions read a [precomputed summary](../summaries/) off S3 and each answer costs a GET.
+`query` and `saved-query` reach Athena, and so does a named question given `--query`. The commands
+and their options are where M2 left them, which is what makes the swap invisible from out here.
 
 Rainlytics is experimental and pre-1.0. The command surface will change without a major version
 behind it.

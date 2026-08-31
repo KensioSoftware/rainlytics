@@ -34,9 +34,9 @@ address bar has moved and no request was made.
 
 ## A site opts into it
 
-The five questions the command line answers are computed for every deployment. This one waits to be
-asked for, so a site with no beacon leaves it out and computes none of it. Layer 2 is optional, and
-a scheduled question over rows nobody writes is an Athena charge per window for an empty answer.
+The five default questions are computed for every deployment. This one waits to be asked for, so a
+site with no beacon leaves it out and computes none of it. Layer 2 is optional, and a scheduled
+question over rows nobody writes is an Athena charge per window for an empty answer.
 
 A site running the beacon adds it to both constructs, once to save the query and once to compute it
 on a schedule:

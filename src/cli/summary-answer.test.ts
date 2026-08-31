@@ -11,6 +11,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import { deployStacks } from "#test/simulated-deployment.js";
 
+import {
+  beaconQueryString,
+  defaultBeaconPath,
+  type BeaconEvent,
+} from "../beacon-events.js";
 import { CloudFrontLogDelivery } from "../cdk/log-delivery.js";
 import { LogBucket } from "../cdk/log-bucket.js";
 import { LogTable } from "../cdk/log-table.js";
@@ -20,6 +25,7 @@ import type { RollupSummariesProps } from "../cdk/summary-configuration.js";
 import { partitionPrefix } from "../partitions.js";
 import { cacheHitRatio, pageviews } from "../rollup-questions.js";
 import { defaultVisitorSaltParameter } from "../visitor-identity.js";
+import { webVitals } from "../web-vitals-rollup.js";
 import { rainlyticsCommands } from "./command.js";
 import { runCli } from "./run.js";
 
@@ -149,6 +155,25 @@ describe("the named questions, answered from stored summaries", () => {
     ...over,
   });
 
+  /** One beacon query string as CloudFront writes it into a record. */
+  const aBeaconQueryRecord = (
+    query: string,
+    path = defaultBeaconPath,
+  ): Readonly<Record<string, string>> =>
+    aRecord(anHour, {
+      "cs-uri-stem": path,
+      "cs-uri-query": query.replaceAll("%", "%25"),
+      "sc-status": "204",
+      "sc-content-type": "-",
+      "x-edge-result-type": "FunctionGeneratedResponse",
+    });
+
+  /** One beacon event as CloudFront writes it into the delivered record. */
+  const aBeaconRecord = (
+    event: BeaconEvent,
+  ): Readonly<Record<string, string>> =>
+    aBeaconQueryRecord(beaconQueryString(event));
+
   /** One delivered object holding these records. */
   const putDelivered = async (
     deployed: Deployed,
@@ -229,6 +254,51 @@ describe("the named questions, answered from stored summaries", () => {
       { path: "/grammar/", views: "1" },
     ]);
     expect(run.error).toContain(deployed.summariesBucketName);
+    expect(run.error).toContain("1 GET");
+    expect(run.error).not.toContain("Scanned");
+  });
+
+  it("answers Web Vitals from the summary a deployment opted into", async () => {
+    // Given one hour with five LCP and CLS measurements, one FCP and TTFB,
+    // and numeric values carried by events outside this question.
+    const deployed = await deployAnalytics({ rollups: [webVitals] });
+    await putDelivered(deployed, anHour, [
+      ...[1000, 1500, 2000, 2500, 4000].map((value) =>
+        aBeaconRecord({ event: "lcp", page: "/", value }),
+      ),
+      ...[0.02, 0.05, 0.08, 0.1, 0.4].map((value) =>
+        aBeaconRecord({ event: "cls", page: "/", value }),
+      ),
+      aBeaconRecord({ event: "fcp", page: "/", value: 800 }),
+      aBeaconRecord({ event: "ttfb", page: "/", value: 120 }),
+      aBeaconRecord({ event: "route", page: "/", value: 0 }),
+      aBeaconRecord({ event: "error", page: "/", value: 10_000 }),
+      aBeaconRecord({ event: "inp", page: "/", value: 999 }),
+      aBeaconQueryRecord("v=1&e=lcp&p=%2F&n=fast"),
+      aBeaconQueryRecord("v=1&e=lcp&p=%2F&n=10000", "/_somewhere-else"),
+    ]);
+    await untilTheScheduleFires(deployed);
+
+    // When the shipped subcommand reads the closed hour.
+    const run = await cli([
+      "web-vitals",
+      "--last",
+      "2h",
+      "--summaries",
+      deployed.summariesBucketName,
+    ]);
+
+    // Then it reports p75 per collected vital with the sample counts. Route
+    // changes, errors and INP contributed none of their numeric values, and
+    // the malformed LCP value contributed no sample. A matching payload on
+    // another path is outside the default collection path too.
+    expect(run.code).toBe(0);
+    expect(run.rows).toStrictEqual([
+      { vital: "cls", p75: "0.1", samples: "5" },
+      { vital: "fcp", p75: "800", samples: "1" },
+      { vital: "lcp", p75: "2500", samples: "5" },
+      { vital: "ttfb", p75: "120", samples: "1" },
+    ]);
     expect(run.error).toContain("1 GET");
     expect(run.error).not.toContain("Scanned");
   });

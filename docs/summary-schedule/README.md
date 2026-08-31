@@ -99,7 +99,7 @@ One Athena query per window per question per run. Athena bills a ten million byt
 query reads. That is $0.00005 a query (the [query](../query/) page has where the per-byte figure
 comes from).
 
-The five shipped questions on both cadences, recomputing two windows, come to 250 queries a day.
+The five default questions on both cadences, recomputing two windows, come to 250 queries a day.
 That is about 38 cents a month, plus a few cents of Lambda and a rounding error of S3. The default
 `recomputedWindows` of 2 doubles the query cost and leaves the object count alone, since a
 recomputed window overwrites its own key.
@@ -209,7 +209,7 @@ this stack reads the answers, such as a static site given read access to one pre
 | ---------------------- | -------------------------- | -------------------------------------------------- |
 | `table`                | required                   | The Glue table the questions read.                 |
 | `workgroup`            | required                   | Where the queries run, and their cutoff.           |
-| `rollups`              | the five shipped questions | What to compute.                                   |
+| `rollups`              | the five default questions | What to compute.                                   |
 | `requests`             | none                       | What each question covers.                         |
 | `granularities`        | `["hourly", "daily"]`      | Which windows to compute.                          |
 | `lag`                  | 15 minutes                 | How long after a window closes a run fires.        |

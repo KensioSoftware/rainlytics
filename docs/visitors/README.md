@@ -156,7 +156,7 @@ carrying one would report a number about rows it never looked at, and the field 
 question that counts something else. Absent and `{ "distinct": 0 }` mean different things, and a
 reader can tell them apart.
 
-It costs one extra Athena query per window per run. The five shipped questions on both cadences,
+It costs one extra Athena query per window per run. The five default questions on both cadences,
 recomputing two windows, come to 250 queries a day and about 38 cents a month. The visitor count on
 `pageviews` adds 50 of those, which is about 8 cents. The
 [summary schedule](../summary-schedule/#what-it-costs) page has the arithmetic.

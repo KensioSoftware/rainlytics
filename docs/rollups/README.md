@@ -14,9 +14,10 @@ path         views
 /grammar/       97
 ```
 
-`referrers`, `status-codes`, `cache-hit-ratio` and [`searches`](../searches/) are the others. Each
-takes the same `--last`, the same `--path` and `--host`, the same output formats and the same bot
-filter.
+`referrers`, `status-codes`, `cache-hit-ratio` and [`searches`](../searches/) are the other default
+questions. [`web-vitals`](../web-vitals/) is a shipped command for a deployment using the optional
+browser beacon. Each takes the same `--last`, the same `--path` and `--host`, the same output formats
+and the same bot filter.
 
 Each of them answers from the [precomputed summaries](../summaries/) a schedule wrote, at the cost of
 a GET per window. `--query` runs the question through Athena for a fresher answer, and reports what
@@ -46,9 +47,9 @@ changed. An `Error` is left out for a different reason: CloudFront caches error 
 `Error` also covers a viewer who disconnected after being served one, so it says too little either
 way.
 
-A sixth question, [`beacon-events`](../beacon-events/), counts what the optional beacon reported. It
-waits to be asked for, because a site with no beacon would be paying for a scheduled query over rows
-nobody writes. That page has how to add it and the cap it applies to a flood.
+Two rollups wait for a deployment to opt in. [`web-vitals`](../web-vitals/) calculates p75 for each
+reported vital and has its own command. [`beacon-events`](../beacon-events/) counts every event and
+runs through `saved-query`. A site with no beacon then pays for neither empty answer.
 
 ## The log is percent-encoded twice
 
