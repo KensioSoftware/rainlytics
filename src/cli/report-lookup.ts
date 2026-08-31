@@ -7,7 +7,7 @@ import { reportKey } from "../report-key.js";
 import type { ReportPeriod } from "../report-periods.js";
 import { messageOf } from "../thrown-message.js";
 import { cannotReadReport, isDenied } from "./access-refusals.js";
-import { reportDocumentFrom } from "./report-document-reading.js";
+import { reportDocumentFrom, unsupported } from "./report-document-reading.js";
 
 /** One supported, complete report read from S3. */
 export interface ReportRead {
@@ -32,10 +32,7 @@ export async function readReport(
     const body = await found.Body?.transformToString();
 
     if (body === undefined) {
-      throw new Error(
-        `The object ${key} in ${bucket} is not a supported report document` +
-          ` because S3 returned no document body.`,
-      );
+      throw unsupported(bucket, key, "S3 returned no document body");
     }
 
     const document = reportDocumentFrom(body, bucket, key, period);

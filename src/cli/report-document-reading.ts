@@ -98,7 +98,11 @@ function samePeriod(
 }
 
 /** A report object this CLI version cannot safely expose. */
-function unsupported(bucket: string, key: string, reason: string): Error {
+export function unsupported(
+  bucket: string,
+  key: string,
+  reason: string,
+): Error {
   return new Error(
     `The object ${key} in ${bucket} is not a supported report document` +
       ` because ${reason}.`,

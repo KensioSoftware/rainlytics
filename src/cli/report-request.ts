@@ -29,7 +29,7 @@ export function reportRequestFrom(context: CommandContext): ReportRequest {
   if (unitText === undefined || selector === undefined || extra.length > 0) {
     throw new UsageError(
       `report takes a unit and a date. For example,` +
-        ` "rainlytics report month 2026-08".`,
+        ` "rainlytics report month 2026-07".`,
       "report",
     );
   }

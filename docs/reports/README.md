@@ -220,7 +220,7 @@ It derives the key from the unit, date, time zone and first weekday.
 ```bash
 rainlytics report day 2026-08-30 --summaries rainlytics-summaries-1a2b
 rainlytics report week 2026-08-24 --time-zone Europe/London
-rainlytics report month 2026-08
+rainlytics report month 2026-07
 rainlytics report year 2025
 ```
 
@@ -228,9 +228,9 @@ rainlytics report year 2025
 UTC and Monday. The bucket comes from `--summaries` or `RAINLYTICS_SUMMARY_BUCKET`, and the region
 comes from `--region` or the AWS SDK's default chain.
 
-The versioned document is written unchanged as JSON on standard output. The bucket, object age and
-one-GET cost go to standard error. A missing, incomplete or unsupported document leaves standard
-output empty and exits non-zero. The reader never runs Athena.
+The versioned document is written unchanged as JSON on standard output. The bucket, object key,
+object age and one-GET cost go to standard error. A missing, incomplete or unsupported document
+leaves standard output empty and exits non-zero. The reader never runs Athena.
 
 ## Cost
 

@@ -106,7 +106,7 @@ The same construct precomputes one JSON report for each closed calendar day,
 week, month and year. The command reads one without running Athena again:
 
 ```bash
-rainlytics report month 2026-08 --summaries rainlytics-summaries-1a2b
+rainlytics report month 2026-07 --summaries rainlytics-summaries-1a2b
 ```
 
 The whole versioned document goes to standard output. The [calendar
