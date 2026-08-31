@@ -8,6 +8,7 @@ import {
   type Distribution,
   type ICachePolicy,
   type IOrigin,
+  ViewerProtocolPolicy,
 } from "aws-cdk-lib/aws-cloudfront";
 import { Construct } from "constructs";
 
@@ -59,6 +60,17 @@ export interface BeaconPathProps {
   readonly cachePolicy?: ICachePolicy | undefined;
 
   /**
+   * Which viewer protocols the beacon path accepts.
+   *
+   * HTTPS-only refuses a plain HTTP request with 403. Redirecting would make
+   * the browser send a second request, which is a poor fit for the keepalive
+   * send made while a page is going away.
+   *
+   * @default `ViewerProtocolPolicy.HTTPS_ONLY`
+   */
+  readonly viewerProtocolPolicy?: ViewerProtocolPolicy | undefined;
+
+  /**
    * A name for the function, unique within the account.
    *
    * @default a name CDK derives from the construct's path in the tree
@@ -97,6 +109,9 @@ export class BeaconPath extends Construct {
   /** The cache policy the behaviour carries. */
   readonly cachePolicy: ICachePolicy;
 
+  /** The viewer protocol policy the behaviour carries. */
+  readonly viewerProtocolPolicy: ViewerProtocolPolicy;
+
   constructor(scope: Construct, id: string, props: BeaconPathProps) {
     super(scope, id);
 
@@ -105,6 +120,8 @@ export class BeaconPath extends Construct {
 
     this.path = path;
     this.cachePolicy = props.cachePolicy ?? CachePolicy.CACHING_OPTIMIZED;
+    this.viewerProtocolPolicy =
+      props.viewerProtocolPolicy ?? ViewerProtocolPolicy.HTTPS_ONLY;
 
     this.cloudFrontFunction = new CloudFrontFunction(this, "Responder", {
       ...(props.functionName === undefined
@@ -117,6 +134,7 @@ export class BeaconPath extends Construct {
 
     const behaviour: AddBehaviorOptions = {
       cachePolicy: this.cachePolicy,
+      viewerProtocolPolicy: this.viewerProtocolPolicy,
       functionAssociations: [
         {
           function: this.cloudFrontFunction,
