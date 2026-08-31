@@ -105,7 +105,7 @@ same, because Athena bills a ten million byte minimum whatever a query reads.
 That is the honest version of this example, and it is worth sitting with. Pruning saves nothing on
 a two-day-old dataset. What it changes is the shape of the curve. The hour query goes on reading 265
 KB for ever, while the unqualified one grows with the bucket. [#9](https://github.com/KensioSoftware/rainlytics/issues/9)
-measured this site levelling off near 1.6 GB under the 365-day expiry, at which point the same pair
+measured this site levelling off near 1.6 GB under the 370-day expiry, at which point the same pair
 reads 1.6 GB against 265 KB and costs $0.0080 against $0.000050.
 
 A rollup that runs every hour for a year is where that difference stops being academic.

@@ -36,6 +36,7 @@ export {
   type SummaryBucketProps,
 } from "./summary-bucket.js";
 export { defaultSummaryLag } from "./summary-lag.js";
+export { defaultReportLag } from "./report-lag.js";
 export { type LogTableFormat, logTableFormat } from "./log-table-format.js";
 export { defaultLogRetention, defaultRecoveryWindow } from "./log-lifecycle.js";
 export { requireStackRegion } from "./stack-region.js";

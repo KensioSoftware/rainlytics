@@ -13,6 +13,7 @@ export {
   type AvailableReportSectionInput,
   type ExactReportSection,
   type MissingReportSectionInput,
+  type ReportCalculation,
   type ReportCompositionRule,
   type ReportRowsValue,
   type ReportSection,

@@ -129,6 +129,40 @@ describe("versioned report documents", () => {
     assertIdentical(section.composition, "single-summary");
   });
 
+  it("records an exact period-wide Athena query separately from summaries", () => {
+    // Given a calendar day and rows calculated by one query over that day.
+    const period = utcDay();
+
+    // When the report section is built from the query result.
+    const section = reportSection(
+      {
+        question: aQuestion("web-vitals"),
+        rule: "percentile",
+        calculation: "period-query",
+        sources: [
+          {
+            granularity: "daily",
+            from: period.from,
+            until: period.until,
+          },
+        ],
+        value: rowsValue(),
+      },
+      period,
+    );
+
+    // Then it is exact and says a query supplied it, not a stored summary.
+    assertObjectMatches(section, {
+      accuracy: "exact",
+      composition: "period-query",
+      source: {
+        summaries: 0,
+        queries: 1,
+        complete: true,
+      },
+    });
+  });
+
   it("adds count rows exactly across a complete period", () => {
     // Given a week covered by seven daily summaries of an additive question.
     const period = utcWeek();

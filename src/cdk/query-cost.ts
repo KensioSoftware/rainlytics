@@ -32,7 +32,7 @@ export const smallestBytesScannedCutoff = Size.bytes(bytesBilledMinimum);
  *
  * KensioSoftware/rainlytics#9 measured a site serving 156,000 requests a day
  * at 4.42MB of gzipped logs a day, so its raw store levels off around 1.6GB
- * under the 365-day expiry. A rollup reading the whole of that year, which is
+ * under the 370-day expiry. A rollup reading the whole of that period, which is
  * the widest query the pipeline has any reason to run, scans well under a
  * fifth of this. Six years of that site, or one year of a site six times
  * busier, is the headroom.

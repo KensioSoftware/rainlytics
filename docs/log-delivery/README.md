@@ -89,7 +89,7 @@ from the address the log already holds. The reasoning is on
 
 The raw store is therefore a record of people as well as of requests. Hashing downstream leaves the
 addresses where they landed. CloudFront writes an object once and leaves it alone, and the addresses
-last exactly as long as the log objects do. On the defaults that is 365 days, plus the 30 days a
+last exactly as long as the log objects do. On the defaults that is 370 days, plus the 30 days a
 superseded version survives, and the [log bucket](../log-bucket/) page has both numbers and how to
 change them.
 

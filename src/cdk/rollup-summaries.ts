@@ -6,6 +6,9 @@ import { summaryConfiguration } from "./summary-configuration.js";
 import type { SummariesBucket } from "./summary-bucket.js";
 import { summariesBucket } from "./summary-bucket.js";
 import { SummaryFunction } from "./summary-function.js";
+import { ReportFunction } from "./report-function.js";
+import { reportQuestions } from "./report-questions.js";
+import { ReportSchedule } from "./report-schedule.js";
 import { summaryReadStatements } from "./summary-permissions.js";
 import { summaryRuns } from "./summary-questions.js";
 import { SummarySchedules } from "./summary-schedules.js";
@@ -54,8 +57,14 @@ export class RollupSummaries extends Construct {
   /** The function the schedules invoke. */
   readonly lambda: IFunction;
 
+  /** The function that assembles calendar reports. */
+  readonly reportLambda: IFunction;
+
   /** The schedules, grouped by cadence and then by question. */
   readonly schedules: readonly CfnSchedule[];
+
+  /** The daily schedule that writes closed calendar reports. */
+  readonly reportSchedule: CfnSchedule;
 
   constructor(scope: Construct, id: string, props: RollupSummariesProps) {
     super(scope, id);
@@ -78,7 +87,23 @@ export class RollupSummaries extends Construct {
         : { logRetention: props.logRetention }),
     }).lambda;
 
-    this.schedules = new SummarySchedules(this, "Schedules", {
+    this.reportLambda = new ReportFunction(this, "ReportJob", {
+      table: props.table,
+      workgroup: props.workgroup,
+      bucket: this.bucket,
+      countsVisitors: settled.countsVisitors,
+      ...(props.visitorSaltParameter === undefined
+        ? {}
+        : { visitorSaltParameter: props.visitorSaltParameter }),
+      ...(props.reportTimeout === undefined
+        ? {}
+        : { timeout: props.reportTimeout }),
+      ...(props.logRetention === undefined
+        ? {}
+        : { logRetention: props.logRetention }),
+    }).lambda;
+
+    const summarySchedules = new SummarySchedules(this, "Schedules", {
       lambda: this.lambda,
       lag: settled.lag,
       namePrefix: settled.namePrefix,
@@ -88,7 +113,27 @@ export class RollupSummaries extends Construct {
         dataset: props.table.dataset,
         ...(props.requests === undefined ? {} : { requests: props.requests }),
       }),
-    }).schedules;
+    });
+    this.schedules = summarySchedules.schedules;
+
+    this.reportSchedule = new ReportSchedule(this, "ReportSchedule", {
+      lambda: this.reportLambda,
+      role: summarySchedules.role,
+      lag: settled.reportLag,
+      namePrefix: settled.namePrefix,
+      run: {
+        timeZone: settled.reportTimeZone,
+        weekStartsOn: settled.reportWeekStartsOn,
+        recomputedDays: settled.recomputedReportDays,
+        granularities: settled.granularities,
+        questions: reportQuestions({
+          rollups: settled.rollups,
+          granularities: settled.granularities,
+          dataset: props.table.dataset,
+          ...(props.requests === undefined ? {} : { requests: props.requests }),
+        }),
+      },
+    }).schedule;
   }
 
   /**

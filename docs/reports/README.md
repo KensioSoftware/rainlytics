@@ -1,9 +1,31 @@
 # Calendar reports
 
-A report is a versioned JSON document containing several questions over one closed calendar period.
+`RollupSummaries` precomputes one JSON report for every closed day, week, month and year. EventBridge
+Scheduler invokes a separate report Lambda once a day. The function composes stored summaries where
+their arithmetic is safe, runs a period-wide Athena query where it is not, and writes the finished
+document to the summaries bucket.
 
-`ReportDocument` describes the document. `reportPeriod`, `reportSection`, `reportDocument` and
-`reportKey` build the parts shared by a scheduled writer and a reader.
+```typescript
+new RollupSummaries(this, "Summaries", {
+  table,
+  workgroup,
+  reportTimeZone: "Europe/London",
+  reportWeekStartsOn: "monday",
+});
+```
+
+The defaults use UTC and Monday. The report job runs 30 minutes after local midnight, after the
+default summary run at 15 minutes past. It recomputes reports for the two most recently closed days.
+A day that also closes a week, month or year causes that larger period to be written too.
+
+The recomputation is intentional. CloudFront can deliver a late object after the first summary run.
+The next run rebuilds that summary, and the report writer reads it again. The existing report is
+never an input. A successful rerun replaces the object at the same deterministic key.
+
+## The document
+
+`ReportDocument` describes each stored document. `reportPeriod`, `reportSection`, `reportDocument`
+and `reportKey` are also exported for code that reads or builds the schema.
 
 ```typescript
 import {
@@ -13,10 +35,6 @@ import {
   reportSection,
 } from "@kensio/rainlytics";
 ```
-
-Computing, storing, reading and rendering reports sit outside this schema.
-
-## The document
 
 ```json
 {
@@ -35,7 +53,7 @@ Computing, storing, reading and rendering reports sit outside this schema.
     "until": "2026-08-30T23:00:00.000Z",
     "complete": true
   },
-  "computedAt": "2026-08-30T23:15:03.001Z",
+  "computedAt": "2026-08-30T23:30:03.001Z",
   "sections": [
     {
       "question": {
@@ -45,12 +63,12 @@ Computing, storing, reading and rendering reports sit outside this schema.
         "param": "q",
         "redirectStatuses": ["302", "303", "307"]
       },
-      "accuracy": "exact",
-      "composition": "additive",
+      "accuracy": "approximate",
+      "composition": "ranked-summaries",
       "source": {
         "from": "2026-08-23T23:00:00.000Z",
         "until": "2026-08-30T23:00:00.000Z",
-        "summaries": 168,
+        "summaries": 30,
         "complete": true
       },
       "value": {
@@ -67,22 +85,26 @@ Computing, storing, reading and rendering reports sit outside this schema.
         "param": "q",
         "redirectStatuses": ["302", "303", "307"]
       },
-      "accuracy": "unavailable",
-      "composition": "none",
-      "reason": "percentiles-do-not-compose",
+      "accuracy": "exact",
+      "composition": "period-query",
       "source": {
         "from": "2026-08-23T23:00:00.000Z",
         "until": "2026-08-30T23:00:00.000Z",
-        "summaries": 168,
+        "summaries": 0,
+        "queries": 1,
         "complete": true
       },
-      "value": null
+      "value": {
+        "type": "rows",
+        "columns": ["metric", "p75"],
+        "rows": [{ "metric": "LCP", "p75": "2450" }]
+      }
     }
   ]
 }
 ```
 
-`period` names the local calendar dates and their UTC instants. `sourceCoverage` is the outer span
+`period` records the local calendar dates and their UTC instants. `sourceCoverage` is the outer span
 represented by the section sources. Its `complete` field is true when at least one source covers the
 whole report period without a gap. A document whose expected rollups are all missing carries
 `null`.
@@ -91,7 +113,8 @@ whole report period without a gap. A document whose expected rollups are all mis
 period closes.
 
 Every section records its `SummaryQuestion`. A filter or limit that changes the stored answer stays
-attached to the value in the report. The `source` names the span and number of stored summaries used.
+attached to the value in the report. The `source` records the span and the number of summaries or
+period queries used.
 
 ## Calendar boundaries
 
@@ -99,16 +122,16 @@ attached to the value in the report. The `source` names the span and number of s
 calendar. Days begin at local midnight. Months begin on their first local date and years begin on 1
 January.
 
-Weeks begin on Monday by default. Passing `weekStartsOn` selects any other weekday, and a weekly
+Weeks begin on Monday by default. Passing `weekStartsOn` selects another weekday, and a weekly
 period records the choice. The other units omit it because it has no effect on their boundaries.
 
 The UTC duration follows the local calendar. A day across a daylight-saving change can contain 23 or
 25 hours. A week containing that day changes length with it. `from` and `until` record the resulting
-UTC instants, while `startsOn` and `endsBefore` record the local dates.
+UTC instants. `startsOn` and `endsBefore` record the local dates.
 
 Reports cover closed periods. The second argument to `reportPeriod` is the computation clock. The
 builder accepts the period when `until` is equal to or earlier than that clock. It raises a
-`RangeError` while the current period is still open.
+`RangeError` while the current period is open.
 
 ```typescript
 const period = reportPeriod(
@@ -121,13 +144,31 @@ const period = reportPeriod(
 );
 ```
 
-The clock defaults to the current instant where a caller leaves it out. A scheduled writer can pass
-its invocation time to make the decision reproducible.
+The clock defaults to the current instant where a caller leaves it out. The scheduled writer passes
+its invocation time so the decision is reproducible.
 
-## Section accuracy
+## How sections are calculated
 
-`reportSection` assigns accuracy from the composition rule and source summaries. A caller supplies
-the rule and the value but never supplies an accuracy label.
+The writer uses stored summaries when a rollup exposes serialisable addition rules. It chooses the
+largest available UTC windows that exactly cover the report. A UTC report normally reads daily
+summaries. A time zone offset from UTC uses hourly summaries at its edges and daily summaries in its
+interior.
+
+Additive counts remain exact. A percentage remains exact when the stored totals expose the counts
+needed to recompute it. Ranked answers become approximate when they combine several summaries. Each
+summary has already discarded rows below its limit, so a full-period ranking cannot recover every
+candidate.
+
+The writer runs one Athena query over the whole period where summaries cannot produce the right
+answer. Percentiles use this path. So does a derived value whose recomputation is only available as
+JavaScript, including the default cache hit ratio. The section records `period-query`, zero
+summaries and one query. Its result is exact.
+
+Visitor counts always use a period query. Daily summary salts deliberately prevent identities from
+linking across days. The report query derives a separate salt for the whole calendar period, which
+allows one person to count once without reusing an identifier from another period.
+
+`reportSection` applies the following rules when code builds a section directly from summaries.
 
 | Rule            | One summary spanning the report | Several summaries covering the report |
 | --------------- | ------------------------------- | ------------------------------------- |
@@ -136,44 +177,22 @@ the rule and the value but never supplies an accuracy label.
 | `visitor-count` | exact                           | unavailable                           |
 | `percentile`    | exact                           | unavailable                           |
 
-Counts add across windows. Derived percentages remain exact when they are recomputed from their
-added counts before reaching the report section.
+The scheduled writer avoids the last two unavailable results by using a period query.
 
-Ranked rows are truncated inside each stored summary. A row below every window's limit is absent
-from the composed input, even when its full-period count would put it near the top. The builder marks
-the composed ranking `approximate` and records `ranked-summaries` as its composition.
+## Incomplete sources
 
-Visitor identifiers use a new salt each day. Counts from several windows can count the same person
-more than once. The builder withholds the value and records `visitor-counts-do-not-compose`.
+A missing, malformed or mismatched summary becomes a gap. The writer does not hide such a gap with
+a raw query. The affected section has `accuracy` set to `unavailable`, `reason` set to
+`incomplete-source`, and `value` set to `null`. Its source metadata covers only the summaries that
+were actually read, so the document cannot present incomplete data as a complete answer.
 
-A percentile needs the observations from the full period. Stored percentile values contain too
-little information to recover it. The builder withholds the value and records
-`percentiles-do-not-compose`.
-
-A gap or a source span shorter than the calendar period makes any rule unavailable with
-`incomplete-source`. The section keeps the source metadata and sets its value to `null`.
-
-## Missing optional rollups
-
-An optional rollup missing from the summary store remains a section in the array:
-
-```json
-{
-  "question": { "name": "web-vitals", "includeBots": false },
-  "accuracy": "unavailable",
-  "composition": "none",
-  "reason": "missing-rollup",
-  "source": null,
-  "value": null
-}
-```
-
-The representation keeps a report containing no measurements distinct from one whose writer never
+An optional rollup that was expected but never stored can be represented as `missing-rollup` with a
+null source. This keeps a report containing no measurements distinct from one whose writer never
 looked for the question.
 
-## Where a report lives
+## S3 keys and retention
 
-`reportKey` derives the key from the schema version and period:
+`reportKey` derives the key from the schema version and period.
 
 ```text
 reports/v1/UTC/day/2026-08-24.json
@@ -182,20 +201,53 @@ reports/v1/Asia%2FTokyo/month/2026-08-01.json
 ```
 
 The escaped time zone occupies one path segment. A weekly key includes its first weekday. The local
-opening date sorts periods in calendar order under the prefix.
+opening date sorts periods in calendar order under the prefix. A rerun sends another S3 `PutObject`
+to this key, so readers see the recomputed document without finding a new location.
 
 The schema version appears in the key and document. A reader asks for the version it understands.
 Changing a field's meaning or removing it requires a new version. An optional field can be added to
 the current version.
 
+The default raw log retention is 370 days. That covers a 366-day annual report and leaves four days
+for its scheduled recomputation. Shortening `LogBucket.retention` below the largest report period
+can make that report unavailable. The report documents themselves remain in the summaries bucket.
+
+## Cost
+
+The report path has no reserved or hourly capacity. Its AWS services charge for invocations,
+duration, requests, bytes stored and bytes scanned.
+
+The default deployment creates one Scheduler invocation and one 512 MB Lambda invocation each day.
+AWS includes 14 million Scheduler invocations per month and one million Lambda requests plus 400,000
+GB-seconds per month in their free tiers. The report schedule is 30 invocations per month.
+
+The six default rollups issue two period queries per report. One computes the cache hit ratio and one
+counts pageview visitors. Recomputing two closing days writes about 72 reports and runs about 143
+queries in an average month. At Athena's 10 MB minimum and $5 per TB, those queries cost about
+$0.0072. Actual cost rises when a period query scans more than 10 MB.
+
+For UTC reports, composing the other five questions reads about 1,217 summary objects and writes
+about 72 report objects per month. At the US East (N. Virginia) S3 Standard request prices of $0.0004
+per 1,000 GET requests and $0.005 per 1,000 PUT requests, those requests cost about $0.00085. The
+small JSON documents add a fraction of a cent in storage. Other Regions can have different prices.
+
+The report writer therefore adds about one cent per month for a quiet default deployment whose
+Lambda usage stays inside the free tier and whose Athena queries stay at the minimum. This estimate
+does not include the existing summary jobs. Traffic volume and added period-query rollups determine
+the variable part.
+
+Prices were checked on 31 August 2026 against the [Athena pricing page](https://aws.amazon.com/athena/pricing/),
+[EventBridge pricing page](https://aws.amazon.com/eventbridge/pricing/), [Lambda pricing
+page](https://aws.amazon.com/lambda/pricing/) and [S3 pricing page](https://aws.amazon.com/s3/pricing/).
+
 <!-- card
 ```json
 {
   "period": { "unit": "week", "timeZone": "Europe/London" },
-  "computedAt": "2026-08-30T23:15:03.001Z",
+  "computedAt": "2026-08-30T23:30:03.001Z",
   "sections": [
     { "question": { "name": "pageviews" }, "accuracy": "approximate" },
-    { "question": { "name": "web-vitals" }, "accuracy": "unavailable" }
+    { "question": { "name": "web-vitals" }, "accuracy": "exact" }
   ]
 }
 ```

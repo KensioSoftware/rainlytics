@@ -519,6 +519,27 @@ describe("computing rollup summaries on a schedule", () => {
     assertStringIncludes(input, visitorSaltPlaceholder);
   });
 
+  it("keeps the report schedule outside the rollup naming scheme", async () => {
+    // Given a daily rollup called reports, which occupies the schedule name
+    // a report schedule would take without its separator.
+    const deployed = await deployAnalytics({
+      rollups: [{ ...pageviews, name: "reports" }],
+      granularities: ["daily"],
+    });
+
+    // When the schedules in the default group are listed.
+    const listed = await deployed.simAws
+      .region("us-east-1")
+      .account()
+      .scheduler()
+      .listSchedules({ input: {} });
+    const names = (listed.Schedules ?? []).map((schedule) => schedule.Name);
+
+    // Then the rollup and report schedules have distinct names.
+    assertArrayIncludes(names, "rainlytics-reports-daily");
+    assertArrayIncludes(names, "rainlytics-_reports-daily");
+  });
+
   it("tells the job which parameter the salt is in", async () => {
     // Given a site that keeps its secret under a name of its own.
     const parameter = `/mine/${faker.string.uuid()}`;

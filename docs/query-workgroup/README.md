@@ -32,7 +32,7 @@ The default is sized from the widest query the pipeline has a reason to run, not
 costs.
 
 [#9](https://github.com/KensioSoftware/rainlytics/issues/9) measured a site serving 156,000 requests
-a day at 4.42MB of gzipped logs a day, so its raw store levels off near 1.6GB under the 365-day
+a day at 4.42MB of gzipped logs a day, so its raw store levels off near 1.6GB under the 370-day
 expiry. A rollup reading that whole year scans well under a fifth of the cutoff. What is left is
 headroom for six years of that site, or for one year of a site six times busier.
 

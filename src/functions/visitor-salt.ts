@@ -17,7 +17,12 @@ import { createHmac } from "node:crypto";
 import type * as SSM from "@aws-sdk/client-ssm";
 
 import type { SummaryWindow } from "../summary-windows.js";
-import { visitorSaltDay, visitorSaltMessage } from "../visitor-identity.js";
+import type { ReportPeriod } from "../report-periods.js";
+import {
+  reportVisitorSaltMessage,
+  visitorSaltDay,
+  visitorSaltMessage,
+} from "../visitor-identity.js";
 
 /**
  * The secret a deployment counts visitors under, read out of Parameter Store.
@@ -81,9 +86,20 @@ export async function visitorSecret(parameter: string): Promise<string> {
  * others.
  */
 export function visitorSalt(secret: string, window: SummaryWindow): string {
-  return createHmac("sha256", secret)
-    .update(visitorSaltMessage(visitorSaltDay(window)))
-    .digest("hex");
+  return derivedSalt(secret, visitorSaltMessage(visitorSaltDay(window)));
+}
+
+/** The salt shared by every visitor row in one calendar report period. */
+export function reportVisitorSalt(
+  secret: string,
+  period: ReportPeriod,
+): string {
+  return derivedSalt(secret, reportVisitorSaltMessage(period));
+}
+
+/** One keyed salt derived from a versioned scope message. */
+function derivedSalt(secret: string, message: string): string {
+  return createHmac("sha256", secret).update(message).digest("hex");
 }
 
 /** What a parameter this cannot count under is reported as. */

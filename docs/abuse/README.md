@@ -51,7 +51,7 @@ Function](../beacon-path/) at $0.10 per million invocations.
 **A log record, kept for the bucket's retention.**
 [#9](https://github.com/KensioSoftware/rainlytics/issues/9) measured the log store at $0.084 a month
 on a site serving 137,000 requests a day, which works out near $0.02 per million requests. It splits
-between one PUT per delivered object and steady-state storage under the 365-day expiry. CloudFront
+between one PUT per delivered object and steady-state storage under the 370-day expiry. CloudFront
 delivers into the bucket at no charge, which made that figure the whole of what Rainlytics itself
 cost on that site. A flood pays the rate on the way in and then pays the storage every month until
 the expiry drops it.

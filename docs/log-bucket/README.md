@@ -66,19 +66,19 @@ agent under a salt that rotates daily, and a scheduled rollup computes that hash
 the object already carries. The [log delivery](../log-delivery/) page covers the field set, and
 [Counting visitors](../visitors/) covers the hash.
 
-A year was chosen for a store of requests, and
+Three hundred and seventy days was chosen for a store of requests. It covers a 366-day annual
+report and its next scheduled recomputation. Issue
 [#73](https://github.com/KensioSoftware/rainlytics/issues/73) looked at it again for a store that
 holds addresses and kept it. S3 expires objects and never columns. The shortest expiry that would
-shed the addresses also throws away the request history every rollup is rebuilt from, and a year is
-the right answer for that history.
+shed the addresses also throws away the request history every rollup is rebuilt from.
 
 So the choice is the site's, and there are two ways to take it. Passing `retention` shortens how
 long the addresses are held, and shortens the recomputable history by the same amount. Leaving
-`c-ip` out of the delivery's `fields` keeps the year and gives up the visitor count. The [log
+`c-ip` out of the delivery's `fields` keeps the raw history and gives up the visitor count. The [log
 delivery](../log-delivery/) page has the second one.
 
 Whichever number you land on, the recovery window below adds itself to it. An address delivered
-today is gone at 395 days on the defaults.
+today is gone at 400 days on the defaults.
 
 ## Versioning, and the window it opens
 
@@ -102,12 +102,12 @@ new LogBucket(this, "RainlyticsLogs", {
 ```
 
 Thirty days by default. It is the window in which a deletion can be undone, and it is added to the
-retention above rather than taken out of it. An object expires at 365 days, becomes superseded, and
-goes for good at 395.
+retention above rather than taken out of it. An object expires at 370 days, becomes superseded, and
+goes for good at 400.
 
 The raw store is read by the rollups, and the rollups are read by a person. That puts weeks between
 something deleting an object and somebody noticing. Thirty days covers those weeks at a storage cost
-of a month of logs against a year of them. Lengthen it on a site whose raw store is looked at less
+of a month of logs against 370 days of them. Lengthen it on a site whose raw store is looked at less
 often.
 
 ### The rule cannot be folded into the expiry
@@ -268,7 +268,7 @@ new LogBucket(this, "RainlyticsLogs", {
 ```typescript
 new LogBucket(this, "RainlyticsLogs", {
   bucketName: "example-com-rainlytics-logs",
-  retention: Duration.days(365),
+  retention: Duration.days(370),
   recoveryWindow: Duration.days(30),
 });
 ```

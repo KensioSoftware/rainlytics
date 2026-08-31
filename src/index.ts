@@ -65,6 +65,7 @@ export {
   type AvailableReportSectionInput,
   type ExactReportSection,
   type MissingReportSectionInput,
+  type ReportCalculation,
   type ReportCompositionRule,
   type ReportDocument,
   type ReportDocumentInput,
@@ -95,6 +96,7 @@ export {
   visitorIdentifier,
   visitorSaltDay,
   visitorSaltMessage,
+  reportVisitorSaltMessage,
   visitorSaltPlaceholder,
   visitorText,
 } from "./visitor-identity.js";
