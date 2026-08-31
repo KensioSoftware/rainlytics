@@ -16,6 +16,11 @@ import { summaryGranularities } from "../summary-windows.js";
 import { computedQuestions } from "./computed-questions.js";
 import type { LogTable } from "./log-table.js";
 import type { QueryWorkgroup } from "./query-workgroup.js";
+import {
+  reportConfiguration,
+  type ReportConfiguration,
+  type ReportConfigurationProps,
+} from "./report-configuration.js";
 import { assertRequestedNames } from "./saved-query-names.js";
 import type { SavedRollupRequest } from "./rollup-queries.js";
 import type { SummaryBucketProps } from "./summary-bucket.js";
@@ -26,7 +31,8 @@ import {
 } from "./summary-schedule-names.js";
 
 /** What the scheduled summaries need telling. */
-export interface RollupSummariesProps extends SummaryBucketProps {
+export interface RollupSummariesProps
+  extends SummaryBucketProps, ReportConfigurationProps {
   /** The table the questions read. */
   readonly table: LogTable;
 
@@ -133,7 +139,7 @@ export interface RollupSummariesProps extends SummaryBucketProps {
 }
 
 /** The same, with every choice made. */
-export interface SummaryConfiguration {
+export interface SummaryConfiguration extends ReportConfiguration {
   /** The questions to compute. */
   readonly rollups: readonly Rollup[];
 
@@ -174,17 +180,19 @@ export function summaryConfiguration(
 ): SummaryConfiguration {
   const computing = computedQuestions(props);
   const granularities = props.granularities ?? summaryGranularities;
+  const lag = props.lag ?? defaultSummaryLag;
+  const reports = reportConfiguration(props, lag);
 
   assertSomethingToCompute(computing, granularities);
   assertOneSummaryEach(computing);
   assertRequestedNames(computing, Object.keys(props.requests ?? {}));
-
   return {
     rollups: computing,
     countsVisitors: computing.some((rollup) => rollup.countsVisitors === true),
     granularities,
     windows: props.recomputedWindows ?? defaultRecomputedWindows,
-    lag: props.lag ?? defaultSummaryLag,
+    lag,
     namePrefix: props.schedulePrefix ?? savedQueryPrefix,
+    ...reports,
   };
 }

@@ -154,7 +154,7 @@ describe("the raw log bucket", () => {
       });
     });
 
-    it("expires raw logs after a year unless told otherwise", async () => {
+    it("retains raw logs long enough to recompute a leap year", async () => {
       // Given a deployed log bucket taking the default retention.
       const bucketName = aBucketName();
       const { simAws } = await deployStacks((app: App, account: string) => {
@@ -170,19 +170,20 @@ describe("the raw log bucket", () => {
         .s3()
         .getBucketLifecycleConfiguration({ input: { Bucket: bucketName } });
 
-      // Then objects expire after a year. Raw is the immutable record
-      // everything else is rebuilt from, so this rule is also the limit on
-      // what can ever be recomputed.
+      // Then objects expire after 370 days. That covers a 366-day annual
+      // report and the next scheduled recomputation. Raw is the immutable
+      // record everything else is rebuilt from, so this rule is also the
+      // limit on what can ever be recomputed.
       //
       // The number is written out. Reading it from `defaultLogRetention`
       // would take the expected value from the thing under test, so changing
       // the default would move both sides and this would still pass.
       const expiry = ruleNamed(lifecycle, "expire-raw-logs");
       assertIdentical(expiry.Status, "Enabled");
-      assertIdentical(expiry.Expiration?.Days, 365);
+      assertIdentical(expiry.Expiration?.Days, 370);
     });
 
-    it("actually deletes an object once its year is up", async () => {
+    it("actually deletes an object once its retention is up", async () => {
       // Given a deployed log bucket with a log object in it.
       const bucketName = aBucketName();
       const key = `distributionid=E1EXAMPLE/year=2026/${faker.string.uuid()}`;
@@ -198,8 +199,8 @@ describe("the raw log bucket", () => {
         input: { Bucket: bucketName, Key: key, Body: "a log line" },
       });
 
-      // When a year and a day pass.
-      await simAws.clock().advanceBy({ days: 366 });
+      // When the 370-day retention and another day pass.
+      await simAws.clock().advanceBy({ days: 371 });
 
       // Then the object is gone. This is the case the retention rule exists
       // for, and until yulin 1.20.6 nothing here could tell the difference
@@ -226,8 +227,8 @@ describe("the raw log bucket", () => {
         input: { Bucket: bucketName, Key: key, Body: "a log line" },
       });
 
-      // When most of a year passes, but not all of it.
-      await simAws.clock().advanceBy({ days: 364 });
+      // When most of the retention passes, but not all of it.
+      await simAws.clock().advanceBy({ days: 369 });
 
       // Then it is still there. Without this, a rule that expired everything
       // immediately would pass the case above.
@@ -348,7 +349,7 @@ describe("the raw log bucket", () => {
       // misbehaves. This is here because the tidier-looking version of this
       // construct is the one that does not deploy.
       const expiry = ruleNamed(lifecycle, "expire-raw-logs");
-      assertObjectMatches(expiry, { Expiration: { Days: 365 } });
+      assertObjectMatches(expiry, { Expiration: { Days: 370 } });
       assertUndefined(expiry.Expiration.ExpiredObjectDeleteMarker);
     });
 

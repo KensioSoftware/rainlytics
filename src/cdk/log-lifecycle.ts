@@ -6,19 +6,19 @@ import type { LogBucketProps } from "./log-bucket.js";
 /**
  * How long raw logs are kept when nothing says otherwise.
  *
- * A year, which is long enough to recompute a full history and to compare a
- * month against the same month last year. Raw is the immutable record every
- * derived dataset is rebuilt from, so this expiry is also the hard limit on
- * what can ever be recomputed. Shortening it discards history that cannot be
- * recovered.
+ * Three hundred and seventy days. This covers a 366-day calendar report and
+ * leaves time for the next scheduled recomputation. Raw is the immutable
+ * record every derived dataset is rebuilt from, so this expiry is also the
+ * hard limit on what can ever be recomputed. Shortening it discards history
+ * that cannot be recovered.
  *
  * Generous is cheap at the traffic Rainlytics is built for. A busy site
  * should set it deliberately.
  *
- * A year now also covers the viewer's address. KensioSoftware/rainlytics#53
+ * This period also covers the viewer's address. KensioSoftware/rainlytics#53
  * put `c-ip` in the delivered field set to count unique visitors, and
  * KensioSoftware/rainlytics#73 looked at this number again for a store that
- * holds one. It stays at a year, for three reasons.
+ * holds one. It stays long enough for annual reports, for three reasons.
  *
  * The address is one column of an object that also holds everything else
  * about those requests. S3 expires objects and never columns. An expiry short
@@ -33,10 +33,10 @@ import type { LogBucketProps } from "./log-bucket.js";
  * And the choice belongs to the site. Passing `retention` shortens how long
  * the addresses are held, and shortens how far back a rollup can be
  * recomputed with it. Leaving `c-ip` out of the delivery's `fields` keeps the
- * year and gives up the visitor count. `docs/log-bucket/` sets both out for
+ * full period and gives up the visitor count. `docs/log-bucket/` sets both out for
  * whoever runs the site, which is where the decision belongs.
  */
-export const defaultLogRetention = Duration.days(365);
+export const defaultLogRetention = Duration.days(370);
 
 /**
  * How long a superseded version is kept before S3 removes it for good.
@@ -48,14 +48,14 @@ export const defaultLogRetention = Duration.days(365);
  * routine and the second is the case this exists for.
  *
  * Thirty days puts the whole of the storage cost at a rounding error (a month
- * of superseded logs against a year of current ones) while covering the gap
+ * of superseded logs against 370 days of current ones) while covering the gap
  * between a deletion and somebody noticing it. Nothing reads the raw store
  * daily. The rollups do, and a person reads the rollups.
  *
- * It also adds itself to the retention above. An object expires at 365 days,
+ * It also adds itself to the retention above. An object expires at 370 days,
  * becomes superseded, and goes for good 30 days after that. That is the
  * number to quote for how long the raw store holds a viewer's address. It is
- * 395 days on the defaults, and KensioSoftware/rainlytics#73 kept both halves
+ * 400 days on the defaults, and KensioSoftware/rainlytics#73 kept both halves
  * of it.
  */
 export const defaultRecoveryWindow = Duration.days(30);

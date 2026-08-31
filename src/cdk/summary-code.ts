@@ -38,3 +38,6 @@ export function summaryCodePath(): string {
 
 /** The handler within it, as Lambda names one. */
 export const summaryHandlerName = "functions/rollup-summary.handler";
+
+/** The calendar report handler within the shared Lambda asset. */
+export const reportHandlerName = "functions/calendar-report.handler";

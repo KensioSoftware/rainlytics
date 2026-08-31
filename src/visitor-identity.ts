@@ -11,6 +11,7 @@
 // added up, and why the salt lives where it does.
 
 import { quoted } from "./sql-text.js";
+import type { ReportPeriod } from "./report-periods.js";
 import type { SummaryWindow } from "./summary-windows.js";
 import { summarySpan } from "./summary-windows.js";
 
@@ -111,6 +112,20 @@ export function visitorSaltDay(window: SummaryWindow): string {
  */
 export function visitorSaltMessage(day: string): string {
   return `rainlytics/visitor-salt/1/${day}`;
+}
+
+/** What a report-period visitor salt is derived over. */
+export function reportVisitorSaltMessage(period: ReportPeriod): string {
+  const week = period.unit === "week" ? period.weekStartsOn : "-";
+
+  return [
+    "rainlytics/report-visitor-salt/1",
+    period.unit,
+    encodeURIComponent(period.timeZone),
+    week,
+    period.startsOn,
+    period.endsBefore,
+  ].join("/");
 }
 
 /**

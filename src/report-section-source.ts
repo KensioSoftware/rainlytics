@@ -53,6 +53,35 @@ export function reportSectionSource(
   };
 }
 
+/** The source metadata for one query over the whole report period. */
+export function reportPeriodQuerySource(
+  spans: readonly SummarySpan[],
+  period: ReportPeriod,
+): ReportSectionSource {
+  if (spans.length !== 1) {
+    throw new RangeError(
+      `A period query has one source span. Got ${String(spans.length)}.`,
+    );
+  }
+
+  const [span] = spans;
+
+  if (span === undefined) {
+    throw new RangeError("A period query has one source span. Got none.");
+  }
+
+  assertInstant(span.from, "period query source start");
+  assertInstant(span.until, "period query source end");
+
+  return {
+    from: span.from,
+    until: span.until,
+    summaries: 0,
+    queries: 1,
+    complete: span.from === period.from && span.until === period.until,
+  };
+}
+
 /** Refuses source text that is not canonical ISO 8601 UTC. */
 function assertInstant(instant: string, subject: string): void {
   const parsed = new Date(instant);

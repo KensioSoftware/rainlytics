@@ -11,8 +11,10 @@ import {
 import { faker } from "@faker-js/faker";
 import { describe, it } from "vitest";
 
+import { reportPeriod } from "./report-periods.js";
 import type { SummaryWindow } from "./summary-windows.js";
 import {
+  reportVisitorSaltMessage,
   saltedSql,
   visitorIdentifier,
   visitorSaltDay,
@@ -20,6 +22,29 @@ import {
   visitorSaltPlaceholder,
   visitorText,
 } from "./visitor-identity.js";
+
+describe("the period a report visitor count is scoped to", () => {
+  it("records the calendar and first weekday in a weekly salt message", () => {
+    // Given one closed London week beginning on Monday.
+    const period = reportPeriod(
+      {
+        unit: "week",
+        at: new Date("2026-08-26T12:00:00.000Z"),
+        timeZone: "Europe/London",
+        weekStartsOn: "monday",
+      },
+      new Date("2026-08-31T23:00:00.000Z"),
+    );
+
+    // Then another calendar or week convention derives another salt.
+    const message = reportVisitorSaltMessage(period);
+    assertStringIncludes(message, "Europe%2FLondon");
+    assertStringIncludes(message, "/week/");
+    assertStringIncludes(message, "/monday/");
+    assertStringIncludes(message, period.startsOn);
+    assertStringIncludes(message, period.endsBefore);
+  });
+});
 
 describe("the day a window is counted under", () => {
   it("is the UTC day the window opens in", () => {

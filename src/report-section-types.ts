@@ -14,6 +14,9 @@ export type ReportCompositionRule =
   | "visitor-count"
   | "percentile";
 
+/** Where the value for an available report section was calculated. */
+export type ReportCalculation = "summaries" | "period-query";
+
 /** Rows from a rollup question. */
 export interface ReportRowsValue {
   readonly type: "rows";
@@ -41,6 +44,9 @@ export interface ReportSectionSource {
   /** How many stored summaries supplied the value. */
   readonly summaries: number;
 
+  /** How many period-wide Athena queries supplied the value. */
+  readonly queries?: number | undefined;
+
   /** Whether the summaries cover the report period without a gap. */
   readonly complete: boolean;
 }
@@ -58,6 +64,14 @@ interface ExactSingleSummarySection extends ReportSectionBase {
   readonly value: ReportSectionValue;
 }
 
+/** A value calculated by one Athena query over the report period. */
+interface ExactPeriodQuerySection extends ReportSectionBase {
+  readonly accuracy: "exact";
+  readonly composition: "period-query";
+  readonly source: ReportSectionSource;
+  readonly value: ReportSectionValue;
+}
+
 /** Rows whose counts add across a complete set of source summaries. */
 interface ExactAdditiveReportSection extends ReportSectionBase {
   readonly accuracy: "exact";
@@ -69,7 +83,8 @@ interface ExactAdditiveReportSection extends ReportSectionBase {
 /** A value whose stored data gives the exact report-period answer. */
 export type ExactReportSection =
   | ExactSingleSummarySection
-  | ExactAdditiveReportSection;
+  | ExactAdditiveReportSection
+  | ExactPeriodQuerySection;
 
 /** Ranked rows composed from several truncated summaries. */
 export interface ApproximateReportSection extends ReportSectionBase {
@@ -105,6 +120,8 @@ export type ReportSection =
 export interface AvailableReportSectionInput {
   readonly question: SummaryQuestion;
   readonly rule: ReportCompositionRule;
+  /** How the supplied value was calculated. Defaults to stored summaries. */
+  readonly calculation?: ReportCalculation | undefined;
   readonly sources: readonly SummarySpan[];
   readonly value: ReportSectionValue;
 }

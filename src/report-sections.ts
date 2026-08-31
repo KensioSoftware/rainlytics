@@ -1,15 +1,18 @@
 // One report section and the accuracy its stored sources allow.
 
 import type { ReportPeriod } from "./report-periods.js";
-import { reportSectionSource } from "./report-section-source.js";
+import {
+  assertReportValueMatchesRule,
+  composedReportSection,
+  unavailableReportSection,
+} from "./report-section-composition.js";
+import {
+  reportPeriodQuerySource,
+  reportSectionSource,
+} from "./report-section-source.js";
 import type {
-  AvailableReportSectionInput,
   ReportSection,
   ReportSectionInput,
-  ReportRowsValue,
-  ReportSectionSource,
-  UnavailableReportReason,
-  UnavailableReportSection,
 } from "./report-section-types.js";
 
 /**
@@ -37,11 +40,24 @@ export function reportSection(
     };
   }
 
-  assertValueMatchesRule(input);
-  const source = reportSectionSource(input.sources, period);
+  assertReportValueMatchesRule(input);
+  const source =
+    input.calculation === "period-query"
+      ? reportPeriodQuerySource(input.sources, period)
+      : reportSectionSource(input.sources, period);
 
   if (!source.complete) {
-    return unavailable(input, source, "incomplete-source");
+    return unavailableReportSection(input, source, "incomplete-source");
+  }
+
+  if (input.calculation === "period-query") {
+    return {
+      question: input.question,
+      accuracy: "exact",
+      composition: "period-query",
+      source,
+      value: input.value,
+    };
   }
 
   if (source.summaries === 1) {
@@ -54,68 +70,5 @@ export function reportSection(
     };
   }
 
-  return composedSection(input, source);
-}
-
-/** A section composed from several summaries spanning the whole period. */
-function composedSection(
-  input: AvailableReportSectionInput,
-  source: ReportSectionSource,
-): ReportSection {
-  switch (input.rule) {
-    case "additive": {
-      return {
-        question: input.question,
-        accuracy: "exact",
-        composition: "additive",
-        source,
-        value: input.value as ReportRowsValue,
-      };
-    }
-    case "ranked": {
-      return {
-        question: input.question,
-        accuracy: "approximate",
-        composition: "ranked-summaries",
-        source,
-        value: input.value as ReportRowsValue,
-      };
-    }
-    case "visitor-count": {
-      return unavailable(input, source, "visitor-counts-do-not-compose");
-    }
-    case "percentile": {
-      return unavailable(input, source, "percentiles-do-not-compose");
-    }
-  }
-}
-
-/** An unavailable section retaining the source that proved it unsafe. */
-function unavailable(
-  input: AvailableReportSectionInput,
-  source: ReportSectionSource,
-  reason: UnavailableReportReason,
-): UnavailableReportSection {
-  return {
-    question: input.question,
-    accuracy: "unavailable",
-    composition: "none",
-    reason,
-    source,
-    // oxlint-disable-next-line unicorn/no-null
-    value: null,
-  };
-}
-
-/** Refuses a visitor count labelled as rows, or rows labelled as a count. */
-function assertValueMatchesRule(input: AvailableReportSectionInput): void {
-  const visitorRule = input.rule === "visitor-count";
-  const visitorValue = input.value.type === "visitor-count";
-
-  if (visitorRule !== visitorValue) {
-    throw new TypeError(
-      `A ${input.rule} report section cannot carry a` +
-        ` ${input.value.type} value.`,
-    );
-  }
+  return composedReportSection(input, source);
 }
