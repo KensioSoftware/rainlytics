@@ -50,7 +50,8 @@ it describes the experience of most visits without letting a small number of out
 result. One percentile keeps the answer aligned with those thresholds, without a p50 or p95 spread.
 
 The answer has one row for each of `lcp`, `cls`, `fcp` and `ttfb`. Route changes, JavaScript errors,
-custom event names and non-numeric values are filtered out before the percentile is calculated.
+custom event names, negative values and non-numeric values are filtered out before the percentile
+is calculated.
 
 INP is absent. Rainlytics leaves its collection to the `web-vitals` library, and a site reporting
 `inp` through that integration still needs a query of its own for now. The [browser

@@ -45,7 +45,8 @@ site and over the window being read.
 
 The four event names are \`lcp\`, \`cls\`, \`fcp\` and \`ttfb\`. Route changes,
 errors and events a site named for itself are left out before their values
-reach the arithmetic. A value that cannot be read as a number is left out too.
+reach the arithmetic. A negative value or one that cannot be read as a number
+is left out too.
 
 The 75th percentile is the value Web Vitals thresholds are defined against.
 \`samples\` says how many measurements it came from. A percentile over a quiet
@@ -72,6 +73,7 @@ one percentile over a longer span.`,
         oneOf(beaconEventColumn, Object.values(vitalEventNames)),
         aNumericValue,
         `${measuredValue} IS NOT NULL`,
+        `${measuredValue} >= 0`,
       ]),
       "  GROUP BY 1",
       "  ORDER BY 1",

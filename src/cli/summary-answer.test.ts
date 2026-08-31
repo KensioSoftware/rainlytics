@@ -274,6 +274,7 @@ describe("the named questions, answered from stored summaries", () => {
       aBeaconRecord({ event: "route", page: "/", value: 0 }),
       aBeaconRecord({ event: "error", page: "/", value: 10_000 }),
       aBeaconRecord({ event: "inp", page: "/", value: 999 }),
+      aBeaconRecord({ event: "lcp", page: "/", value: -1000 }),
       aBeaconQueryRecord("v=1&e=lcp&p=%2F&n=fast"),
       aBeaconQueryRecord("v=1&e=lcp&p=%2F&n=10000", "/_somewhere-else"),
     ]);
@@ -290,8 +291,9 @@ describe("the named questions, answered from stored summaries", () => {
 
     // Then it reports p75 per collected vital with the sample counts. Route
     // changes, errors and INP contributed none of their numeric values, and
-    // the malformed LCP value contributed no sample. A matching payload on
-    // another path is outside the default collection path too.
+    // the negative and malformed LCP values contributed no samples. A
+    // matching payload on another path is outside the default collection path
+    // too.
     expect(run.code).toBe(0);
     expect(run.rows).toStrictEqual([
       { vital: "cls", p75: "0.1", samples: "5" },
