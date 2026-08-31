@@ -3,13 +3,17 @@ import {
   assertIdentical,
   assertObjectEquals,
   assertObjectMatches,
+  assertStringIncludes,
+  assertStringNotIncludes,
   assertTrue,
 } from "@kensio/smartass";
 import type { Readable } from "node:stream";
 import { text } from "node:stream/consumers";
 import { gzipSync } from "node:zlib";
 
+import { S3Client } from "@aws-sdk/client-s3";
 import { faker } from "@faker-js/faker";
+import { SimSdk } from "@kensio/yulin/sdk";
 import { Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { type App, CfnOutput, RemovalPolicy, Stack } from "aws-cdk-lib/core";
@@ -21,6 +25,8 @@ import { partitionPrefix } from "../partitions.js";
 import type { ReportDocument } from "../report-document.js";
 import { cacheHitRatio, pageviews } from "../rollup-questions.js";
 import { defaultVisitorSaltParameter } from "../visitor-identity.js";
+import { rainlyticsCommands } from "../cli/command.js";
+import { runCli } from "../cli/run.js";
 import { CloudFrontLogDelivery } from "./log-delivery.js";
 import { LogBucket } from "./log-bucket.js";
 import { LogTable } from "./log-table.js";
@@ -158,7 +164,7 @@ describe("precomputing calendar report documents", () => {
     ) as ReportDocument;
   };
 
-  it("writes closed periods and overwrites a report after late delivery", async () => {
+  it("writes, replaces and reads a closed report through the command line", async () => {
     // Given two visitors making three pageviews on Sunday 23 August.
     const deployed = await deployAnalytics();
     const at = new Date("2026-08-23T10:00:00.000Z");
@@ -230,5 +236,42 @@ describe("precomputing calendar report documents", () => {
     });
     assertObjectEquals(replaced.period, first.period);
     assertIdentical(replaced.computedAt, "2026-08-25T00:30:00.000Z");
+
+    // When the command reads the report through the SDK as a caller would.
+    using simSdk = new SimSdk({ simAws: deployed.simAws });
+    simSdk.intercept(S3Client);
+    let stdout = "";
+    let stderr = "";
+    const code = await runCli({
+      argv: [
+        "report",
+        "day",
+        "2026-08-23",
+        "--summaries",
+        deployed.summariesBucketName,
+        "--region",
+        "us-east-1",
+      ],
+      commands: rainlyticsCommands,
+      io: {
+        out: (written) => {
+          stdout += written;
+        },
+        error: (written) => {
+          stderr += written;
+        },
+        outIsTerminal: false,
+      },
+    });
+
+    // Then standard output preserves the document the producer stored.
+    // Standard error carries the S3 diagnostic and no Athena query report.
+    assertIdentical(code, 0);
+    assertObjectEquals(JSON.parse(stdout), replaced);
+    assertStringIncludes(stderr, deployed.summariesBucketName);
+    assertStringIncludes(stderr, "1 GET");
+    assertStringIncludes(stderr, "ago");
+    assertStringNotIncludes(stderr, "Query ");
+    assertStringNotIncludes(stderr, "Scanned");
   });
 });

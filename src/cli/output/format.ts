@@ -1,9 +1,13 @@
 // The three shapes a result comes out in, and which one is picked when
 // nobody says.
 
-import type { CommandResult } from "./result.js";
+import {
+  isJsonDocumentResult,
+  type CommandOutput,
+  type CommandResult,
+} from "./result.js";
 import { toCsv } from "./csv.js";
-import { toJson } from "./json.js";
+import { toJson, toJsonDocument } from "./json.js";
 import { toTable } from "./table.js";
 
 /** The formats `--output` accepts. */
@@ -32,7 +36,11 @@ export function defaultOutputFormat(outIsTerminal: boolean): OutputFormat {
 }
 
 /** The result written in one of the three formats. */
-export function render(result: CommandResult, format: OutputFormat): string {
+export function render(result: CommandOutput, format: OutputFormat): string {
+  if (isJsonDocumentResult(result)) {
+    return toJsonDocument(result.document);
+  }
+
   return renderers[format](result);
 }
 

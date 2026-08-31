@@ -1,8 +1,7 @@
 // What a command answers with.
 //
-// Every answer is a table. Analytics questions have rows and columns, and one
-// shape all three output formats can carry means a command says what it found
-// once and the CLI writes it three ways.
+// Analytics questions answer with rows and columns for the three tabular
+// formats. A calendar report answers with its versioned JSON document.
 
 /** One value in one row. */
 export type Cell = string | number | boolean | null | undefined;
@@ -24,6 +23,24 @@ export interface CommandResult {
 
   /** The rows, in the order they are written. */
   readonly rows: readonly Row[];
+}
+
+/** A versioned JSON document that is already the command's public shape. */
+export interface JsonDocumentResult {
+  readonly kind: "json-document";
+
+  /** The document written as JSON, without a row-array envelope. */
+  readonly document: unknown;
+}
+
+/** One of the two result shapes a command can write. */
+export type CommandOutput = CommandResult | JsonDocumentResult;
+
+/** Whether a command answered with a JSON document. */
+export function isJsonDocumentResult(
+  result: CommandOutput,
+): result is JsonDocumentResult {
+  return "kind" in result;
 }
 
 /** One cell as text, for the two formats that have only text to write. */

@@ -13,9 +13,10 @@ dependencies of this package, and an install that only wants the command line sk
 `--help` on the root command and on every subcommand is the documentation. A reader should find
 everything there, and this page repeats it for people reading the site.
 
-Seven commands. Five of them answer a named question, [`saved-query`](#running-a-query-saved-in-the-workgroup)
-runs a question a site saved for itself, and [`query`](../query/) takes SQL for everything else. The
-rest of this page is what all of them share.
+The named questions read one rollup at a time. [`report`](#reading-a-calendar-report) reads a
+versioned document containing several sections for one closed calendar period.
+[`saved-query`](#running-a-query-saved-in-the-workgroup) runs a question a site saved for itself,
+and [`query`](../query/) takes SQL for everything else.
 
 ## Why a command line
 
@@ -48,8 +49,8 @@ identity.
 The identity that chain resolves to needs the permissions for what the command does, and the two
 halves of the command surface need different ones.
 
-A named question reads a precomputed summary. That takes `s3:GetObject` on the summaries bucket,
-which an SSO read-only role already carries.
+A named question or calendar report reads a precomputed object. That takes `s3:GetObject` on the
+summaries bucket, which an SSO read-only role already carries.
 
 `query`, `saved-query` and `--query` run Athena, which takes four more. Those are
 `athena:StartQueryExecution` and `athena:StopQueryExecution` on the workgroup, and `s3:PutObject`
@@ -72,16 +73,15 @@ read-only role already allows.
 
 ## Region
 
-Every command that reaches Athena takes `--region`, alongside `--database` and `--workgroup`:
+Every command that reaches AWS takes `--region`:
 
 ```bash
 rainlytics pageviews --last 30d --region us-east-1
 ```
 
-Left off, the region comes from the same chain the credentials do. It reads `AWS_REGION`, then the
-region set on the profile, then the instance metadata on EC2. That is the right answer on a machine
-set up for one account in one region, and the wrong one on a profile pointing where the analytics
-stack never went.
+Left off, the region comes from the same chain as the credentials. It reads `AWS_REGION`, then the
+region set on the profile, then the instance metadata on EC2. Athena commands also take `--database`
+and `--workgroup`.
 
 The region decides more than a default suggests. A workgroup, a Glue table and an S3 bucket each
 exist in one region, and a query asked in another is answered `WorkGroup rainlytics is not found.`
@@ -91,9 +91,10 @@ log bucket is in.
 
 ## Where an answer comes from
 
-The named questions read a precomputed summary off S3. A schedule counted the window once, the
-command fetches the windows the range covers, and the whole read costs a GET each. `query` and
-`saved-query` run Athena, because ad-hoc SQL has no summary to read.
+The named questions read precomputed summaries off S3. A schedule counted each window once, the
+command fetches the windows the range covers, and the whole read costs a GET each. `report` reads one
+precomputed report document from the same bucket. `query` and `saved-query` run Athena because
+ad-hoc SQL has no stored answer.
 
 ```bash
 rainlytics pageviews --last 7d --summaries rainlytics-summaries-1a2b
@@ -135,7 +136,7 @@ window covers.
 
 ## Output
 
-`--output` takes `json`, `csv` or `table`, and every command accepts it.
+`--output` takes `json`, `csv` or `table` for commands that answer with rows.
 
 Left off, it is `table` when standard output is a terminal and `json` when standard output is piped
 or redirected. That is what makes a pipeline work as typed:
@@ -157,6 +158,10 @@ between mind a stray CR.
 
 **Table** pads each column to its widest value, rules the heading off, and adds no colour and no
 trailing whitespace.
+
+`report` has JSON output only because its period, schema version, source coverage and section
+metadata are part of the result. It writes the same JSON document at a terminal and in a pipe.
+Passing `--output csv` or `--output table` is a usage error.
 
 ### CSV in a spreadsheet
 
@@ -184,6 +189,29 @@ convention `getopt` set and Python's `argparse` kept.
 
 Standard output stays empty on both. Nothing that failed writes a partial result that a later step
 could mistake for a whole one.
+
+## Reading a calendar report
+
+`rainlytics report` reads one closed day, week, month or year from the summaries bucket:
+
+```bash
+rainlytics report day 2026-08-30
+rainlytics report week 2026-08-24 --time-zone Europe/London
+rainlytics report month 2026-08
+rainlytics report year 2025
+```
+
+The date selects the period. A weekly date can be any date inside the week. `--time-zone` defaults
+to UTC and `--week-starts-on` defaults to Monday. Both must match the values passed to
+`RollupSummaries`, since those values are part of a report's S3 address. The command derives the
+key from them.
+
+`--summaries` names the bucket, and `RAINLYTICS_SUMMARY_BUCKET` supplies the same default used by
+the named questions. `--region` uses the AWS SDK credential and region chain when left off.
+
+The versioned report document is the whole of standard output. Standard error names the bucket,
+the object's last-modified age and the price of one S3 GET. A missing, incomplete or unsupported
+document exits non-zero with empty standard output. Reading a report never starts an Athena query.
 
 ## Running a query saved in the workgroup
 
@@ -226,14 +254,15 @@ rainlytics --output csv <command>     # refused, with that sentence
 Answer the six default questions with [`rainlytics pageviews`, `referrers`, `browsers`,
 `status-codes`, `cache-hit-ratio` and `searches`](../rollups/). A deployment using the browser
 beacon can add the shipped [`javascript-errors`](../javascript-errors/) and
-[`web-vitals`](../web-vitals/) questions.
+[`web-vitals`](../web-vitals/) questions. Read a closed day, week, month or year with
+[`rainlytics report`](#reading-a-calendar-report).
 Run a question a site saved for itself with
 [`rainlytics saved-query`](#running-a-query-saved-in-the-workgroup), and run SQL for anything else
 with [`rainlytics query`](../query/).
 
-The named questions read a [precomputed summary](../summaries/) off S3 and each answer costs a GET.
-`query` and `saved-query` reach Athena, and so does a named question given `--query`. The commands
-and their options are where M2 left them, which is what makes the swap invisible from out here.
+The named questions read [precomputed summaries](../summaries/) off S3. A calendar report is one
+precomputed document. `query` and `saved-query` reach Athena, and so does a named question given
+`--query`.
 
 Rainlytics is experimental and pre-1.0. The command surface will change without a major version
 behind it.

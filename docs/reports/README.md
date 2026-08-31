@@ -212,6 +212,26 @@ The default raw log retention is 370 days. That covers a 366-day annual report a
 for its scheduled recomputation. Shortening `LogBucket.retention` below the largest report period
 can make that report unavailable. The report documents themselves remain in the summaries bucket.
 
+## Reading a report
+
+The command line selects a report from its calendar period and reads the document with one S3 GET.
+It derives the key from the unit, date, time zone and first weekday.
+
+```bash
+rainlytics report day 2026-08-30 --summaries rainlytics-summaries-1a2b
+rainlytics report week 2026-08-24 --time-zone Europe/London
+rainlytics report month 2026-08
+rainlytics report year 2025
+```
+
+`--time-zone` and `--week-starts-on` must match the `RollupSummaries` deployment. The defaults are
+UTC and Monday. The bucket comes from `--summaries` or `RAINLYTICS_SUMMARY_BUCKET`, and the region
+comes from `--region` or the AWS SDK's default chain.
+
+The versioned document is written unchanged as JSON on standard output. The bucket, object age and
+one-GET cost go to standard error. A missing, incomplete or unsupported document leaves standard
+output empty and exits non-zero. The reader never runs Athena.
+
 ## Cost
 
 The report path has no reserved or hourly capacity. Its AWS services charge for invocations,

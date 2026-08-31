@@ -73,6 +73,15 @@ export function cannotReadSummaries(thrown: unknown, bucket: string): Error {
   );
 }
 
+/** What a caller who cannot read a calendar report is told. */
+export function cannotReadReport(thrown: unknown, bucket: string): Error {
+  return new Error(
+    `${saidBy(thrown)} S3 was asked for a calendar report in ${bucket}.` +
+      ` Reading one takes s3:GetObject on that bucket.`,
+    { cause: thrown },
+  );
+}
+
 /** What the service said, out from under whatever wrapped it. */
 function saidBy(thrown: unknown): string {
   return messageOf(causeOf(thrown) ?? thrown);

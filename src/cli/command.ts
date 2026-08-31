@@ -3,11 +3,12 @@
 import type { CliIo } from "./io.js";
 import type { OptionValues } from "./command-line.js";
 import type { CliOption } from "./option.js";
-import type { CommandResult } from "./output/result.js";
+import type { CommandOutput } from "./output/result.js";
 import { javascriptErrors } from "../javascript-errors-rollup.js";
 import { rollups } from "../rollup-questions.js";
 import { webVitals } from "../web-vitals-rollup.js";
 import { queryCommand } from "./query-command.js";
+import { reportCommand } from "./report-command.js";
 import { rollupCommand } from "./rollup-commands.js";
 import { savedQueryCommand } from "./saved-query-command.js";
 
@@ -53,16 +54,16 @@ export interface Command {
   /** Runs the command and answers with what it found. */
   readonly run: (
     context: CommandContext,
-  ) => Promise<CommandResult> | CommandResult;
+  ) => Promise<CommandOutput> | CommandOutput;
 }
 
 /**
  * The commands `rainlytics` ships with.
  *
- * The named questions first, then the two that take a question of somebody
- * else's. That order is the one a reader wants. Somebody arriving at
- * `rainlytics --help` is far more likely to want a pageview count than to
- * want to write SQL.
+ * The named questions first, then a calendar report, then the two that take a
+ * question of somebody else's. That order is the one a reader wants.
+ * Somebody arriving at `rainlytics --help` is far more likely to want a
+ * pageview count than to want to write SQL.
  *
  * `saved-query` is what a site's own rollup runs through. The list here is
  * the questions this package ships, and a question deployed from somewhere
@@ -72,6 +73,7 @@ export const rainlyticsCommands: readonly Command[] = [
   ...rollups.map((rollup) => rollupCommand(rollup)),
   rollupCommand(javascriptErrors),
   rollupCommand(webVitals),
+  reportCommand,
   savedQueryCommand,
   queryCommand,
 ];
