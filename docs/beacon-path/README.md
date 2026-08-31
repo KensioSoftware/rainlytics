@@ -17,6 +17,31 @@ site's own.
 
 The path defaults to `/_rainlytics`.
 
+## Plain HTTP is refused
+
+The behaviour is HTTPS-only by default. A plain HTTP request gets 403 rather than the 204 an HTTPS
+request gets.
+
+`redirect-to-https` would make CloudFront answer an HTTP request with 301 and wait for the browser
+to send it again over HTTPS. The beacon's most fragile send is made with `keepalive` while its page
+is going away. Making that send depend on a second request creates another point where the event can
+be lost. HTTPS-only rejects a request that should not have started on HTTP and needs no follow-up.
+
+Pass `viewerProtocolPolicy` where a site has a reason to differ:
+
+```typescript
+import { ViewerProtocolPolicy } from "aws-cdk-lib/aws-cloudfront";
+
+new BeaconPath(this, "RainlyticsBeacon", {
+  distribution,
+  origin,
+  viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+});
+```
+
+`ViewerProtocolPolicy.ALLOW_ALL` is available too. It deliberately makes the collection path answer
+plain HTTP, even if every other behaviour on the distribution redirects or refuses it.
+
 ## How an event travels
 
 The beacon puts its payload in the query string and sends a GET:

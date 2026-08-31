@@ -1,6 +1,10 @@
 import { faker } from "@faker-js/faker";
 import { SimAwsHttp } from "@kensio/yulin/serve";
-import { CachePolicy, Distribution } from "aws-cdk-lib/aws-cloudfront";
+import {
+  CachePolicy,
+  Distribution,
+  ViewerProtocolPolicy,
+} from "aws-cdk-lib/aws-cloudfront";
 import { S3BucketOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { PolicyStatement, ServicePrincipal } from "aws-cdk-lib/aws-iam";
 import { Bucket } from "aws-cdk-lib/aws-s3";
@@ -240,6 +244,29 @@ describe("answering the beacon's collection path", () => {
 
       // Then that is the policy on the behaviour.
       expect(behaviour?.CachePolicyId).toBe(cachePolicy.cachePolicyId);
+    });
+
+    it("refuses plain HTTP by default", async () => {
+      // Given a beacon path taking its default viewer protocol policy.
+      // When the stack is deployed.
+      const behaviour = await beaconBehaviour();
+
+      // Then the behaviour is HTTPS-only. CloudFront answers an HTTP request
+      // with 403, so a keepalive send never depends on a redirected second
+      // request surviving the page that started it.
+      expect(behaviour?.ViewerProtocolPolicy).toBe("https-only");
+    });
+
+    it("takes a viewer protocol policy a site would rather use", async () => {
+      // Given a site that still admits HTTP and wants CloudFront to redirect
+      // the collection path with the rest of it.
+      const viewerProtocolPolicy = ViewerProtocolPolicy.REDIRECT_TO_HTTPS;
+
+      // When the beacon is deployed with that policy.
+      const behaviour = await beaconBehaviour({ viewerProtocolPolicy });
+
+      // Then the deployed behaviour carries the site's choice.
+      expect(behaviour?.ViewerProtocolPolicy).toBe("redirect-to-https");
     });
 
     it("runs the function before the cache is consulted", async () => {
