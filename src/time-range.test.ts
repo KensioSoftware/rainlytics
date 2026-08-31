@@ -1,5 +1,14 @@
+import {
+  assertArrayLength,
+  assertIdentical,
+  assertInstanceOf,
+  assertObjectEquals,
+  assertStringMatches,
+  assertThrowsError,
+  assertUndefined,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { lastRange, partitionValuesCovering } from "./time-range.js";
 
@@ -15,8 +24,8 @@ describe("the span a question covers", () => {
     const range = lastRange(asked, at);
 
     // Then it runs back from now by that much.
-    expect(range.from.toISOString()).toBe(from);
-    expect(range.to).toStrictEqual(at);
+    assertIdentical(range.from.toISOString(), from);
+    assertObjectEquals(range.to, at);
   });
 
   it.each([
@@ -32,8 +41,11 @@ describe("the span a question covers", () => {
 
     // Then it says what it takes, rather than guessing at a range somebody
     // would be billed for.
-    expect(reading).toThrow(RangeError);
-    expect(reading).toThrow(/24h, 7d or 2w/u);
+    assertInstanceOf(assertThrowsError(reading), RangeError);
+    {
+      const error = assertThrowsError(reading);
+      assertStringMatches(error.message, /24h, 7d or 2w/u);
+    }
   });
 });
 
@@ -53,7 +65,7 @@ describe("the partitions a span touches", () => {
     // Then every day it touches is named, including the partial ones at
     // either end. A range starting at ten in the morning still needs the
     // whole of that day's partition read.
-    expect(values).toStrictEqual({
+    assertObjectEquals(values, {
       year: ["2026"],
       month: ["08"],
       day: ["21", "22", "23"],
@@ -68,7 +80,7 @@ describe("the partitions a span touches", () => {
     // Then the hour is absent. Pinning it as well would mean a cross product
     // over every hour of every day in the range, which asks for partitions
     // that hold nothing in every combination but one.
-    expect(values["hour"]).toBeUndefined();
+    assertUndefined(values["hour"]);
   });
 
   it("refuses a range that ends before it starts", () => {
@@ -79,8 +91,11 @@ describe("the partitions a span touches", () => {
     // Then it says so. Left alone, every key comes back taking no values and
     // the predicate built from them reads `year IN ()`, which fails at
     // Athena as a syntax error a long way from the mistake.
-    expect(backwards).toThrow(RangeError);
-    expect(backwards).toThrow(/cannot end before it starts/u);
+    assertInstanceOf(assertThrowsError(backwards), RangeError);
+    {
+      const error = assertThrowsError(backwards);
+      assertStringMatches(error.message, /cannot end before it starts/u);
+    }
   });
 
   it("crosses a month and a year without losing a day", () => {
@@ -88,7 +103,7 @@ describe("the partitions a span touches", () => {
     const values = covering("2026-12-30T00:00:00Z", "2027-01-02T00:00:00Z");
 
     // Then both years and both months are named, along with the four days.
-    expect(values).toStrictEqual({
+    assertObjectEquals(values, {
       year: ["2026", "2027"],
       month: ["12", "01"],
       day: ["30", "31", "01", "02"],
@@ -102,9 +117,9 @@ describe("the partitions a span touches", () => {
     // Then the predicate it builds is bounded by the values a key can take
     // rather than by the length of the span. Eleven years, twelve months and
     // thirty-one days describes 3,654 days.
-    expect(values["year"]).toHaveLength(11);
-    expect(values["month"]).toHaveLength(12);
-    expect(values["day"]).toHaveLength(31);
+    assertArrayLength(values["year"], 11);
+    assertArrayLength(values["month"], 12);
+    assertArrayLength(values["day"], 31);
   });
 
   it("pads every value the way the writer padded it", () => {
@@ -113,7 +128,7 @@ describe("the partitions a span touches", () => {
 
     // Then the values carry the leading zeros the S3 keys carry. Athena
     // matches a projected value against the key character for character.
-    expect(values).toStrictEqual({
+    assertObjectEquals(values, {
       year: ["2026"],
       month: ["01"],
       day: ["05"],
@@ -131,7 +146,7 @@ describe("the partitions a span touches", () => {
     // Then the day holding it is named, by the same components ISO 8601
     // gives, which is a different route to them than the one under test.
     const iso = instant.toISOString();
-    expect(values).toStrictEqual({
+    assertObjectEquals(values, {
       year: [iso.slice(0, 4)],
       month: [iso.slice(5, 7)],
       day: [iso.slice(8, 10)],

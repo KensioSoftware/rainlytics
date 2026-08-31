@@ -1,5 +1,6 @@
+import { assertStringIncludes } from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import type { AthenaOutcome } from "../athena/athena-outcome.js";
 import { summaryFailure } from "./summary-failure.js";
@@ -26,10 +27,10 @@ describe("reporting a query the job could not finish", () => {
     // Then the message names the question, Athena's reason, and the execution
     // somebody can go and look at. Nobody is watching a scheduled run, so it
     // has to explain itself to a reader arriving days later.
-    expect(failure.message).toContain("pageviews for 08:00");
-    expect(failure.message).toContain("Column 'nope' missing");
-    expect(failure.message).toContain(outcome.queryExecutionId);
-    expect(failure.message).toContain("10000000 bytes");
+    assertStringIncludes(failure.message, "pageviews for 08:00");
+    assertStringIncludes(failure.message, "Column 'nope' missing");
+    assertStringIncludes(failure.message, outcome.queryExecutionId);
+    assertStringIncludes(failure.message, "10000000 bytes");
   });
 
   it("explains the bytes-scanned cutoff, which somebody chose", () => {
@@ -44,8 +45,8 @@ describe("reporting a query the job could not finish", () => {
     // Then it says whose ceiling that is and where it is set. The reason
     // Athena gives reads as a wall, and this is the one limit the pipeline
     // puts there deliberately.
-    expect(failure.message).toContain("analytics workgroup's");
-    expect(failure.message).toContain("bytesScannedCutoff");
+    assertStringIncludes(failure.message, "analytics workgroup's");
+    assertStringIncludes(failure.message, "bytesScannedCutoff");
   });
 
   it("reports a failure Athena gave no reason for", () => {
@@ -53,7 +54,7 @@ describe("reporting a query the job could not finish", () => {
     const failure = summaryFailure(anOutcome(undefined), "searches", "queries");
 
     // Then the run still says which question stopped.
-    expect(failure.message).toContain("searches");
-    expect(failure.message).toContain("Athena gave no reason");
+    assertStringIncludes(failure.message, "searches");
+    assertStringIncludes(failure.message, "Athena gave no reason");
   });
 });

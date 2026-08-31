@@ -1,10 +1,11 @@
+import { assertArrayIncludes, assertObjectEquals } from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
 import { Template } from "aws-cdk-lib/assertions";
 import { Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
 import { Key } from "aws-cdk-lib/aws-kms";
 import { Bucket, BucketEncryption } from "aws-cdk-lib/aws-s3";
 import { Stack } from "aws-cdk-lib/core";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { defaultLogDataset } from "../dataset.js";
 import {
@@ -105,7 +106,7 @@ describe("what the job is allowed to reach", () => {
     // put a separator on the end, and Glue matches that shape against
     // nothing, so the job would be denied and the query would come back
     // empty.
-    expect(resources).toStrictEqual([
+    assertObjectEquals(resources, [
       "arn:glue:eu-west-2:123456789012:catalog",
       "arn:glue:eu-west-2:123456789012:database/rainlytics",
       "arn:glue:eu-west-2:123456789012:table/rainlytics/cloudfront_logs",
@@ -126,8 +127,8 @@ describe("what the job is allowed to reach", () => {
     // Then the job can read that parameter and nothing else. A parameter name
     // opens with a slash and its ARN does not repeat one, and an ARN carrying
     // two matches nothing.
-    expect(actions).toStrictEqual(["ssm:GetParameter"]);
-    expect(resourcesOf(statements)).toStrictEqual([
+    assertObjectEquals(actions, ["ssm:GetParameter"]);
+    assertObjectEquals(resourcesOf(statements), [
       "arn:ssm:eu-west-2:123456789012:parameter/rainlytics/visitor-salt",
     ]);
   });
@@ -138,7 +139,7 @@ describe("what the job is allowed to reach", () => {
     const statements = visitorSaltStatements(inRegion(), "mine/salt");
 
     // Then the ARN names it either way.
-    expect(resourcesOf(statements)).toStrictEqual([
+    assertObjectEquals(resourcesOf(statements), [
       "arn:ssm:eu-west-2:123456789012:parameter/mine/salt",
     ]);
   });
@@ -156,9 +157,9 @@ describe("what the job is allowed to reach", () => {
 
     // Then it can start, watch, stop and read one query, and read the
     // workgroup Athena refuses the query without.
-    expect(actions).toContain("athena:StartQueryExecution");
-    expect(actions).toContain("athena:GetWorkGroup");
-    expect(resourcesOf(statements)).toStrictEqual([
+    assertArrayIncludes(actions, "athena:StartQueryExecution");
+    assertArrayIncludes(actions, "athena:GetWorkGroup");
+    assertObjectEquals(resourcesOf(statements), [
       "arn:athena:eu-west-2:123456789012:workgroup/rainlytics",
     ]);
   });
@@ -173,11 +174,11 @@ describe("what the job is allowed to reach", () => {
     // Then both halves of the lookup are there. Athena answers
     // ListNamedQueries with ids and nothing else, so a role holding the list
     // without the batch read finds ids it cannot turn into a name or SQL.
-    expect(actionsOf(statements)).toStrictEqual([
+    assertObjectEquals(actionsOf(statements), [
       "athena:ListNamedQueries",
       "athena:BatchGetNamedQuery",
     ]);
-    expect(resourcesOf(statements)).toStrictEqual([
+    assertObjectEquals(resourcesOf(statements), [
       "arn:athena:eu-west-2:123456789012:workgroup/rainlytics",
     ]);
   });
@@ -198,14 +199,14 @@ describe("what the job is allowed to reach", () => {
     // Then the caller writes the object itself. Athena writes a result as
     // whoever started the query, so a role that can start one and not put an
     // object fails at the moment the answer is ready.
-    expect(actions).toContain("s3:PutObject");
+    assertArrayIncludes(actions, "s3:PutObject");
     // And a large answer, which Athena uploads in parts, can be finished or
     // abandoned. Without these a small query answers and a big one does not.
-    expect(actions).toContain("s3:ListMultipartUploadParts");
-    expect(actions).toContain("s3:AbortMultipartUpload");
+    assertArrayIncludes(actions, "s3:ListMultipartUploadParts");
+    assertArrayIncludes(actions, "s3:AbortMultipartUpload");
     // And GetQueryResults reads the object back on the caller's behalf.
-    expect(actions).toContain("s3:GetObject");
-    expect(resourcesOf(statements)).toStrictEqual([
+    assertArrayIncludes(actions, "s3:GetObject");
+    assertObjectEquals(resourcesOf(statements), [
       `arn:s3:::${bucketName}`,
       `arn:s3:::${bucketName}/*`,
     ]);
@@ -223,8 +224,8 @@ describe("what the job is allowed to reach", () => {
     // Then one action on the objects and nothing on the bucket. A reader
     // builds every key it wants out of the question and the window, so a
     // listing would only be a slower way to the same key.
-    expect(actionsOf(statements)).toStrictEqual(["s3:GetObject"]);
-    expect(resourcesOf(statements)).toStrictEqual([`arn:s3:::${bucketName}/*`]);
+    assertObjectEquals(actionsOf(statements), ["s3:GetObject"]);
+    assertObjectEquals(resourcesOf(statements), [`arn:s3:::${bucketName}/*`]);
   });
 
   it("decrypts a summaries bucket a site keeps under its own key", () => {
@@ -243,6 +244,6 @@ describe("what the job is allowed to reach", () => {
     // Then it can decrypt what it reads. S3 answers a GetObject under a key
     // the caller cannot use with an AccessDenied from KMS, and the statement
     // above has nothing to say about that.
-    expect(allowedIn(stack)).toContain("kms:Decrypt");
+    assertArrayIncludes(allowedIn(stack), "kms:Decrypt");
   });
 });

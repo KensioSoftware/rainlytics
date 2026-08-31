@@ -49,6 +49,39 @@ export {
   summarySchemaVersion,
   type VisitorCount,
 } from "./rollup-summaries.js";
+export {
+  defaultReportWeekStartsOn,
+  type ReportPeriod,
+  type ReportPeriodRequest,
+  type ReportPeriodUnit,
+  type ReportPeriodWithoutWeek,
+  reportPeriod,
+  reportPeriodUnits,
+  type ReportWeekday,
+  type ReportWeekPeriod,
+} from "./report-periods.js";
+export {
+  type ApproximateReportSection,
+  type AvailableReportSectionInput,
+  type ExactReportSection,
+  type MissingReportSectionInput,
+  type ReportCompositionRule,
+  type ReportDocument,
+  type ReportDocumentInput,
+  reportDocument,
+  reportKey,
+  type ReportRowsValue,
+  reportSchemaVersion,
+  type ReportSection,
+  type ReportSectionInput,
+  reportSection,
+  type ReportSectionSource,
+  type ReportSectionValue,
+  type ReportSourceCoverage,
+  type ReportVisitorValue,
+  type UnavailableReportReason,
+  type UnavailableReportSection,
+} from "./reports.js";
 export { hoursIn, summaryCoverage } from "./summary-coverage.js";
 export { totalledRows } from "./summary-totals.js";
 export {

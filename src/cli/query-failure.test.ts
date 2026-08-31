@@ -1,5 +1,6 @@
+import { assertIdentical, assertStringIncludes } from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { queryFailure } from "./query-run.js";
 
@@ -14,15 +15,15 @@ describe("explaining a query Athena would not finish", () => {
 
     // Then Athena's own words come first, so the numbers are the ones it
     // reported.
-    expect(failure.message).toContain("The query scanned 20000000 bytes");
+    assertStringIncludes(failure.message, "The query scanned 20000000 bytes");
 
     // And the limit is explained as something somebody chose, with the two
     // ways out. A ceiling that reads as a wall is one people work around by
     // taking it off.
-    expect(failure.message).toContain("Narrow the query");
-    expect(failure.message).toContain("distributionid, year, month, day");
-    expect(failure.message).toContain("bytesScannedCutoff");
-    expect(failure.message).toContain("rainlytics workgroup");
+    assertStringIncludes(failure.message, "Narrow the query");
+    assertStringIncludes(failure.message, "distributionid, year, month, day");
+    assertStringIncludes(failure.message, "bytesScannedCutoff");
+    assertStringIncludes(failure.message, "rainlytics workgroup");
   });
 
   it("passes any other reason through untouched", () => {
@@ -31,7 +32,7 @@ describe("explaining a query Athena would not finish", () => {
 
     // Then it comes back as Athena wrote it. This command should not stand
     // between a person and what the service told them.
-    expect(queryFailure(reason, "rainlytics").message).toBe(reason);
+    assertIdentical(queryFailure(reason, "rainlytics").message, reason);
   });
 
   it("says so where Athena gave no reason at all", () => {
@@ -41,6 +42,6 @@ describe("explaining a query Athena would not finish", () => {
 
     // Then the message says that rather than being empty, which would exit
     // non-zero with nothing on standard error.
-    expect(failure.message).toBe("Athena gave no reason.");
+    assertIdentical(failure.message, "Athena gave no reason.");
   });
 });

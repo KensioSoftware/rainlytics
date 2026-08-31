@@ -1,8 +1,16 @@
+import {
+  assertFalse,
+  assertIdentical,
+  assertObjectEquals,
+  assertStringIncludes,
+  assertStringNotIncludes,
+  assertThrowsErrorAsync,
+} from "@kensio/smartass";
 import { S3Client } from "@aws-sdk/client-s3";
 import { faker } from "@faker-js/faker";
 import { SimAws, SimFixedClock } from "@kensio/yulin";
 import { SimSdk } from "@kensio/yulin/sdk";
-import { describe, expect, it, vi } from "vitest";
+import { describe, it, vi } from "vitest";
 
 import { readingAthenaCaller } from "#test/reading-athena-caller.js";
 
@@ -150,8 +158,8 @@ describe("reading a bucket of summaries", () => {
     // Then the day is answered from the hours under it. That is the second
     // reason hourly windows are stored, and it is what keeps a deployment
     // computing hours alone readable over a range longer than a day.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [
       { path: "/", views: "24" },
       { path: "/liju/", views: "2" },
     ]);
@@ -179,9 +187,9 @@ describe("reading a bucket of summaries", () => {
 
     // Then it names the missing window and stops. An answer skipping it
     // would be short by a whole hour with nothing in the rows to say so.
-    expect(run.code).toBe(1);
-    expect(run.error).toContain("2026-08-24T07:00:00.000Z");
-    expect(run.error).toContain("--query");
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "2026-08-24T07:00:00.000Z");
+    assertStringIncludes(run.error, "--query");
   });
 
   it("reports the windows at the ends that have no summary", async () => {
@@ -203,10 +211,10 @@ describe("reading a bucket of summaries", () => {
 
     // Then the answer covers the hour that exists and standard error says
     // how many windows of the span it did not reach.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([{ path: "/", views: "4" }]);
-    expect(run.error).toContain("2 windows in the range asked for");
-    expect(run.error).toContain("--query");
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [{ path: "/", views: "4" }]);
+    assertStringIncludes(run.error, "2 windows in the range asked for");
+    assertStringIncludes(run.error, "--query");
   });
 
   it("names one missing window in the singular", async () => {
@@ -229,8 +237,8 @@ describe("reading a bucket of summaries", () => {
 
     // Then the line reads as English. "1 windows" is a line nobody
     // proofread, and this one is printed on every short read.
-    expect(run.code).toBe(0);
-    expect(run.error).toContain("1 window in the range asked for has");
+    assertIdentical(run.code, 0);
+    assertStringIncludes(run.error, "1 window in the range asked for has");
   });
 
   it("takes every filter a narrowed question was computed with", async () => {
@@ -266,9 +274,10 @@ describe("reading a bucket of summaries", () => {
     // Then all three come off the summary and standard error names them as
     // the command line that would have asked. The deployment declared the
     // list once, and nothing repeats it in a shell alias.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([{ term: "happy", searches: "3" }]);
-    expect(run.error).toContain(
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [{ term: "happy", searches: "3" }]);
+    assertStringIncludes(
+      run.error,
       "Took --path /liju/search/ /cidian/search/ --param term" +
         " --redirect-status 301,302 from the summaries",
     );
@@ -306,9 +315,9 @@ describe("reading a bucket of summaries", () => {
     // Then the shallower window decides, and the two windows hold one answer
     // between them rather than a disagreement. A row count is how much of a
     // ranked answer is printed, and every window here reaches one row.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([{ path: "/", views: "3" }]);
-    expect(run.error).toContain("Took --limit 1 from the summaries");
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [{ path: "/", views: "3" }]);
+    assertStringIncludes(run.error, "Took --limit 1 from the summaries");
   });
 
   it("refuses a span its deployment computed two ways", async () => {
@@ -337,13 +346,14 @@ describe("reading a bucket of summaries", () => {
     // Then it names the option that would settle it and stops. Taking one of
     // the two would answer half the span under a narrowing the other half
     // was never computed with, and nothing in the rows would say which half.
-    expect(run.code).toBe(1);
-    expect(run.error).toContain("not all computed the same way");
-    expect(run.error).toContain(
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "not all computed the same way");
+    assertStringIncludes(
+      run.error,
       "--path: some windows computed with /grammar/, others with the whole" +
         " distribution",
     );
-    expect(run.error).toContain("--query");
+    assertStringIncludes(run.error, "--query");
   });
 
   it("takes one filter and still refuses another that was typed", async () => {
@@ -377,9 +387,9 @@ describe("reading a bucket of summaries", () => {
     // Then the section is refused and the host is not mentioned. A filter
     // somebody typed is theirs whatever else the summaries could have
     // supplied.
-    expect(run.code).toBe(1);
-    expect(run.error).toContain("--path: asked for /liju/");
-    expect(run.error).not.toContain("--host");
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "--path: asked for /liju/");
+    assertStringNotIncludes(run.error, "--host");
   });
 
   it("names a bot filter the stored summaries were not computed with", async () => {
@@ -402,9 +412,9 @@ describe("reading a bucket of summaries", () => {
 
     // Then the difference is named. Crawlers were most of the traffic in the
     // hour #56 was measured against, so the two numbers are far apart.
-    expect(run.code).toBe(1);
-    expect(run.error).toContain("--include-bots");
-    expect(run.error).toContain("crawlers left out");
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "--include-bots");
+    assertStringIncludes(run.error, "crawlers left out");
   });
 
   it("reports the visitors of one window and refuses to add two", async () => {
@@ -442,9 +452,9 @@ describe("reading a bucket of summaries", () => {
     // Then one window reports its count and two report none. A visitor
     // carries a new identifier every day, so ten here would be everybody who
     // came back counted twice.
-    expect(one.error).toContain("3 visitors in that window");
-    expect(both.error).toContain("do not add");
-    expect(both.error).not.toContain("10 visitors");
+    assertStringIncludes(one.error, "3 visitors in that window");
+    assertStringIncludes(both.error, "do not add");
+    assertStringNotIncludes(both.error, "10 visitors");
   });
 
   it("says how old an answer from last week is", async () => {
@@ -469,7 +479,7 @@ describe("reading a bucket of summaries", () => {
 
     // Then the age is in days. A reader comparing this against anything else
     // needs the order of magnitude before they need the minutes.
-    expect(run.error).toContain("6 days ago");
+    assertStringIncludes(run.error, "6 days ago");
   });
 
   it("names the parameter a stored search summary was computed with", async () => {
@@ -510,8 +520,8 @@ describe("reading a bucket of summaries", () => {
 
     // Then the difference is named. The parameter decides what the rows
     // mean, and a stored answer for `q` says nothing about `term`.
-    expect(run.code).toBe(1);
-    expect(run.error).toContain("--param: asked for term, computed with q");
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "--param: asked for term, computed with q");
   });
 
   it("leaves a question with no stated arithmetic to one window", async () => {
@@ -568,13 +578,16 @@ describe("reading a bucket of summaries", () => {
 
     // Then it says so rather than adding columns it knows nothing about. A
     // guess would report a percentage as its own sum.
-    await expect(
-      summaryRows(countries, asked, {
-        out: () => undefined,
-        error: () => undefined,
-        outIsTerminal: false,
-      }),
-    ).rejects.toThrow("totals field");
+    {
+      const error = await assertThrowsErrorAsync(() =>
+        summaryRows(countries, asked, {
+          out: () => undefined,
+          error: () => undefined,
+          outIsTerminal: false,
+        }),
+      );
+      assertStringIncludes(error.message, "totals field");
+    }
   });
 
   it("says what S3 refused, and which bucket it was asked about", async () => {
@@ -593,9 +606,9 @@ describe("reading a bucket of summaries", () => {
 
     // Then the message names the bucket. S3 says what it could not find and
     // never where it looked, and the pipeline has two buckets in it.
-    expect(deployed.bucket).not.toBe(missing);
-    expect(run.code).toBe(1);
-    expect(run.error).toContain(missing);
+    assertFalse(Object.is(deployed.bucket, missing));
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, missing);
   });
 
   it("names the action reading a summary takes, where the caller has none", async () => {
@@ -614,16 +627,18 @@ describe("reading a bucket of summaries", () => {
 
     // Then the action and the bucket are named together. S3 says which of
     // them it refused and neither of the two the pipeline has.
-    expect(run.code).toBe(1);
-    expect(run.error).toContain(
+    assertIdentical(run.code, 1);
+    assertStringIncludes(
+      run.error,
       `S3 was asked for the summaries in ${deployed.bucket}.`,
     );
-    expect(run.error).toContain(
+    assertStringIncludes(
+      run.error,
       "Reading one takes s3:GetObject on that bucket",
     );
 
     // And the two options for a bucket somewhere else are left out. S3 found
     // this one and would not read it.
-    expect(run.error).not.toContain("Name another bucket with --summaries");
+    assertStringNotIncludes(run.error, "Name another bucket with --summaries");
   });
 });

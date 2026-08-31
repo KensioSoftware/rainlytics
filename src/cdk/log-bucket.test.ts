@@ -1,8 +1,20 @@
+import {
+  assertArrayIncludes,
+  assertArrayEmpty,
+  assertIdentical,
+  assertObjectMatches,
+  assertStringIncludes,
+  assertStringMatches,
+  assertStringNotIncludes,
+  assertThrowsError,
+  assertTrue,
+  assertUndefined,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
 import { Match, Template } from "aws-cdk-lib/assertions";
 import { Key } from "aws-cdk-lib/aws-kms";
 import { App, Duration, RemovalPolicy, Stack } from "aws-cdk-lib/core";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { deployStacks } from "#test/simulated-deployment.js";
 
@@ -109,7 +121,8 @@ describe("the raw log bucket", () => {
         .region("eu-west-2")
         .s3()
         .listBuckets({ input: {} });
-      expect(buckets.Buckets?.map((bucket) => bucket.Name)).toContain(
+      assertArrayIncludes(
+        buckets.Buckets?.map((bucket) => bucket.Name),
         bucketName,
       );
     });
@@ -133,7 +146,7 @@ describe("the raw log bucket", () => {
       // Then all four switches are on. Access logs carry the paths people
       // visited, so a bucket that could be made public is the one failure
       // here that would matter to somebody other than us.
-      expect(block.PublicAccessBlockConfiguration).toMatchObject({
+      assertObjectMatches(block.PublicAccessBlockConfiguration, {
         BlockPublicAcls: true,
         BlockPublicPolicy: true,
         IgnorePublicAcls: true,
@@ -165,8 +178,8 @@ describe("the raw log bucket", () => {
       // would take the expected value from the thing under test, so changing
       // the default would move both sides and this would still pass.
       const expiry = ruleNamed(lifecycle, "expire-raw-logs");
-      expect(expiry.Status).toBe("Enabled");
-      expect(expiry.Expiration?.Days).toBe(365);
+      assertIdentical(expiry.Status, "Enabled");
+      assertIdentical(expiry.Expiration?.Days, 365);
     });
 
     it("actually deletes an object once its year is up", async () => {
@@ -194,7 +207,7 @@ describe("the raw log bucket", () => {
       const remaining = await s3.listObjectsV2({
         input: { Bucket: bucketName },
       });
-      expect(remaining.Contents ?? []).toHaveLength(0);
+      assertArrayEmpty(remaining.Contents ?? []);
     });
 
     it("keeps an object that is still inside its retention", async () => {
@@ -221,7 +234,10 @@ describe("the raw log bucket", () => {
       const remaining = await s3.listObjectsV2({
         input: { Bucket: bucketName },
       });
-      expect(remaining.Contents?.map((object) => object.Key)).toContain(key);
+      assertArrayIncludes(
+        remaining.Contents?.map((object) => object.Key),
+        key,
+      );
     });
 
     it("keeps raw logs for as long as it is told to", async () => {
@@ -244,7 +260,8 @@ describe("the raw log bucket", () => {
         .getBucketLifecycleConfiguration({ input: { Bucket: bucketName } });
 
       // Then that is the rule it holds.
-      expect(ruleNamed(lifecycle, "expire-raw-logs").Expiration?.Days).toBe(
+      assertIdentical(
+        ruleNamed(lifecycle, "expire-raw-logs").Expiration?.Days,
         730,
       );
     });
@@ -274,9 +291,12 @@ describe("the raw log bucket", () => {
       // Thirty is written out. Reading it from `defaultRecoveryWindow` would
       // take the expected value from the thing under test.
       const superseded = ruleNamed(lifecycle, "expire-superseded-logs");
-      expect(superseded.Status).toBe("Enabled");
-      expect(superseded.NoncurrentVersionExpiration?.NoncurrentDays).toBe(30);
-      expect(superseded.Expiration?.ExpiredObjectDeleteMarker).toBe(true);
+      assertIdentical(superseded.Status, "Enabled");
+      assertIdentical(
+        superseded.NoncurrentVersionExpiration?.NoncurrentDays,
+        30,
+      );
+      assertTrue(superseded.Expiration?.ExpiredObjectDeleteMarker);
     });
 
     it("holds superseded versions for as long as it is told to", async () => {
@@ -299,10 +319,11 @@ describe("the raw log bucket", () => {
         .getBucketLifecycleConfiguration({ input: { Bucket: bucketName } });
 
       // Then that is the rule it holds.
-      expect(
+      assertIdentical(
         ruleNamed(lifecycle, "expire-superseded-logs")
           .NoncurrentVersionExpiration?.NoncurrentDays,
-      ).toBe(90);
+        90,
+      );
     });
 
     it("keeps the delete marker rule out of the expiry rule", async () => {
@@ -327,8 +348,8 @@ describe("the raw log bucket", () => {
       // misbehaves. This is here because the tidier-looking version of this
       // construct is the one that does not deploy.
       const expiry = ruleNamed(lifecycle, "expire-raw-logs");
-      expect(expiry.Expiration?.Days).toBe(365);
-      expect(expiry.Expiration?.ExpiredObjectDeleteMarker).toBeUndefined();
+      assertObjectMatches(expiry, { Expiration: { Days: 365 } });
+      assertUndefined(expiry.Expiration.ExpiredObjectDeleteMarker);
     });
 
     it("aborts uploads that never finished", async () => {
@@ -351,7 +372,10 @@ describe("the raw log bucket", () => {
       // indefinitely. They do not appear in the console, so nothing else
       // would ever notice them.
       const abort = ruleNamed(lifecycle, "abort-incomplete-uploads");
-      expect(abort.AbortIncompleteMultipartUpload?.DaysAfterInitiation).toBe(7);
+      assertIdentical(
+        abort.AbortIncompleteMultipartUpload?.DaysAfterInitiation,
+        7,
+      );
     });
 
     it("records the properties the simulation could not model", async () => {
@@ -376,9 +400,9 @@ describe("the raw log bucket", () => {
       // weaker claim than it reads as, and this case is what says so.
       const ignored = stacks.get("LogStack")?.ignoredProperties ?? [];
       const unmodelled = ignored.map((property) => property.path).join(" ");
-      expect(unmodelled).toContain("OwnershipControls");
-      expect(unmodelled).toContain("VersioningConfiguration");
-      expect(unmodelled).not.toContain("LifecycleConfiguration");
+      assertStringIncludes(unmodelled, "OwnershipControls");
+      assertStringIncludes(unmodelled, "VersioningConfiguration");
+      assertStringNotIncludes(unmodelled, "LifecycleConfiguration");
     });
   });
 
@@ -528,8 +552,8 @@ describe("the raw log bucket", () => {
       const policy = JSON.stringify(
         template.findResources("AWS::S3::BucketPolicy"),
       );
-      expect(policy).toContain("delivery.logs.amazonaws.com");
-      expect(policy).toContain("s3:PutObject");
+      assertStringIncludes(policy, "delivery.logs.amazonaws.com");
+      assertStringIncludes(policy, "s3:PutObject");
     });
 
     it("scopes that write to this account and its delivery sources", () => {
@@ -547,8 +571,9 @@ describe("the raw log bucket", () => {
       // Then both conditions are on it, and the delivery-source ARN names
       // us-east-1 whatever region the bucket is in, because that is the only
       // region a delivery can be configured from.
-      expect(policy).toContain('"aws:SourceAccount":"123456789012"');
-      expect(policy).toContain(
+      assertStringIncludes(policy, '"aws:SourceAccount":"123456789012"');
+      assertStringIncludes(
+        policy,
         ":logs:us-east-1:123456789012:delivery-source:*",
       );
     });
@@ -563,7 +588,7 @@ describe("the raw log bucket", () => {
       const policy = JSON.stringify(
         template.findResources("AWS::S3::BucketPolicy"),
       );
-      expect(policy).not.toContain("x-amz-acl");
+      assertStringNotIncludes(policy, "x-amz-acl");
     });
 
     it("refuses a request that did not arrive over TLS", () => {
@@ -596,6 +621,9 @@ describe("the raw log bucket", () => {
 
     // Then it fails here, rather than deploying a bucket that the delivery
     // in #8 then refuses to write into.
-    expect(synthesising).toThrow(/delivery/u);
+    {
+      const error = assertThrowsError(synthesising);
+      assertStringMatches(error.message, /delivery/u);
+    }
   });
 });

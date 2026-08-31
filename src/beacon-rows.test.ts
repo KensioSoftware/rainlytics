@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import {
+  assertArrayIncludes,
+  assertStringIncludes,
+  assertStringNotIncludes,
+} from "@kensio/smartass";
+import { describe, it } from "vitest";
 
 import { beaconParameters, defaultBeaconPath } from "./beacon-events.js";
 import {
@@ -13,8 +18,8 @@ describe("reading a beacon event off a row", () => {
     // Then it reads the query string, which is where the payload is. No
     // column of the table holds it, because a table column is a CloudFront
     // field and CloudFront has no field for somebody else's payload.
-    expect(beaconEventColumn).toContain("cs_uri_query");
-    expect(beaconEventColumn).toContain(`'${beaconParameters.event}'`);
+    assertStringIncludes(beaconEventColumn, "cs_uri_query");
+    assertStringIncludes(beaconEventColumn, `'${beaconParameters.event}'`);
   });
 
   it("counts only requests carrying an envelope", () => {
@@ -22,8 +27,11 @@ describe("reading a beacon event off a row", () => {
     // Then a request to the beacon's path with no version parameter is left
     // out. A crawler that found the URL in a page's source sends one of
     // those, and counting it would report an event nobody caused.
-    expect(aBeaconEvent).toContain("cs_uri_query <> '-'");
-    expect(aBeaconEvent.join(" ")).toContain(`'${beaconParameters.version}'`);
+    assertArrayIncludes(aBeaconEvent, "cs_uri_query <> '-'");
+    assertStringIncludes(
+      aBeaconEvent.join(" "),
+      `'${beaconParameters.version}'`,
+    );
   });
 
   it("names the path where the envelope's own conditions leave it out", () => {
@@ -33,7 +41,7 @@ describe("reading a beacon event off a row", () => {
     // request's own `paths`. The two run in opposite directions. It reads
     // the column as delivered, since the path carries nothing a browser or
     // CloudFront escapes.
-    expect(outsideTheBeaconPath).toContain(`'${defaultBeaconPath}'`);
-    expect(outsideTheBeaconPath).not.toContain("url_decode");
+    assertStringIncludes(outsideTheBeaconPath, `'${defaultBeaconPath}'`);
+    assertStringNotIncludes(outsideTheBeaconPath, "url_decode");
   });
 });

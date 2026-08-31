@@ -1,3 +1,14 @@
+import {
+  assertArrayIncludes,
+  assertFalse,
+  assertIdentical,
+  assertObjectEquals,
+  assertStringIncludes,
+  assertStringMatches,
+  assertStringNotIncludes,
+  assertThrowsError,
+  assertTrue,
+} from "@kensio/smartass";
 import { gzipSync } from "node:zlib";
 
 import { faker } from "@faker-js/faker";
@@ -7,7 +18,7 @@ import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
 import { Key } from "aws-cdk-lib/aws-kms";
 import { App, CfnOutput, Duration, Size, Stack } from "aws-cdk-lib/core";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { deployStacks, simStartedAt } from "#test/simulated-deployment.js";
 
@@ -126,10 +137,11 @@ describe("the workgroup a Rainlytics query runs in", () => {
     // Then Athena holds the limit. Ten gibibytes caps one query at about six
     // cents, against a measured year of a busy site at 1.6GB, so a query
     // reaching it has gone wrong rather than grown into it.
-    expect(workgroup.bytesScannedCutoffPerQuery).toBe(
+    assertIdentical(
+      workgroup.bytesScannedCutoffPerQuery,
       defaultBytesScannedCutoff.toBytes(),
     );
-    expect(workgroup.state).toBe("ENABLED");
+    assertIdentical(workgroup.state, "ENABLED");
   });
 
   it("refuses the query that would scan past it", async () => {
@@ -146,9 +158,9 @@ describe("the workgroup a Rainlytics query runs in", () => {
     // allows. This is the failure the guardrail exists to produce: an
     // unpartitioned query against a growing dataset otherwise succeeds, bills
     // for every byte, and reports nothing until the invoice.
-    expect(scan.state).toBe("FAILED");
-    expect(scan.reason).toMatch(/Bytes scanned limit was exceeded/u);
-    expect(scan.reason).toContain(String(cutoff.toBytes()));
+    assertIdentical(scan.state, "FAILED");
+    assertStringMatches(scan.reason, /Bytes scanned limit was exceeded/u);
+    assertStringIncludes(scan.reason, String(cutoff.toBytes()));
   });
 
   it("lets a query through when its predicate keeps it under", async () => {
@@ -170,8 +182,8 @@ describe("the workgroup a Rainlytics query runs in", () => {
     // Then it runs. The cutoff bounds the mistake without standing in the way
     // of the query somebody meant to run, which is what makes it safe to
     // leave on.
-    expect(scan.state).toBe("SUCCEEDED");
-    expect(scan.bytes).toBe(small);
+    assertIdentical(scan.state, "SUCCEEDED");
+    assertIdentical(scan.bytes, small);
   });
 
   it("writes results where it says, whatever the caller asks for", async () => {
@@ -188,10 +200,11 @@ describe("the workgroup a Rainlytics query runs in", () => {
     // otherwise land outside the expiry and the encryption this bucket has.
     // The location a described execution reports is the object holding that
     // one query's rows, under the prefix the workgroup named.
-    expect(scan.outputLocation).toMatch(
+    assertStringMatches(
+      scan.outputLocation,
       new RegExp(`^s3://${deployed.resultsBucketName}/queries/`, "u"),
     );
-    expect(scan.outputLocation).not.toContain("somewhere-else");
+    assertStringNotIncludes(scan.outputLocation, "somewhere-else");
   });
 
   it("expires the results it accumulates", async () => {
@@ -210,10 +223,10 @@ describe("the workgroup a Rainlytics query runs in", () => {
     // never reads it again, so without this the bucket grows for ever with
     // the one thing in the pipeline nobody looks at twice.
     const expiry = ruleNamed(lifecycle.Rules, "expire-query-results");
-    expect(expiry.Status).toBe("Enabled");
+    assertIdentical(expiry.Status, "Enabled");
     // Written out rather than read from `defaultResultsRetention`. Taking the
     // expected value from the thing under test would move both sides at once.
-    expect(expiry.Expiration?.Days).toBe(7);
+    assertIdentical(expiry.Expiration?.Days, 7);
   });
 
   it("keeps results for as long as it is told to", async () => {
@@ -229,9 +242,10 @@ describe("the workgroup a Rainlytics query runs in", () => {
       .getBucketLifecycleConfiguration({
         input: { Bucket: deployed.resultsBucketName },
       });
-    expect(
+    assertIdentical(
       ruleNamed(lifecycle.Rules, "expire-query-results").Expiration?.Days,
-    ).toBe(90);
+      90,
+    );
   });
 
   it("counts its own queries without paying CloudWatch to do it", async () => {
@@ -242,8 +256,8 @@ describe("the workgroup a Rainlytics query runs in", () => {
     // metrics as custom metrics, at a flat monthly rate per metric, and that
     // charge does not fall to zero on a site nobody queries. What one query
     // scanned comes back from GetQueryExecution for nothing.
-    expect(workgroup.configuration.publishCloudWatchMetricsEnabled).toBe(false);
-    expect(workgroup.enforcesConfiguration).toBe(true);
+    assertFalse(workgroup.configuration.publishCloudWatchMetricsEnabled);
+    assertTrue(workgroup.enforcesConfiguration);
   });
 
   it("takes a name a query can be pointed at", async () => {
@@ -253,10 +267,11 @@ describe("the workgroup a Rainlytics query runs in", () => {
     // Then the workgroup carries that name. Whatever runs a query has to name
     // it, and a query naming no workgroup runs in `primary`, which has no
     // cutoff at all.
-    expect(deployedWorkgroup(deployed, "rainlytics_dev").name).toBe(
+    assertIdentical(
+      deployedWorkgroup(deployed, "rainlytics_dev").name,
       "rainlytics_dev",
     );
-    expect(defaultWorkgroupName).toBe("rainlytics");
+    assertIdentical(defaultWorkgroupName, "rainlytics");
   });
 
   it("refuses a cutoff Athena would not accept", () => {
@@ -274,7 +289,10 @@ describe("the workgroup a Rainlytics query runs in", () => {
     // Then it fails at synthesis rather than at deploy. Every query bills for
     // ten million bytes whatever it reads, so a cutoff under that refuses
     // every query, including the ones the pipeline runs on a schedule.
-    expect(building).toThrow(/10000000/u);
+    {
+      const error = assertThrowsError(building);
+      assertStringMatches(error.message, /10000000/u);
+    }
   });
 
   describe("what an identity granted querying can reach", () => {
@@ -355,13 +373,13 @@ describe("the workgroup a Rainlytics query runs in", () => {
       // plans it, the log bucket answers it and the results bucket takes the
       // answer, and Athena does the last three as the caller rather than as
       // itself.
-      expect(actions).toContain("athena:StartQueryExecution");
-      expect(actions).toContain("glue:GetPartitions");
-      expect(actions).toContain("s3:GetObject");
-      expect(actions).toContain("s3:PutObject");
+      assertArrayIncludes(actions, "athena:StartQueryExecution");
+      assertArrayIncludes(actions, "glue:GetPartitions");
+      assertArrayIncludes(actions, "s3:GetObject");
+      assertArrayIncludes(actions, "s3:PutObject");
       // And it can look up a query the site saved, which is what
       // `rainlytics saved-query` runs.
-      expect(actions).toContain("athena:BatchGetNamedQuery");
+      assertArrayIncludes(actions, "athena:BatchGetNamedQuery");
     });
 
     it("names this deployment's resources and never a wildcard", () => {
@@ -376,9 +394,13 @@ describe("the workgroup a Rainlytics query runs in", () => {
       // Then it names this workgroup, this database and this table. A grant
       // reaching `*` would answer the case above and still be wrong, and the
       // account holds analytics for every site the maintainer runs.
-      expect(resources.join(",")).toContain("workgroup/rainlytics");
-      expect(resources.join(",")).toContain("table/rainlytics/cloudfront_logs");
-      expect(resources.filter((each) => each.includes('"*"'))).toStrictEqual(
+      assertStringIncludes(resources.join(","), "workgroup/rainlytics");
+      assertStringIncludes(
+        resources.join(","),
+        "table/rainlytics/cloudfront_logs",
+      );
+      assertObjectEquals(
+        resources.filter((each) => each.includes('"*"')),
         [],
       );
     });
@@ -393,7 +415,7 @@ describe("the workgroup a Rainlytics query runs in", () => {
       // Then the grantee can decrypt what it reads. S3 answers a GetObject
       // under a key the caller cannot use with an AccessDenied from KMS, and
       // the S3 statement has nothing to say about that.
-      expect(allowed(stack)).toContain("kms:Decrypt");
+      assertArrayIncludes(allowed(stack), "kms:Decrypt");
     });
   });
 

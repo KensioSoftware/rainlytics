@@ -1,5 +1,6 @@
+import { assertIdentical } from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { toCsv } from "./csv.js";
 
@@ -21,7 +22,7 @@ describe("CSV output", () => {
 
     // Then the header is still there. A CSV whose first line is missing is
     // one that whatever opens it reads a column short.
-    expect(csv).toBe(`${first},${second}\n`);
+    assertIdentical(csv, `${first},${second}\n`);
   });
 
   it("quotes a value carrying the delimiter", () => {
@@ -32,7 +33,7 @@ describe("CSV output", () => {
     const csv = toCsv({ columns: ["referrer"], rows: [{ referrer }] });
 
     // Then the value is quoted and the line still holds one field.
-    expect(csv).toBe(`referrer\n"${referrer}"\n`);
+    assertIdentical(csv, `referrer\n"${referrer}"\n`);
   });
 
   it("doubles a quotation mark inside a value", () => {
@@ -46,7 +47,7 @@ describe("CSV output", () => {
     });
 
     // Then each mark is doubled, which is how RFC 4180 escapes one.
-    expect(csv).toBe(`agent\n"Mozilla/5.0 ""${inside}"""\n`);
+    assertIdentical(csv, `agent\n"Mozilla/5.0 ""${inside}"""\n`);
   });
 
   it("keeps a value that spans lines inside one field", () => {
@@ -58,7 +59,7 @@ describe("CSV output", () => {
 
     // Then it is quoted, so the newline stays inside the field rather than
     // becoming a second record with the wrong number of columns.
-    expect(csv).toBe(`path\n"${path}"\n`);
+    assertIdentical(csv, `path\n"${path}"\n`);
   });
 
   it("leaves a field empty where the row has no value", () => {
@@ -72,7 +73,7 @@ describe("CSV output", () => {
     });
 
     // Then both gaps are empty fields and the row keeps its shape.
-    expect(csv).toBe(`path,referrer,views\n,,${views}\n`);
+    assertIdentical(csv, `path,referrer,views\n,,${views}\n`);
   });
 
   it("writes the columns in the order the command asked for", () => {
@@ -88,6 +89,6 @@ describe("CSV output", () => {
     });
 
     // Then the columns decide, and the header describes what follows it.
-    expect(csv).toBe(`path,views\n${path},${views}\n`);
+    assertIdentical(csv, `path,views\n${path},${views}\n`);
   });
 });

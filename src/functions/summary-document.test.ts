@@ -1,5 +1,6 @@
+import { assertObjectEquals } from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import type { AthenaOutcome } from "../athena/athena-outcome.js";
 import { summarySchemaVersion } from "../rollup-summaries.js";
@@ -43,7 +44,7 @@ describe("what one answer becomes on S3", () => {
     );
 
     // Then it says what it counted, when, and over what.
-    expect(document).toStrictEqual({
+    assertObjectEquals(document, {
       schemaVersion: summarySchemaVersion,
       question: aQuestion,
       window: {
@@ -69,8 +70,8 @@ describe("what one answer becomes on S3", () => {
     // Then the document still says what it was looking for. Reading the
     // columns off the rows would leave an empty answer with no header, and an
     // empty CSV needs one as much as a full one does.
-    expect(document.columns).toStrictEqual(["path", "views"]);
-    expect(document.rows).toStrictEqual([]);
+    assertObjectEquals(document.columns, ["path", "views"]);
+    assertObjectEquals(document.rows, []);
   });
 
   it("writes a cell Athena left out as null", () => {
@@ -87,6 +88,6 @@ describe("what one answer becomes on S3", () => {
     // `columns`.
     const onS3 = JSON.stringify(document.rows);
 
-    expect(JSON.parse(onS3)).toStrictEqual([{ path: "/", views: null }]);
+    assertObjectEquals(JSON.parse(onS3), [{ path: "/", views: null }]);
   });
 });

@@ -1,3 +1,15 @@
+import {
+  assertArrayIncludes,
+  assertArrayNotIncludes,
+  assertIdentical,
+  assertNonNullable,
+  assertObjectEquals,
+  assertStringMatches,
+  assertStringNotIncludes,
+  assertThrowsError,
+  assertTrue,
+  assertUndefined,
+} from "@kensio/smartass";
 import { gzipSync } from "node:zlib";
 
 import { faker } from "@faker-js/faker";
@@ -5,7 +17,7 @@ import { Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { Bucket } from "aws-cdk-lib/aws-s3";
 import { App, CfnOutput, Stack } from "aws-cdk-lib/core";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { deployStacks, simStartedAt } from "#test/simulated-deployment.js";
 
@@ -134,11 +146,12 @@ describe("the Glue table over delivered logs", () => {
     // nothing else would catch the two drifting apart: a query naming a
     // table that does not exist reaches Athena, not a compiler.
     const glue = deployed.simAws.region("us-east-1").account().glue();
-    expect(glue.findDatabase(defaultLogDataset.databaseName)?.name).toBe(
+    assertIdentical(
+      glue.findDatabase(defaultLogDataset.databaseName)?.name,
       "rainlytics",
     );
-    expect(catalogTable(deployed).name).toBe("cloudfront_logs");
-    expect(qualifiedTableName()).toBe('"rainlytics"."cloudfront_logs"');
+    assertIdentical(catalogTable(deployed).name, "cloudfront_logs");
+    assertIdentical(qualifiedTableName(), '"rainlytics"."cloudfront_logs"');
   });
 
   it("declares a column for every field the delivery asks for", async () => {
@@ -147,15 +160,16 @@ describe("the Glue table over delivered logs", () => {
     const table = catalogTable(await deployTable());
 
     // Then the columns are those fields, in the order they are delivered.
-    expect(table.columns.map((column) => column.Name)).toStrictEqual([
-      ...deliveredLogColumnNames,
-    ]);
+    assertObjectEquals(
+      table.columns.map((column) => column.Name),
+      [...deliveredLogColumnNames],
+    );
 
     // And every one is a string. CloudFront quotes every JSON value and
     // types every Parquet field as a nullable string, so a column declared
     // `bigint` over this data fails the query with HIVE_BAD_DATA.
     for (const column of table.columns) {
-      expect(column.Type).toBe("string");
+      assertIdentical(column.Type, "string");
     }
   });
 
@@ -168,7 +182,8 @@ describe("the Glue table over delivered logs", () => {
 
     // Then it reads exactly there. A table pointed anywhere else answers
     // every query with no rows and reports success.
-    expect(table.storageDescriptor?.Location).toBe(
+    assertIdentical(
+      table.storageDescriptor?.Location,
       `s3://${deployed.logBucketName}/rainlytics/`,
     );
   });
@@ -181,14 +196,15 @@ describe("the Glue table over delivered logs", () => {
     const table = catalogTable(deployed);
 
     // Then the five keys are declared in the order the path writes them.
-    expect(table.partitionKeys.map((key) => key.Name)).toStrictEqual([
-      ...partitionKeyNames("hourly"),
-    ]);
+    assertObjectEquals(
+      table.partitionKeys.map((key) => key.Name),
+      [...partitionKeyNames("hourly")],
+    );
 
     // And projection is on, so nothing has to register a partition and no
     // crawler has to run on a schedule to find one.
-    expect(table.parameters["projection.enabled"]).toBe("true");
-    expect(
+    assertIdentical(table.parameters["projection.enabled"], "true");
+    assertObjectEquals(
       deployed.simAws
         .region("us-east-1")
         .account()
@@ -197,7 +213,8 @@ describe("the Glue table over delivered logs", () => {
           defaultLogDataset.databaseName,
           defaultLogDataset.tableName,
         ),
-    ).toStrictEqual([]);
+      [],
+    );
   });
 
   it("declares the values each partition key takes", async () => {
@@ -206,9 +223,9 @@ describe("the Glue table over delivered logs", () => {
 
     // Then the year runs from the first year of any Rainlytics delivery to
     // now. It is the only key whose upper end moves.
-    expect(table.parameters["projection.year.type"]).toBe("date");
-    expect(table.parameters["projection.year.range"]).toBe("2026,NOW");
-    expect(table.parameters["projection.year.format"]).toBe("yyyy");
+    assertIdentical(table.parameters["projection.year.type"], "date");
+    assertIdentical(table.parameters["projection.year.range"], "2026,NOW");
+    assertIdentical(table.parameters["projection.year.format"], "yyyy");
   });
 
   it("pads a projected value the way CloudFront pads the key", async () => {
@@ -219,10 +236,10 @@ describe("the Glue table over delivered logs", () => {
     // projected value against the S3 key character for character, so a
     // projection producing `hour=4` reads nothing from `hour=04` and answers
     // no rows.
-    expect(table.parameters["projection.month.range"]).toBe("1,12");
-    expect(table.parameters["projection.month.digits"]).toBe("2");
-    expect(table.parameters["projection.hour.range"]).toBe("0,23");
-    expect(table.parameters["projection.hour.digits"]).toBe("2");
+    assertIdentical(table.parameters["projection.month.range"], "1,12");
+    assertIdentical(table.parameters["projection.month.digits"], "2");
+    assertIdentical(table.parameters["projection.hour.range"], "0,23");
+    assertIdentical(table.parameters["projection.hour.digits"], "2");
   });
 
   it("templates where each projected partition sits", async () => {
@@ -236,7 +253,8 @@ describe("the Glue table over delivered logs", () => {
     // the bucket and prefix the delivery writes into. Restating the path
     // here would give the layout a fourth definition to drift from, and
     // partitions.test.ts is where its spelling is pinned.
-    expect(table.parameters["storage.location.template"]).toBe(
+    assertIdentical(
+      table.parameters["storage.location.template"],
       `s3://${deployed.logBucketName}/rainlytics/${partitionLocationTemplate("hourly")}`,
     );
   });
@@ -264,9 +282,9 @@ describe("the Glue table over delivered logs", () => {
     // reads the hour it named. This is what projection is for, and it is
     // the difference between a query costing what its answer needs and a
     // query costing the whole dataset.
-    expect(everything).toBe(first + second);
-    expect(oneHour).toBe(first);
-    expect(oneHour).toBeLessThan(everything);
+    assertIdentical(everything, first + second);
+    assertIdentical(oneHour, first);
+    assertTrue(oneHour < everything);
   });
 
   it("reads back the records CloudFront actually delivered", async () => {
@@ -302,13 +320,13 @@ describe("the Glue table over delivered logs", () => {
     // column from the prefix rather than from the data, since no delivered
     // record carries the hour. `c_ip` comes back as the address it was
     // delivered as, which is what a visitor count is hashed from.
-    expect(answered.rows).toStrictEqual([
+    assertObjectEquals(answered.rows, [
       ["/liju/", "-", "Mozilla/5.0", "GB", "203.0.113.7", "09"],
     ]);
 
     // And the query engine answered rather than a declaration this test
     // wrote. Rows that a fixture happens to agree with look the same.
-    expect(answered.answeredBy).toBe("engine");
+    assertIdentical(answered.answeredBy, "engine");
   });
 
   it("prunes to one distribution where a bucket holds several", async () => {
@@ -326,14 +344,15 @@ describe("the Glue table over delivered logs", () => {
     );
 
     // Then it reads that site's objects and leaves the other site's alone.
-    expect(scanned).toBe(ours);
+    assertIdentical(scanned, ours);
 
     // And the projection knows both, so a query naming neither still reads
     // both. An enum is what makes that possible without registering
     // anything.
-    expect(
+    assertIdentical(
       catalogTable(deployed).parameters["projection.distributionid.values"],
-    ).toBe(`${mine},${theirs}`);
+      `${mine},${theirs}`,
+    );
   });
 
   it("points JSON columns at CloudFront's own field names", async () => {
@@ -344,16 +363,21 @@ describe("the Glue table over delivered logs", () => {
     // record carries `cs(Referer)` and Athena will not have a column called
     // that, so without the mapping the column is null on every row.
     const serde = table.storageDescriptor?.SerdeInfo;
-    expect(serde?.SerializationLibrary).toBe(
+    assertIdentical(
+      serde?.SerializationLibrary,
       "org.openx.data.jsonserde.JsonSerDe",
     );
-    expect(serde?.Parameters?.["mapping.cs_referer"]).toBe("cs(Referer)");
-    expect(serde?.Parameters?.["mapping.cs_user_agent"]).toBe("cs(User-Agent)");
-    expect(serde?.Parameters?.["mapping.timestamp_ms"]).toBe("timestamp(ms)");
+    assertNonNullable(serde.Parameters);
+    assertIdentical(serde.Parameters["mapping.cs_referer"], "cs(Referer)");
+    assertIdentical(
+      serde.Parameters["mapping.cs_user_agent"],
+      "cs(User-Agent)",
+    );
+    assertIdentical(serde.Parameters["mapping.timestamp_ms"], "timestamp(ms)");
 
     // And key matching is case sensitive, so those mapping values are the
     // record's own keys rather than a lowercased version of them.
-    expect(serde?.Parameters?.["case.insensitive"]).toBe("FALSE");
+    assertIdentical(serde.Parameters["case.insensitive"], "FALSE");
   });
 
   it("reads Parquet under the names Parquet writes", async () => {
@@ -363,20 +387,25 @@ describe("the Glue table over delivered logs", () => {
     );
 
     // Then the table reads it with the Parquet SerDe.
-    expect(table.storageDescriptor?.SerdeInfo?.SerializationLibrary).toBe(
+    assertIdentical(
+      table.storageDescriptor?.SerdeInfo?.SerializationLibrary,
       "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe",
     );
-    expect(table.parameters["classification"]).toBe("parquet");
+    assertIdentical(table.parameters["classification"], "parquet");
 
     // And the columns are the same names the JSON table uses. AWS mangles
     // every field name on the way into a Parquet file (`cs(Referer)` is
     // written `cs_Referer`), and lowercasing that is what Athena's reader
     // matches. One set of column names is what lets a rollup query be
     // written once for both formats.
-    expect(table.columns.map((column) => column.Name)).toStrictEqual([
-      ...deliveredLogColumnNames,
-    ]);
-    expect(table.columns.map((column) => column.Name)).toContain("cs_referer");
+    assertObjectEquals(
+      table.columns.map((column) => column.Name),
+      [...deliveredLogColumnNames],
+    );
+    assertArrayIncludes(
+      table.columns.map((column) => column.Name),
+      "cs_referer",
+    );
   });
 
   it("drops the hour when the delivery partitions daily", async () => {
@@ -387,11 +416,15 @@ describe("the Glue table over delivered logs", () => {
 
     // Then the table projects the four keys that exist and no hour. A key
     // the writer never writes would project prefixes that hold nothing.
-    expect(table.partitionKeys.map((key) => key.Name)).toStrictEqual([
-      ...partitionKeyNames("daily"),
-    ]);
-    expect(table.parameters["projection.hour.type"]).toBeUndefined();
-    expect(table.parameters["storage.location.template"]).not.toContain("hour");
+    assertObjectEquals(
+      table.partitionKeys.map((key) => key.Name),
+      [...partitionKeyNames("daily")],
+    );
+    assertUndefined(table.parameters["projection.hour.type"]);
+    assertStringNotIncludes(
+      table.parameters["storage.location.template"],
+      "hour",
+    );
   });
 
   it("covers only the fields a narrowed delivery asks for", async () => {
@@ -404,10 +437,10 @@ describe("the Glue table over delivered logs", () => {
 
     // Then the table describes that, rather than declaring columns for
     // fields nothing ever wrote.
-    expect(table.columns.map((column) => column.Name)).toStrictEqual([
-      "timestamp_ms",
-      "cs_uri_stem",
-    ]);
+    assertObjectEquals(
+      table.columns.map((column) => column.Name),
+      ["timestamp_ms", "cs_uri_stem"],
+    );
   });
 
   it("reads a beacon event back out of the query string", async () => {
@@ -439,8 +472,8 @@ describe("the Glue table over delivered logs", () => {
     // Then the event arrives as the beacon meant it, through the browser's
     // encoding and CloudFront's on top of it. No column of this table holds
     // any of the three, and nothing had to be added to it for the beacon.
-    expect(answered.rows).toStrictEqual([["route", "/guides/好/", "1"]]);
-    expect(answered.answeredBy).toBe("engine");
+    assertObjectEquals(answered.rows, [["route", "/guides/好/", "1"]]);
+    assertIdentical(answered.answeredBy, "engine");
   });
 
   it("describes no address where the delivery asked for none", async () => {
@@ -454,9 +487,9 @@ describe("the Glue table over delivered logs", () => {
     // Then the table has no column an address could be read out of, while
     // every other question still has the column it groups by.
     const columns = table.columns.map((column) => column.Name);
-    expect(columns).not.toContain("c_ip");
-    expect(columns).toContain("cs_uri_stem");
-    expect(columns).toContain("cs_user_agent");
+    assertArrayNotIncludes(columns, "c_ip");
+    assertArrayIncludes(columns, "cs_uri_stem");
+    assertArrayIncludes(columns, "cs_user_agent");
   });
 
   describe("what it refuses to build", () => {
@@ -492,8 +525,14 @@ describe("the Glue table over delivered logs", () => {
 
       // Then it says so at synthesis. Guessing a SerDe would deploy a table
       // that scans the objects and answers nulls.
-      expect(building).toThrow(/w3c/u);
-      expect(building).toThrow(/json or parquet/u);
+      {
+        const error = assertThrowsError(building);
+        assertStringMatches(error.message, /w3c/u);
+      }
+      {
+        const error = assertThrowsError(building);
+        assertStringMatches(error.message, /json or parquet/u);
+      }
     });
 
     it("refuses deliveries that describe different datasets", () => {
@@ -511,7 +550,10 @@ describe("the Glue table over delivered logs", () => {
 
       // Then one table refuses to cover both. It could only cover one, and
       // the other site's logs would then be a bucket nothing reads.
-      expect(building).toThrow(/the log bucket/u);
+      {
+        const error = assertThrowsError(building);
+        assertStringMatches(error.message, /the log bucket/u);
+      }
     });
 
     it("refuses to build a table over nothing", () => {
@@ -524,7 +566,10 @@ describe("the Glue table over delivered logs", () => {
 
       // Then there is nothing to describe, and it says so rather than
       // deploying a table with no location.
-      expect(building).toThrow(/at least one delivery/u);
+      {
+        const error = assertThrowsError(building);
+        assertStringMatches(error.message, /at least one delivery/u);
+      }
     });
 
     it("refuses a name a query would have to escape", () => {
@@ -540,7 +585,10 @@ describe("the Glue table over delivered logs", () => {
 
       // Then it refuses. Glue would take the name and Athena would lowercase
       // it, leaving the caller to work out what to type.
-      expect(building).toThrow(/Rainlytics Logs/u);
+      {
+        const error = assertThrowsError(building);
+        assertStringMatches(error.message, /Rainlytics Logs/u);
+      }
     });
 
     it("refuses a field it has no Parquet spelling for", () => {
@@ -558,7 +606,10 @@ describe("the Glue table over delivered logs", () => {
       // field name into a Parquet one is inferred from eleven observations,
       // and a guess that came out wrong would be a column of nulls under a
       // query reporting success.
-      expect(building).toThrow(/x-edge-request-id/u);
+      {
+        const error = assertThrowsError(building);
+        assertStringMatches(error.message, /x-edge-request-id/u);
+      }
     });
   });
 

@@ -1,3 +1,10 @@
+import {
+  assertArrayLength,
+  assertIdentical,
+  assertObjectEquals,
+  assertStringIncludes,
+  assertStringMatches,
+} from "@kensio/smartass";
 import { gzipSync } from "node:zlib";
 
 import { AthenaClient } from "@aws-sdk/client-athena";
@@ -7,7 +14,7 @@ import { SimSdk } from "@kensio/yulin/sdk";
 import { Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { type App, CfnOutput, Stack } from "aws-cdk-lib/core";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { deployStacks } from "#test/simulated-deployment.js";
 
@@ -46,7 +53,8 @@ describe("the beacon event envelope", () => {
     // Then the version rides with it. The raw store keeps whatever was
     // written into it, so a row has to say which shape it is rather than
     // leave a reader to infer one from the date.
-    expect(sent).toContain(
+    assertStringIncludes(
+      sent,
       `${beaconParameters.version}=${String(beaconSchemaVersion)}`,
     );
   });
@@ -61,7 +69,8 @@ describe("the beacon event envelope", () => {
     const sent = beaconQueryString({ event: "route", page });
 
     // Then the page travels in the payload.
-    expect(sent).toContain(
+    assertStringIncludes(
+      sent,
       `${beaconParameters.page}=${encodeURIComponent(page)}`,
     );
   });
@@ -77,8 +86,8 @@ describe("the beacon event envelope", () => {
 
     // Then they arrive as text rather than as three more parameters. Read
     // back, the page is the address the reader was on.
-    expect(sent).toContain("%3Fq%3Da%26b%3Dc");
-    expect(sent.split("&")).toHaveLength(3);
+    assertStringIncludes(sent, "%3Fq%3Da%26b%3Dc");
+    assertArrayLength(sent.split("&"), 3);
   });
 
   it("sends to a path a site is unlikely to serve already", () => {
@@ -86,7 +95,7 @@ describe("the beacon event envelope", () => {
     // Then it is one path, absolute, and marked as not a page. Pointing the
     // beacon at a published page would count every event as a view of it and
     // download that page a second time.
-    expect(defaultBeaconPath).toMatch(/^\/_/u);
+    assertStringMatches(defaultBeaconPath, /^\/_/u);
   });
 });
 
@@ -278,7 +287,7 @@ describe("a window holding beacon events", () => {
       region: "us-east-1",
     });
 
-    expect(outcome.state).toBe("SUCCEEDED");
+    assertIdentical(outcome.state, "SUCCEEDED");
 
     return outcome.rows;
   };
@@ -318,7 +327,7 @@ describe("a window holding beacon events", () => {
       region: "us-east-1",
     });
 
-    expect(outcome.state).toBe("SUCCEEDED");
+    assertIdentical(outcome.state, "SUCCEEDED");
 
     return outcome.rows;
   };
@@ -338,7 +347,7 @@ describe("a window holding beacon events", () => {
     // Then the number is the one the browser sent. It went through the
     // browser's encoding, CloudFront's own on the way into the record, and
     // both decodes on the way out.
-    expect(rows).toStrictEqual([{ event: "lcp", value: "2400", message: "" }]);
+    assertObjectEquals(rows, [{ event: "lcp", value: "2400", message: "" }]);
   });
 
   it("carries what an error said back off the row", async () => {
@@ -358,7 +367,7 @@ describe("a window holding beacon events", () => {
     // Then the message is the one the browser sent, rather than three more
     // parameters. This is the round trip a rollup counting errors by message
     // would be built on.
-    expect(rows).toStrictEqual([{ event: "error", value: "", message: said }]);
+    assertObjectEquals(rows, [{ event: "error", value: "", message: said }]);
   });
 
   it("leaves both columns empty for an event that measured nothing", async () => {
@@ -372,7 +381,7 @@ describe("a window holding beacon events", () => {
     // Then both read empty rather than failing the query. A question over
     // one event name reads rows that all carry the same shape, and a
     // question over the lot still runs.
-    expect(rows).toStrictEqual([{ event: "route", value: "", message: "" }]);
+    assertObjectEquals(rows, [{ event: "route", value: "", message: "" }]);
   });
 
   it("counts the site's own responses under status-codes", async () => {
@@ -387,8 +396,12 @@ describe("a window holding beacon events", () => {
     // Then the 404 the question exists to surface is there, and the 204 the
     // beacon answers every event with is not. Five 204s would lead this
     // table and say nothing about how the site is answering.
-    expect(rows.map((row) => row["status"])).toStrictEqual(["200", "404"]);
-    expect(rows.find((row) => row["status"] === "200")?.["responses"]).toBe(
+    assertObjectEquals(
+      rows.map((row) => row["status"]),
+      ["200", "404"],
+    );
+    assertIdentical(
+      rows.find((row) => row["status"] === "200")?.["responses"],
       "2",
     );
   });
@@ -404,7 +417,10 @@ describe("a window holding beacon events", () => {
     // Then the beacon's path is not among them. A beacon event answers 204
     // with no content type, and a pageview is a GET that answered HTML and
     // succeeded.
-    expect(rows.map((row) => row["path"])).toStrictEqual(["/", "/search/"]);
+    assertObjectEquals(
+      rows.map((row) => row["path"]),
+      ["/", "/search/"],
+    );
   });
 
   it("counts no beacon event as an arrival", async () => {
@@ -419,10 +435,11 @@ describe("a window holding beacon events", () => {
     // Then only the arrival is counted. The beacon's own referrer is this
     // site, which referrers leaves out anyway, and its rows are not
     // pageviews.
-    expect(rows.map((row) => row["referrer"])).toStrictEqual([
-      "news.example.org",
-    ]);
-    expect(rows[0]?.["views"]).toBe("1");
+    assertObjectEquals(
+      rows.map((row) => row["referrer"]),
+      ["news.example.org"],
+    );
+    assertIdentical(rows[0]?.["views"], "1");
   });
 
   it("counts no beacon event in the browser breakdown", async () => {
@@ -436,7 +453,7 @@ describe("a window holding beacon events", () => {
 
     // Then only the two HTML responses count. The beacon's 204 names no
     // content type, so its events cannot multiply this browser's views.
-    expect(rows).toStrictEqual([
+    assertObjectEquals(rows, [
       { browser: "Other", device: "Desktop", views: "2" },
     ]);
   });
@@ -451,7 +468,10 @@ describe("a window holding beacon events", () => {
 
     // Then only what somebody typed is counted. A beacon payload names its
     // parameters `v`, `e` and `p`, and carries no `q` to read.
-    expect(rows.map((row) => row["term"])).toStrictEqual(["green tea"]);
+    assertObjectEquals(
+      rows.map((row) => row["term"]),
+      ["green tea"],
+    );
   });
 
   it("leaves beacon events out of the cache hit ratio", async () => {
@@ -465,8 +485,8 @@ describe("a window holding beacon events", () => {
     // Then the denominator is the two requests whose result type says the
     // cache served or missed them. A CloudFront Function answered every
     // beacon event, and none of those reached the cache at all.
-    expect(rows[0]?.["hits"]).toBe("1");
-    expect(rows[0]?.["misses"]).toBe("1");
-    expect(Number(rows[0]?.["hit_percent"])).toBe(50);
+    assertIdentical(rows[0]?.["hits"], "1");
+    assertIdentical(rows[0]["misses"], "1");
+    assertIdentical(Number(rows[0]["hit_percent"]), 50);
   });
 });

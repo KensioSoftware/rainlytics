@@ -1,3 +1,12 @@
+import {
+  assertArrayLength,
+  assertIdentical,
+  assertObjectEquals,
+  assertStringIncludes,
+  assertStringMatches,
+  assertStringNotIncludes,
+  assertTrue,
+} from "@kensio/smartass";
 import { gzipSync } from "node:zlib";
 
 import { AthenaClient } from "@aws-sdk/client-athena";
@@ -6,7 +15,7 @@ import { SimSdk } from "@kensio/yulin/sdk";
 import { Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { type App, CfnOutput, Size, Stack } from "aws-cdk-lib/core";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { readingAthenaCaller } from "#test/reading-athena-caller.js";
 import { deployStacks, simStartedAt } from "#test/simulated-deployment.js";
@@ -198,8 +207,8 @@ describe("rainlytics query", () => {
 
     // Then the rows come back, grouped and counted by Athena rather than by
     // anything here.
-    expect(run.code).toBe(0);
-    expect(JSON.parse(run.out)).toStrictEqual([
+    assertIdentical(run.code, 0);
+    assertObjectEquals(JSON.parse(run.out), [
       { cs_uri_stem: "/", views: "2" },
       { cs_uri_stem: "/liju/", views: "1" },
     ]);
@@ -219,10 +228,10 @@ describe("rainlytics query", () => {
     const table = await cli(["query", asked, "-o", "table"]);
 
     // Then each format carries the same answer in its own shape.
-    expect(JSON.parse(json.out)).toStrictEqual([{ cs_uri_stem: "/liju/" }]);
-    expect(csv.out).toBe("cs_uri_stem\n/liju/\n");
-    expect(table.out).toContain("cs_uri_stem");
-    expect(table.out).toContain("/liju/");
+    assertObjectEquals(JSON.parse(json.out), [{ cs_uri_stem: "/liju/" }]);
+    assertIdentical(csv.out, "cs_uri_stem\n/liju/\n");
+    assertStringIncludes(table.out, "cs_uri_stem");
+    assertStringIncludes(table.out, "/liju/");
   });
 
   it("keeps the rows on stdout and everything else on stderr", async () => {
@@ -235,12 +244,12 @@ describe("rainlytics query", () => {
 
     // Then standard output is the data and nothing else, so `| jq` works as
     // typed. JSON is the default when standard output is not a terminal.
-    expect(() => JSON.parse(run.out) as unknown).not.toThrow();
+    (() => JSON.parse(run.out) as unknown)();
 
     // And what the query cost went to standard error, where a pipeline never
     // sees it.
-    expect(run.error).toMatch(/Scanned \d+ B/u);
-    expect(run.error).toContain("About $");
+    assertStringMatches(run.error, /Scanned \d+ B/u);
+    assertStringIncludes(run.error, "About $");
   });
 
   it("says what the query scanned and what it came to", async () => {
@@ -255,11 +264,14 @@ describe("rainlytics query", () => {
     // Athena bills a ten million byte minimum whatever a query reads, so a
     // small query costs the same as a ten megabyte one and the report says
     // so rather than quoting a figure that looks free.
-    expect(run.error).toContain("billed as 10.0 MB (the per-query minimum)");
-    expect(run.error).toContain("About $0.000050");
+    assertStringIncludes(
+      run.error,
+      "billed as 10.0 MB (the per-query minimum)",
+    );
+    assertStringIncludes(run.error, "About $0.000050");
 
     // And the execution id, which is what finds the query in the console.
-    expect(run.error).toMatch(/Query \S+ ran in workgroup rainlytics\./u);
+    assertStringMatches(run.error, /Query \S+ ran in workgroup rainlytics\./u);
   });
 
   it("scans less when the query names a partition", async () => {
@@ -279,9 +291,7 @@ describe("rainlytics query", () => {
     // Then the qualified query reads less. This is the difference the whole
     // partition layout exists to make, and it is what a person asking an
     // ad-hoc question needs to see.
-    expect(scannedBytes(oneHour.error)).toBeLessThan(
-      scannedBytes(everything.error),
-    );
+    assertTrue(scannedBytes(oneHour.error) < scannedBytes(everything.error));
   });
 
   it("stops a query that would scan past the workgroup's cutoff", async () => {
@@ -301,14 +311,14 @@ describe("rainlytics query", () => {
     const run = await cli(["query", "SELECT * FROM cloudfront_logs"]);
 
     // Then it fails, naming what it read and what the workgroup allows.
-    expect(run.code).toBe(1);
-    expect(run.error).toContain("Bytes scanned limit was exceeded");
-    expect(run.error).toContain("10000000");
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "Bytes scanned limit was exceeded");
+    assertStringIncludes(run.error, "10000000");
 
     // And it says what to do about it, since the limit is one somebody chose
     // and can move rather than a wall.
-    expect(run.error).toContain("Narrow the query");
-    expect(run.error).toContain("bytesScannedCutoff");
+    assertStringIncludes(run.error, "Narrow the query");
+    assertStringIncludes(run.error, "bytesScannedCutoff");
   });
 
   it("answers with no rows where the question has none", async () => {
@@ -330,8 +340,8 @@ describe("rainlytics query", () => {
 
     // Then the answer is an empty one rather than a failure, and the CSV
     // still carries its header. A row count of zero is a real answer.
-    expect(run.code).toBe(0);
-    expect(run.out).toBe("cs_uri_stem\n");
+    assertIdentical(run.code, 0);
+    assertIdentical(run.out, "cs_uri_stem\n");
   });
 
   it("follows every page of a result larger than one", async () => {
@@ -352,7 +362,7 @@ describe("rainlytics query", () => {
     // Then every page is followed. A result truncated to its first page
     // answers a different question from the one that was asked, and says
     // nothing about having done so.
-    expect(JSON.parse(run.out) as unknown[]).toHaveLength(1200);
+    assertArrayLength(JSON.parse(run.out) as unknown[], 1200);
   });
 
   it("reports a query Athena would not run", async () => {
@@ -366,14 +376,14 @@ describe("rainlytics query", () => {
     // Then Athena's own reason comes back, without anything added. The
     // cutoff is the one failure worth explaining, and dressing up the rest
     // would put this command between a person and what Athena told them.
-    expect(run.code).toBe(1);
-    expect(run.error).toContain("no_such_table");
-    expect(run.error).not.toContain("Narrow the query");
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "no_such_table");
+    assertStringNotIncludes(run.error, "Narrow the query");
 
     // And no charge is quoted for it. Athena does not bill a failed query,
     // so pricing one would be inventing a cost.
-    expect(run.error).toContain("does not charge for a query that failed");
-    expect(run.error).not.toContain("About $");
+    assertStringIncludes(run.error, "does not charge for a query that failed");
+    assertStringNotIncludes(run.error, "About $");
   });
 
   it("names the actions a query takes, where the caller has none", async () => {
@@ -391,8 +401,9 @@ describe("rainlytics query", () => {
     // Then the four actions running a query takes are named, against the
     // workgroup and the results bucket they apply to. Whoever meets this has
     // a policy to write and nothing else to go on.
-    expect(run.code).toBe(1);
-    expect(run.error).toContain(
+    assertIdentical(run.code, 1);
+    assertStringIncludes(
+      run.error,
       "Running a query takes athena:StartQueryExecution and" +
         " athena:StopQueryExecution on the rainlytics workgroup, and" +
         " s3:PutObject and s3:AbortMultipartUpload on the bucket that" +
@@ -402,14 +413,15 @@ describe("rainlytics query", () => {
     // And the summaries are offered, since reading one takes a GET and this
     // identity has every read there is. A refusal that stopped at the policy
     // would leave an answer on the table.
-    expect(run.error).toContain("summary on s3:GetObject alone");
-    expect(run.error).toContain(
+    assertStringIncludes(run.error, "summary on s3:GetObject alone");
+    assertStringIncludes(
+      run.error,
       `--summaries, or put it in ${summaryBucketVariable}`,
     );
 
     // And the region is left out of it. This query went where it meant to,
     // and asking somewhere else changes nothing.
-    expect(run.error).not.toContain("Name another with --region");
+    assertStringNotIncludes(run.error, "Name another with --region");
   });
 
   it("refuses SQL the shell took apart", async () => {
@@ -418,9 +430,9 @@ describe("rainlytics query", () => {
 
     // Then it says so rather than running the first word. Athena would take
     // "SELECT" as a whole statement and fail somewhere less obvious.
-    expect(run.code).toBe(2);
-    expect(run.error).toContain("query takes one argument and got 4");
-    expect(run.error).toContain('Run "rainlytics query --help"');
+    assertIdentical(run.code, 2);
+    assertStringIncludes(run.error, "query takes one argument and got 4");
+    assertStringIncludes(run.error, 'Run "rainlytics query --help"');
   });
 
   it("refuses to run with no SQL at all", async () => {
@@ -428,8 +440,8 @@ describe("rainlytics query", () => {
     const run = await cli(["query"]);
 
     // Then it asks for the statement.
-    expect(run.code).toBe(2);
-    expect(run.error).toContain("query takes the SQL to run");
+    assertIdentical(run.code, 2);
+    assertStringIncludes(run.error, "query takes the SQL to run");
   });
 
   it("asks Athena in the region it was told to", async () => {
@@ -444,13 +456,13 @@ describe("rainlytics query", () => {
     // Then it is asked there rather than where the data is, and finds no
     // workgroup. A region the client never received would have answered this
     // question from us-east-1 and succeeded.
-    expect(run.code).toBe(1);
-    expect(run.error).toContain("WorkGroup rainlytics is not found");
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "WorkGroup rainlytics is not found");
 
     // And the message says where it looked, which Athena's own never does.
     // "Not found" about something sitting in the region you meant is the
     // failure this names.
-    expect(run.error).toContain("Athena was asked in eu-west-1");
+    assertStringIncludes(run.error, "Athena was asked in eu-west-1");
   });
 
   it("answers from the region the log bucket is in", async () => {
@@ -469,15 +481,16 @@ describe("rainlytics query", () => {
     ]);
 
     // Then the rows come back.
-    expect(run.code).toBe(0);
-    expect(JSON.parse(run.out)).toStrictEqual([
+    assertIdentical(run.code, 0);
+    assertObjectEquals(JSON.parse(run.out), [
       { cs_uri_stem: "/", views: "2" },
       { cs_uri_stem: "/liju/", views: "1" },
     ]);
 
     // And the report says where it ran. A question answering zero rows can
     // then be checked against where the data is.
-    expect(run.error).toMatch(
+    assertStringMatches(
+      run.error,
       /Query \S+ ran in workgroup rainlytics in us-east-1\./u,
     );
   });
@@ -498,8 +511,8 @@ describe("rainlytics query", () => {
     // Then Athena refuses it there rather than quietly running it somewhere
     // with no cutoff. A query in the wrong workgroup is a query with no
     // ceiling on it.
-    expect(run.code).toBe(1);
-    expect(run.error).toContain("not-a-workgroup");
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "not-a-workgroup");
   });
 
   /**

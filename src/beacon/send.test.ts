@@ -1,7 +1,12 @@
+import {
+  assertIdentical,
+  assertObjectEquals,
+  assertStringNotIncludes,
+} from "@kensio/smartass";
 // @vitest-environment happy-dom
 
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import {
   collectionEndpoint,
@@ -27,8 +32,8 @@ describe("sending one event", () => {
     const [request] = await endpoint.received(1);
     const arrived = new URLSearchParams((request ?? "").split("?")[1]);
 
-    expect(arrived.get("p")).toBe(page);
-    expect(request).not.toContain(" ");
+    assertIdentical(arrived.get("p"), page);
+    assertStringNotIncludes(request, " ");
 
     await endpoint.close();
   });
@@ -54,6 +59,6 @@ describe("sending one event", () => {
     // reports the refused connection whether or not anybody caught it.
     await requestsSettled();
 
-    expect(endpoint.requests).toStrictEqual([]);
+    assertObjectEquals(endpoint.requests, []);
   });
 });

@@ -1,5 +1,11 @@
+import {
+  assertFalse,
+  assertStringIncludes,
+  assertStringNotIncludes,
+  assertTrue,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { refusalIn } from "../athena/athena-region.js";
 import { cannotRunQueries, isDenied } from "./access-refusals.js";
@@ -30,15 +36,15 @@ describe("a refusal AWS gives for want of a permission", () => {
     );
 
     // Then it is known for what it is, through the wrapper.
-    expect(isDenied(refusal)).toBe(true);
+    assertTrue(isDenied(refusal));
 
     // And the message keeps what Athena said and drops the region. The
     // region is the one thing about this failure that was already right.
     const explained = cannotRunQueries(refusal, "rainlytics").message;
 
-    expect(explained).toContain(said);
-    expect(explained).toContain("athena:StopQueryExecution");
-    expect(explained).not.toContain("eu-west-1");
+    assertStringIncludes(explained, said);
+    assertStringIncludes(explained, "athena:StopQueryExecution");
+    assertStringNotIncludes(explained, "eu-west-1");
   });
 
   it("is not claimed for a refusal about something else", () => {
@@ -52,7 +58,7 @@ describe("a refusal AWS gives for want of a permission", () => {
     // Then nothing here recognises it, so it keeps the region sentence and
     // reaches the reader as Athena wrote it. A policy to write is the wrong
     // thing to hand somebody whose table name is wrong.
-    expect(isDenied(refusal)).toBe(false);
-    expect(refusal.message).toContain("Athena was asked in eu-west-1");
+    assertFalse(isDenied(refusal));
+    assertStringIncludes(refusal.message, "Athena was asked in eu-west-1");
   });
 });

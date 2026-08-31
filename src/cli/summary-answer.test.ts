@@ -1,3 +1,9 @@
+import {
+  assertIdentical,
+  assertObjectEquals,
+  assertStringIncludes,
+  assertStringNotIncludes,
+} from "@kensio/smartass";
 import { gzipSync } from "node:zlib";
 
 import { AthenaClient } from "@aws-sdk/client-athena";
@@ -7,7 +13,7 @@ import { SimSdk } from "@kensio/yulin/sdk";
 import { Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { type App, CfnOutput, RemovalPolicy, Stack } from "aws-cdk-lib/core";
-import { describe, expect, it, vi } from "vitest";
+import { describe, it, vi } from "vitest";
 
 import { deployStacks } from "#test/simulated-deployment.js";
 
@@ -250,14 +256,14 @@ describe("the named questions, answered from stored summaries", () => {
 
     // Then the rows are the ones the schedule stored, and standard error
     // says a GET answered rather than a query.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [
       { path: "/", views: "2" },
       { path: "/grammar/", views: "1" },
     ]);
-    expect(run.error).toContain(deployed.summariesBucketName);
-    expect(run.error).toContain("1 GET");
-    expect(run.error).not.toContain("Scanned");
+    assertStringIncludes(run.error, deployed.summariesBucketName);
+    assertStringIncludes(run.error, "1 GET");
+    assertStringNotIncludes(run.error, "Scanned");
   });
 
   it("answers Web Vitals from the summary a deployment opted into", async () => {
@@ -296,15 +302,15 @@ describe("the named questions, answered from stored summaries", () => {
     // the negative and malformed LCP values contributed no samples. A
     // matching payload on another path is outside the default collection path
     // too.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [
       { vital: "cls", p75: "0.1", samples: "5" },
       { vital: "fcp", p75: "800", samples: "1" },
       { vital: "lcp", p75: "2500", samples: "5" },
       { vital: "ttfb", p75: "120", samples: "1" },
     ]);
-    expect(run.error).toContain("1 GET");
-    expect(run.error).not.toContain("Scanned");
+    assertStringIncludes(run.error, "1 GET");
+    assertStringNotIncludes(run.error, "Scanned");
   });
 
   it("answers JavaScript errors from the summary a deployment opted into", async () => {
@@ -374,8 +380,8 @@ describe("the named questions, answered from stored summaries", () => {
     // Then exceptions and rejections share a group when their page and exact
     // message match. The other page and interpolated values have rows of
     // their own. Route changes, Web Vitals and another path contribute none.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [
       { page: "/checkout/", message: repeated, errors: "3" },
       { page: "/account/", message: repeated, errors: "1" },
       {
@@ -389,8 +395,8 @@ describe("the named questions, answered from stored summaries", () => {
         errors: "1",
       },
     ]);
-    expect(run.error).toContain("1 GET");
-    expect(run.error).not.toContain("Scanned");
+    assertStringIncludes(run.error, "1 GET");
+    assertStringNotIncludes(run.error, "Scanned");
   });
 
   it("says how old the answer is and what reading it cost", async () => {
@@ -411,10 +417,10 @@ describe("the named questions, answered from stored summaries", () => {
     // Then standard error carries the span it covers and how far behind the
     // scheduled run it is. A person comparing this figure against something
     // else has to know both.
-    expect(run.error).toContain("2026-08-23T08:00:00.000Z");
-    expect(run.error).toContain("2026-08-23T09:00:00.000Z");
-    expect(run.error).toContain("computed 2026-08-23T09:15:00.000Z");
-    expect(run.error).toContain("1 minute ago");
+    assertStringIncludes(run.error, "2026-08-23T08:00:00.000Z");
+    assertStringIncludes(run.error, "2026-08-23T09:00:00.000Z");
+    assertStringIncludes(run.error, "computed 2026-08-23T09:15:00.000Z");
+    assertStringIncludes(run.error, "1 minute ago");
   });
 
   it("adds two windows up and says the ranking is approximate", async () => {
@@ -443,11 +449,11 @@ describe("the named questions, answered from stored summaries", () => {
     // Then the page looked at in both hours carries all three views and
     // leads the answer, and standard error says what an assembled ranking
     // leaves out.
-    expect(run.rows).toStrictEqual([
+    assertObjectEquals(run.rows, [
       { path: "/grammar/", views: "3" },
       { path: "/", views: "1" },
     ]);
-    expect(run.error).toContain("ranking is approximate");
+    assertStringIncludes(run.error, "ranking is approximate");
   });
 
   it("works the cache percentage out again over two windows", async () => {
@@ -476,7 +482,7 @@ describe("the named questions, answered from stored summaries", () => {
     // Then it is three hits in four decided requests. Averaging the two
     // stored percentages would have answered 87.5, which is a figure about
     // neither hour.
-    expect(run.rows).toStrictEqual([
+    assertObjectEquals(run.rows, [
       { hits: "3", misses: "1", hit_percent: "75.0" },
     ]);
   });
@@ -500,8 +506,8 @@ describe("the named questions, answered from stored summaries", () => {
     // Then the answer is the traffic that happened, over both windows. A
     // run that had skipped writing the quiet hour would have left a hole
     // here and stopped the command.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([{ path: "/", views: "1" }]);
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [{ path: "/", views: "1" }]);
   });
 
   it("answers the same rows whichever way it was asked", async () => {
@@ -525,8 +531,8 @@ describe("the named questions, answered from stored summaries", () => {
 
     // Then the rows are the same. A pipeline reading the JSON sees no
     // difference, and the difference between the two is on standard error.
-    expect(stored.rows).toStrictEqual(queried.rows);
-    expect(queried.error).toContain("Scanned");
+    assertObjectEquals(stored.rows, queried.rows);
+    assertStringIncludes(queried.error, "Scanned");
   });
 
   it("says where to look when nothing has named a bucket", async () => {
@@ -543,10 +549,10 @@ describe("the named questions, answered from stored summaries", () => {
     // Then it says what to do and exits as the command-line mistake it is.
     // Falling back to a query would have put the cost back without anybody
     // choosing it.
-    expect(run.code).toBe(2);
-    expect(run.error).toContain("--summaries");
-    expect(run.error).toContain("RAINLYTICS_SUMMARY_BUCKET");
-    expect(run.error).toContain("--query");
+    assertIdentical(run.code, 2);
+    assertStringIncludes(run.error, "--summaries");
+    assertStringIncludes(run.error, "RAINLYTICS_SUMMARY_BUCKET");
+    assertStringIncludes(run.error, "--query");
   });
 
   it("reads the bucket the environment names", async () => {
@@ -562,8 +568,8 @@ describe("the named questions, answered from stored summaries", () => {
 
     // Then it is answered. That is the same variable RollupSummaries sets on
     // its own job, so one name covers both halves.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([{ path: "/", views: "1" }]);
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [{ path: "/", views: "1" }]);
   });
 
   it("says so where no window in the span has been computed", async () => {
@@ -584,9 +590,9 @@ describe("the named questions, answered from stored summaries", () => {
     // Then it says nothing has computed those windows and offers the query.
     // "Nobody has computed this" is a different answer from "nothing
     // happened", and the command has to be able to say which.
-    expect(run.code).toBe(1);
-    expect(run.error).toContain("No summary covers");
-    expect(run.error).toContain("--query");
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "No summary covers");
+    assertStringIncludes(run.error, "--query");
   });
 
   it("refuses a span holding no whole stored window", async () => {
@@ -608,8 +614,8 @@ describe("the named questions, answered from stored summaries", () => {
 
     // Then it says the span holds no stored window, as a command-line
     // mistake rather than as a run that failed.
-    expect(run.code).toBe(2);
-    expect(run.error).toContain("no whole stored window");
+    assertIdentical(run.code, 2);
+    assertStringIncludes(run.error, "no whole stored window");
   });
 
   it("refuses filters the stored summaries were not computed with", async () => {
@@ -633,11 +639,11 @@ describe("the named questions, answered from stored summaries", () => {
     // Then it names the difference and offers the query. Answering out of
     // the unfiltered summary would have reported the whole site under a
     // command line naming one section of it.
-    expect(run.code).toBe(1);
-    expect(run.error).toContain("answer a different question");
-    expect(run.error).toContain("--path");
-    expect(run.error).toContain("the whole distribution");
-    expect(run.error).toContain("--query");
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "answer a different question");
+    assertStringIncludes(run.error, "--path");
+    assertStringIncludes(run.error, "the whole distribution");
+    assertStringIncludes(run.error, "--query");
   });
 
   it("answers a narrowed question the deployment precomputed", async () => {
@@ -665,8 +671,8 @@ describe("the named questions, answered from stored summaries", () => {
 
     // Then it is answered from the bucket. The filters a schedule was given
     // are what a run has to match, and this one does.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([{ path: "/grammar/", views: "1" }]);
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [{ path: "/grammar/", views: "1" }]);
   });
 
   it("takes the top rows of a summary computed with room to spare", async () => {
@@ -695,8 +701,8 @@ describe("the named questions, answered from stored summaries", () => {
     // Then the stored answer covers it. The top one of a stored hundred is
     // the top one, and refusing it would send a default row count to Athena
     // for an answer already sitting in the bucket.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([{ path: "/", views: "2" }]);
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [{ path: "/", views: "2" }]);
   });
 
   it("ignores a row count on a question with one row", async () => {
@@ -725,10 +731,10 @@ describe("the named questions, answered from stored summaries", () => {
     // how many decimal places that carries is Athena's business.
     const [ratio] = run.rows as Readonly<Record<string, string>>[];
 
-    expect(run.code).toBe(0);
-    expect(ratio?.["hits"]).toBe("1");
-    expect(ratio?.["misses"]).toBe("0");
-    expect(Number(ratio?.["hit_percent"])).toBe(100);
+    assertIdentical(run.code, 0);
+    assertIdentical(ratio?.["hits"], "1");
+    assertIdentical(ratio["misses"], "0");
+    assertIdentical(Number(ratio["hit_percent"]), 100);
   });
 
   it("takes the row count the summaries were computed with", async () => {
@@ -756,9 +762,9 @@ describe("the named questions, answered from stored summaries", () => {
     // Then the stored row count answers, and standard error says where it
     // came from. Refusing this would have made every shell alias carry the
     // number its deployment already declared.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([{ path: "/", views: "2" }]);
-    expect(run.error).toContain("Took --limit 1 from the summaries");
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [{ path: "/", views: "2" }]);
+    assertStringIncludes(run.error, "Took --limit 1 from the summaries");
   });
 
   it("keeps its own row count where the summaries go deeper", async () => {
@@ -786,12 +792,12 @@ describe("the named questions, answered from stored summaries", () => {
     // reported as taken. A row count decides how much of the answer is
     // printed, and a deployment computing deeper does not make a bare
     // command print a hundred rows.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [
       { path: "/", views: "1" },
       { path: "/grammar/", views: "1" },
     ]);
-    expect(run.error).not.toContain("--limit");
+    assertStringNotIncludes(run.error, "--limit");
   });
 
   it("refuses a row count somebody typed that the summary cannot reach", async () => {
@@ -816,8 +822,8 @@ describe("the named questions, answered from stored summaries", () => {
     // Then it says so. Nineteen rows nobody counted cannot be recovered from
     // a stored answer holding one, and a row count somebody typed is theirs
     // rather than a gap to fill.
-    expect(run.code).toBe(1);
-    expect(run.error).toContain("--limit");
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "--limit");
   });
 
   it("takes the sections a deployment narrowed to", async () => {
@@ -844,9 +850,9 @@ describe("the named questions, answered from stored summaries", () => {
     // Then the narrowed answer comes back and standard error names the
     // filter it took. The deployment declared that list once, and nobody has
     // to type it again to read what it computed.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([{ path: "/grammar/", views: "1" }]);
-    expect(run.error).toContain("Took --path /grammar/ from the summaries");
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [{ path: "/grammar/", views: "1" }]);
+    assertStringIncludes(run.error, "Took --path /grammar/ from the summaries");
   });
 
   it("takes a bot filter as the flag that would have set it", async () => {
@@ -871,9 +877,9 @@ describe("the named questions, answered from stored summaries", () => {
 
     // Then the crawler is in the count and the flag is named on its own. A
     // flag takes no value, and the line is what a reader would have typed.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([{ path: "/", views: "2" }]);
-    expect(run.error).toContain("Took --include-bots from the summaries");
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [{ path: "/", views: "2" }]);
+    assertStringIncludes(run.error, "Took --include-bots from the summaries");
   });
 
   it("says nothing about filters where the command line matched", async () => {
@@ -894,7 +900,7 @@ describe("the named questions, answered from stored summaries", () => {
 
     // Then standard error carries no line about what was taken. A run that
     // asked what the bucket holds took nothing from it.
-    expect(run.code).toBe(0);
-    expect(run.error).not.toContain("from the summaries");
+    assertIdentical(run.code, 0);
+    assertStringNotIncludes(run.error, "from the summaries");
   });
 });

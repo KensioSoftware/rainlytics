@@ -1,3 +1,9 @@
+import {
+  assertIdentical,
+  assertObjectEquals,
+  assertStringIncludes,
+  assertStringMatches,
+} from "@kensio/smartass";
 import { gzipSync } from "node:zlib";
 
 import { AthenaClient } from "@aws-sdk/client-athena";
@@ -6,7 +12,7 @@ import { SimSdk } from "@kensio/yulin/sdk";
 import { Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { type App, CfnOutput, Stack } from "aws-cdk-lib/core";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { readingAthenaCaller } from "#test/reading-athena-caller.js";
 import { deployStacks, simStartedAt } from "#test/simulated-deployment.js";
@@ -205,8 +211,8 @@ describe("rainlytics saved-query", () => {
 
     // Then the answer comes back with the options and the output every other
     // command has. Nothing here loaded the site's code or built anything.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [
       { country: "GB", views: "2" },
       { country: "FR", views: "1" },
     ]);
@@ -224,8 +230,8 @@ describe("rainlytics saved-query", () => {
 
     // Then it runs. Somebody reading a name out of the console and somebody
     // typing the rollup name they gave it arrive at the same query.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([{ country: "GB", views: "1" }]);
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [{ country: "GB", views: "1" }]);
   });
 
   it("runs the question as it was saved, filters and all", async () => {
@@ -248,7 +254,7 @@ describe("rainlytics saved-query", () => {
     // Then it counts the site it was saved for. The narrowing lives in the
     // SQL Athena holds, and this command sends that SQL rather than building
     // its own from what was typed.
-    expect(run.rows).toStrictEqual([{ path: "/", views: "2" }]);
+    assertObjectEquals(run.rows, [{ path: "/", views: "2" }]);
   });
 
   it("finds a query past the first page Athena lists", async () => {
@@ -270,8 +276,8 @@ describe("rainlytics saved-query", () => {
     // Then every page of ids was followed. A lookup stopping at the first
     // page would report a saved query as missing, and list sixty others to
     // prove it.
-    expect(run.code).toBe(0);
-    expect(run.rows).toStrictEqual([{ country: "GB", views: "1" }]);
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [{ country: "GB", views: "1" }]);
   });
 
   it("says what is saved where the name reaches nothing", async () => {
@@ -288,10 +294,10 @@ describe("rainlytics saved-query", () => {
     // Then the message names what it could have run. A saved query is
     // deployed from somewhere else and listed in a console the reader may
     // not have open, so "no such query" on its own leaves them guessing.
-    expect(run.code).toBe(2);
-    expect(run.error).toContain('is called "countrie"');
-    expect(run.error).toContain('"rainlytics-countries"');
-    expect(run.error).toContain('"rainlytics-pageviews"');
+    assertIdentical(run.code, 2);
+    assertStringIncludes(run.error, 'is called "countrie"');
+    assertStringIncludes(run.error, '"rainlytics-countries"');
+    assertStringIncludes(run.error, '"rainlytics-pageviews"');
   });
 
   it("says so where the workgroup holds nothing at all", async () => {
@@ -303,9 +309,9 @@ describe("rainlytics saved-query", () => {
 
     // Then the answer points at what saves them, since an empty list says
     // nothing about how to fill it.
-    expect(run.code).toBe(2);
-    expect(run.error).toContain("Nothing is saved in workgroup rainlytics");
-    expect(run.error).toContain("RollupQueries");
+    assertIdentical(run.code, 2);
+    assertStringIncludes(run.error, "Nothing is saved in workgroup rainlytics");
+    assertStringIncludes(run.error, "RollupQueries");
   });
 
   it("says what the query scanned and what it came to", async () => {
@@ -320,8 +326,8 @@ describe("rainlytics saved-query", () => {
 
     // Then the price of the question is in front of whoever just asked it,
     // on standard error, the way every other command reports it.
-    expect(run.error).toMatch(/Query \S+ ran in workgroup rainlytics/u);
-    expect(run.error).toContain("About $0.000050");
+    assertStringMatches(run.error, /Query \S+ ran in workgroup rainlytics/u);
+    assertStringIncludes(run.error, "About $0.000050");
   });
 
   it("carries no range or row count for a reader to type", async () => {
@@ -334,9 +340,9 @@ describe("rainlytics saved-query", () => {
     // Then the option is refused rather than accepted and ignored. The saved
     // SQL carries a range of its own, and a command that took `--last` here
     // would answer a different question from the one it was given.
-    expect(run.code).toBe(2);
-    expect(run.error).toContain("--last");
-    expect(run.error).toContain('Run "rainlytics saved-query --help"');
+    assertIdentical(run.code, 2);
+    assertStringIncludes(run.error, "--last");
+    assertStringIncludes(run.error, 'Run "rainlytics saved-query --help"');
   });
 
   it("looks in the workgroup it is told to", async () => {
@@ -354,8 +360,8 @@ describe("rainlytics saved-query", () => {
     // Then Athena refuses it there. A saved query is found and run in one
     // workgroup, and running one somewhere else is running it with no
     // ceiling on what it can scan.
-    expect(run.code).toBe(1);
-    expect(run.error).toContain("not-a-workgroup");
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "not-a-workgroup");
   });
 
   it("asks Athena in the region it was told to", async () => {
@@ -371,8 +377,8 @@ describe("rainlytics saved-query", () => {
     ]);
 
     // Then the message says where it looked, which Athena's own never does.
-    expect(run.code).toBe(1);
-    expect(run.error).toContain("Athena was asked in eu-west-1");
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "Athena was asked in eu-west-1");
   });
 
   it("names the actions a saved query takes, where the caller has none", async () => {
@@ -391,16 +397,17 @@ describe("rainlytics saved-query", () => {
 
     // Then the four actions are named. Listing the saved queries is a read,
     // so this identity finds the query and is stopped at running it.
-    expect(run.code).toBe(1);
-    expect(run.error).toContain(
+    assertIdentical(run.code, 1);
+    assertStringIncludes(
+      run.error,
       "Running a query takes athena:StartQueryExecution and" +
         " athena:StopQueryExecution",
     );
-    expect(run.error).toContain("s3:PutObject and s3:AbortMultipartUpload");
+    assertStringIncludes(run.error, "s3:PutObject and s3:AbortMultipartUpload");
 
     // And the summaries are offered here too, since a site's own question and
     // the six shipped ones run the same way.
-    expect(run.error).toContain("--summaries");
+    assertStringIncludes(run.error, "--summaries");
   });
 
   it("refuses to run with no name at all", async () => {
@@ -408,8 +415,8 @@ describe("rainlytics saved-query", () => {
     const run = await cli(["saved-query"]);
 
     // Then it asks for the name, and nothing reaches Athena.
-    expect(run.code).toBe(2);
-    expect(run.error).toContain("takes the name of a saved query");
+    assertIdentical(run.code, 2);
+    assertStringIncludes(run.error, "takes the name of a saved query");
   });
 
   it("refuses a name the shell took apart", async () => {
@@ -418,7 +425,7 @@ describe("rainlytics saved-query", () => {
 
     // Then it says so. Athena allows a space in a name, and running the
     // first word would look for a query nobody saved.
-    expect(run.code).toBe(2);
-    expect(run.error).toContain("takes one name and got 2");
+    assertIdentical(run.code, 2);
+    assertStringIncludes(run.error, "takes one name and got 2");
   });
 });

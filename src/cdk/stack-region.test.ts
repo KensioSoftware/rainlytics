@@ -1,7 +1,15 @@
+import {
+  assertArrayIncludes,
+  assertArrayIncludesAll,
+  assertArrayNotIncludes,
+  assertStringMatches,
+  assertThrowsError,
+  assertThrowsErrorAsync,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
 import { Bucket } from "aws-cdk-lib/aws-s3";
 import { App, Stack } from "aws-cdk-lib/core";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { deployStacks } from "#test/simulated-deployment.js";
 
@@ -24,7 +32,7 @@ describe("requiring a stack region", () => {
     };
 
     // Then it synthesises.
-    expect(requiring).not.toThrow();
+    requiring();
   });
 
   it("refuses a stack pinned to a different region, naming both", () => {
@@ -40,9 +48,18 @@ describe("requiring a stack region", () => {
 
     // Then it says which stack, and which region it actually has, because a
     // message carrying neither leaves the reader to find the stack itself.
-    expect(requiring).toThrow(/SiteStack/u);
-    expect(requiring).toThrow(/eu-west-2/u);
-    expect(requiring).toThrow(/us-east-1/u);
+    {
+      const error = assertThrowsError(requiring);
+      assertStringMatches(error.message, /SiteStack/u);
+    }
+    {
+      const error = assertThrowsError(requiring);
+      assertStringMatches(error.message, /eu-west-2/u);
+    }
+    {
+      const error = assertThrowsError(requiring);
+      assertStringMatches(error.message, /us-east-1/u);
+    }
   });
 
   it("refuses an environment-agnostic stack", () => {
@@ -57,7 +74,10 @@ describe("requiring a stack region", () => {
     // Then it is refused. A stack that has not been told where it goes cannot
     // promise to be anywhere, so this is a different failure from being
     // pinned to the wrong place, and the message says so.
-    expect(requiring).toThrow(/environment-agnostic/u);
+    {
+      const error = assertThrowsError(requiring);
+      assertStringMatches(error.message, /environment-agnostic/u);
+    }
   });
 
   it("finds the stack from a construct inside it", () => {
@@ -76,7 +96,10 @@ describe("requiring a stack region", () => {
     };
 
     // Then the nested stack is the one reported.
-    expect(requiring).toThrow(/NestedScope/u);
+    {
+      const error = assertThrowsError(requiring);
+      assertStringMatches(error.message, /NestedScope/u);
+    }
   });
 });
 
@@ -106,9 +129,7 @@ describe("deploying the two regions Rainlytics needs", () => {
     });
 
     // Then both went up.
-    expect([...stacks.keys()]).toStrictEqual(
-      expect.arrayContaining(["SiteStack", "DeliveryStack"]),
-    );
+    assertArrayIncludesAll([...stacks.keys()], ["SiteStack", "DeliveryStack"]);
 
     // And the bucket is in the site's region rather than the delivery one,
     // which is the split the delivery construct will have to work across.
@@ -116,7 +137,8 @@ describe("deploying the two regions Rainlytics needs", () => {
       .region("eu-west-2")
       .s3()
       .listBuckets({ input: {} });
-    expect(inSiteRegion.Buckets?.map((bucket) => bucket.Name)).toContain(
+    assertArrayIncludes(
+      inSiteRegion.Buckets?.map((bucket) => bucket.Name),
       logBucketName,
     );
 
@@ -127,8 +149,8 @@ describe("deploying the two regions Rainlytics needs", () => {
     const deliveryRegionBuckets = inDeliveryRegion.Buckets?.map(
       (bucket) => bucket.Name,
     );
-    expect(deliveryRegionBuckets).not.toContain(logBucketName);
-    expect(deliveryRegionBuckets).toContain(resultsBucketName);
+    assertArrayNotIncludes(deliveryRegionBuckets, logBucketName);
+    assertArrayIncludes(deliveryRegionBuckets, resultsBucketName);
   });
 
   it("refuses a delivery stack put in the site's region", async () => {
@@ -145,6 +167,9 @@ describe("deploying the two regions Rainlytics needs", () => {
     // Then it fails on the way through synthesis, before anything deploys.
     // The unit cases above build a Stack by hand, and this one proves the
     // check still fires where a construct will actually sit.
-    await expect(deploying).rejects.toThrow(/us-east-1/u);
+    {
+      const error = await assertThrowsErrorAsync(() => deploying);
+      assertStringMatches(error.message, /us-east-1/u);
+    }
   });
 });

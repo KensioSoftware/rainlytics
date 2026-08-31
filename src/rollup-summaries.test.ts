@@ -1,5 +1,13 @@
+import {
+  assertFalse,
+  assertIdentical,
+  assertInstanceOf,
+  assertObjectEquals,
+  assertStringMatches,
+  assertThrowsError,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { rollups } from "./rollup-questions.js";
 import { defaultRedirectStatuses } from "./rollups.js";
@@ -60,7 +68,10 @@ describe("where a rollup summary lives", () => {
       // Then both address the one summary. A job runs on a lag and hands over
       // whatever time it is when it runs, and working out where the window
       // began is this module's job and not the caller's.
-      expect(summaryKey(question, later)).toBe(summaryKey(question, opened));
+      assertIdentical(
+        summaryKey(question, later),
+        summaryKey(question, opened),
+      );
     },
   );
 
@@ -75,8 +86,11 @@ describe("where a rollup summary lives", () => {
 
       // Then they are two summaries. An instant is in one window and never
       // in two, and neither falls between them.
-      expect(summaryKey(question, { granularity, at: next })).not.toBe(
-        summaryKey(question, { granularity, at: last }),
+      assertFalse(
+        Object.is(
+          summaryKey(question, { granularity, at: next }),
+          summaryKey(question, { granularity, at: last }),
+        ),
       );
     },
   );
@@ -91,10 +105,12 @@ describe("where a rollup summary lives", () => {
     // Then both land in the day they are in. A machine an hour east of UTC
     // reads the first as the 28th and one an hour west reads the second as
     // the 26th, and a summary stored under either is a day nobody asked for.
-    expect(
+    assertIdentical(
       summaryKey(question, { granularity: "daily", at: nearlyMidnight }),
-    ).toBe("summaries/v1/pageviews/daily/2026-08-27.json");
-    expect(summaryKey(question, { granularity: "daily", at: justAfter })).toBe(
+      "summaries/v1/pageviews/daily/2026-08-27.json",
+    );
+    assertIdentical(
+      summaryKey(question, { granularity: "daily", at: justAfter }),
       "summaries/v1/pageviews/daily/2026-08-27.json",
     );
   });
@@ -107,10 +123,12 @@ describe("where a rollup summary lives", () => {
     // Then the key is the one below. Two literals that happen to agree today
     // is how a job comes to write under a prefix nothing fetches, and a 404
     // is all either half would ever see of it.
-    expect(summaryKey(question, { granularity: "hourly", at })).toBe(
+    assertIdentical(
+      summaryKey(question, { granularity: "hourly", at }),
       "summaries/v1/status-codes/hourly/2026-08-27T14Z.json",
     );
-    expect(summaryKey(question, { granularity: "daily", at })).toBe(
+    assertIdentical(
+      summaryKey(question, { granularity: "daily", at }),
       "summaries/v1/status-codes/daily/2026-08-27.json",
     );
   });
@@ -134,7 +152,7 @@ describe("where a rollup summary lives", () => {
       const outOfOrder = keys.filter(
         (key, index) => index > 0 && key <= (keys[index - 1] ?? ""),
       );
-      expect(outOfOrder).toStrictEqual([]);
+      assertObjectEquals(outOfOrder, []);
     },
   );
 
@@ -150,9 +168,9 @@ describe("where a rollup summary lives", () => {
 
     // Then each has a key of its own. One overwriting the other would leave
     // whichever ran last answering under both names.
-    expect(summaryKey(aQuestion({ name: second }), window)).not.toBe(
-      summaryKey(aQuestion({ name: first }), window),
-    );
+    const secondKey = summaryKey(aQuestion({ name: second }), window);
+    const firstKey = summaryKey(aQuestion({ name: first }), window);
+    assertFalse(Object.is(secondKey, firstKey));
   });
 
   it("carries the schema version a reader has to agree with", () => {
@@ -165,7 +183,7 @@ describe("where a rollup summary lives", () => {
     // Then the version is a segment of it. A command released against a
     // later shape asks under its own prefix and gets a 404, where reading
     // this one would hand it fields that have moved.
-    expect(key.split("/").at(1)).toBe(`v${String(summarySchemaVersion)}`);
+    assertIdentical(key.split("/").at(1), `v${String(summarySchemaVersion)}`);
   });
 
   it("refuses a name no rollup can carry", () => {
@@ -178,7 +196,10 @@ describe("where a rollup summary lives", () => {
 
     // Then it is refused here. A space in a key is legal on S3 and awkward
     // everywhere a person meets it afterwards.
-    expect(naming).toThrow(/Page Views/u);
+    {
+      const error = assertThrowsError(naming);
+      assertStringMatches(error.message, /Page Views/u);
+    }
   });
 
   it("refuses a window addressed by an invalid Date", () => {
@@ -191,7 +212,7 @@ describe("where a rollup summary lives", () => {
 
     // Then it says so, rather than writing a summary under a key holding
     // "NaN" that every later fetch misses.
-    expect(addressing).toThrow(RangeError);
+    assertInstanceOf(assertThrowsError(addressing), RangeError);
   });
 });
 
@@ -226,7 +247,7 @@ describe("what a rollup summary holds", () => {
     // Then nothing about it changed. Every field is something JSON holds,
     // which is why the instants are text. A `Date` here would be a string on
     // the way back and a type saying otherwise the whole way.
-    expect(read).toStrictEqual(written);
+    assertObjectEquals(read, written);
   });
 
   it("answers for a window nobody has computed", () => {
@@ -238,8 +259,8 @@ describe("what a rollup summary holds", () => {
     // Then the two are different answers, and the first prints as the
     // sentence it is. A quiet Sunday and a job that died on Sunday night
     // would otherwise be the same 404.
-    expect(found).not.toStrictEqual(quiet);
-    expect(found).toBe("never computed");
+    assertFalse(Object.is(found, quiet));
+    assertIdentical(found, "never computed");
   });
 
   it("says in the document that a visitor count does not add", () => {
@@ -254,7 +275,7 @@ describe("what a rollup summary holds", () => {
     // salt every day, so a month of these added up counts everybody who came
     // back once for every day they came.
     for (const summary of read) {
-      expect(summary.visitors?.additive).toBe(false);
+      assertFalse(summary.visitors?.additive);
     }
   });
 });

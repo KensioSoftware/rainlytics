@@ -1,5 +1,13 @@
+import {
+  assertIdentical,
+  assertInstanceOf,
+  assertObjectEquals,
+  assertStringIncludes,
+  assertStringMatches,
+  assertThrowsError,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { UsageError } from "./failure.js";
 import { parseCommandLine } from "./command-line.js";
@@ -31,7 +39,7 @@ describe("reading a command line", () => {
     const { values } = parseCommandLine([`--${option.name}`, value], [option]);
 
     // Then the value arrives under the long name.
-    expect(values[option.name]).toBe(value);
+    assertIdentical(values[option.name], value);
   });
 
   it("reads the same option under its one-letter alias", () => {
@@ -47,7 +55,7 @@ describe("reading a command line", () => {
 
     // Then it arrives under the long name, so nothing downstream has to know
     // which spelling was typed.
-    expect(values[option.name]).toBe(value);
+    assertIdentical(values[option.name], value);
   });
 
   it("collects an option that was told to gather its repeats", () => {
@@ -64,7 +72,7 @@ describe("reading a command line", () => {
 
     // Then both arrive, in the order they were typed. An ordinary option
     // keeps the last value, and the case below covers that.
-    expect(values[option.name]).toStrictEqual([first, second]);
+    assertObjectEquals(values[option.name], [first, second]);
   });
 
   it("gathers one value into a list too", () => {
@@ -78,7 +86,7 @@ describe("reading a command line", () => {
     // Then it is still a list. Every reader downstream sees the same shape
     // whether the option was given once or twice. A shape that changed with
     // the count would put a branch in each of them.
-    expect(values[option.name]).toStrictEqual([only]);
+    assertObjectEquals(values[option.name], [only]);
   });
 
   it("keeps the last value of an option that does not collect", () => {
@@ -94,7 +102,7 @@ describe("reading a command line", () => {
 
     // Then the last one wins. Somebody correcting a line they are still
     // typing expects that.
-    expect(values[option.name]).toBe(corrected);
+    assertIdentical(values[option.name], corrected);
   });
 
   it("holds every value of a collecting option to its choices", () => {
@@ -114,8 +122,11 @@ describe("reading a command line", () => {
 
     // Then it is refused and named. Checking only the first would let a
     // typo through on every occurrence after it.
-    expect(reading).toThrow(UsageError);
-    expect(reading).toThrow("yaml");
+    assertInstanceOf(assertThrowsError(reading), UsageError);
+    {
+      const error = assertThrowsError(reading);
+      assertStringIncludes(error.message, "yaml");
+    }
   });
 
   it("keeps everything that was not an option", () => {
@@ -131,7 +142,7 @@ describe("reading a command line", () => {
     );
 
     // Then both arguments come back in the order they were typed.
-    expect(positionals).toStrictEqual([first, second]);
+    assertObjectEquals(positionals, [first, second]);
   });
 
   it("refuses an option it has never heard of", () => {
@@ -144,8 +155,11 @@ describe("reading a command line", () => {
 
     // Then it is a usage error naming what was typed, which is what somebody
     // who has just made a typo is looking for.
-    expect(reading).toThrow(UsageError);
-    expect(reading).toThrow(unknown);
+    assertInstanceOf(assertThrowsError(reading), UsageError);
+    {
+      const error = assertThrowsError(reading);
+      assertStringIncludes(error.message, unknown);
+    }
   });
 
   it("says nothing about how to pass a leading dash", () => {
@@ -155,7 +169,10 @@ describe("reading a command line", () => {
 
     // Then that paragraph is gone. It is advice for a different mistake, and
     // it arrives while somebody is looking for the name they got wrong.
-    expect(reading).toThrow(/^Unknown option '--wat'\.$/u);
+    {
+      const error = assertThrowsError(reading);
+      assertStringMatches(error.message, /^Unknown option '--wat'\.$/u);
+    }
   });
 
   it("refuses an option left without its value", () => {
@@ -164,7 +181,8 @@ describe("reading a command line", () => {
 
     // When there is nothing after it.
     // Then it is a usage error rather than an option silently set to true.
-    expect(() => parseCommandLine([`--${option.name}`], [option])).toThrow(
+    assertInstanceOf(
+      assertThrowsError(() => parseCommandLine([`--${option.name}`], [option])),
       UsageError,
     );
   });
@@ -182,9 +200,15 @@ describe("reading a command line", () => {
 
     // Then the refusal lists what it would have taken, so the next attempt is
     // the right one.
-    expect(reading).toThrow(UsageError);
-    expect(reading).toThrow("json, csv or table");
-    expect(reading).toThrow("yaml");
+    assertInstanceOf(assertThrowsError(reading), UsageError);
+    {
+      const error = assertThrowsError(reading);
+      assertStringIncludes(error.message, "json, csv or table");
+    }
+    {
+      const error = assertThrowsError(reading);
+      assertStringIncludes(error.message, "yaml");
+    }
   });
 
   it("accepts a value the option does offer", () => {
@@ -195,7 +219,7 @@ describe("reading a command line", () => {
     const { values } = parseCommandLine([`--${option.name}`, "csv"], [option]);
 
     // Then it comes through.
-    expect(values[option.name]).toBe("csv");
+    assertIdentical(values[option.name], "csv");
   });
 
   it("remembers which command a mistake was made in", () => {
@@ -212,7 +236,7 @@ describe("reading a command line", () => {
 
     // Then the error carries the command, so the runner can point at the help
     // that would have explained it rather than at the root help.
-    expect(caught).toBeInstanceOf(UsageError);
-    expect((caught as UsageError).helpFor).toBe(command);
+    assertInstanceOf(caught, UsageError);
+    assertIdentical(caught.helpFor, command);
   });
 });

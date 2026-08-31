@@ -1,5 +1,6 @@
+import { assertStringIncludes, assertTrue } from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import type { Command } from "./command.js";
 import { commandHelp, rootHelp } from "./help.js";
@@ -28,8 +29,8 @@ describe("the help text", () => {
       // Then each is listed with its summary. This list is the only place
       // somebody learns a command exists.
       for (const command of commands) {
-        expect(help).toContain(command.name);
-        expect(help).toContain(unwrapped(command.summary));
+        assertStringIncludes(help, command.name);
+        assertStringIncludes(help, unwrapped(command.summary));
       }
     });
 
@@ -39,8 +40,8 @@ describe("the help text", () => {
 
       // Then the section is still there and explains itself, rather than
       // leaving a heading with nothing under it.
-      expect(help).toContain("Commands:");
-      expect(unwrapped(help)).toContain("None yet.");
+      assertStringIncludes(help, "Commands:");
+      assertStringIncludes(unwrapped(help), "None yet.");
     });
 
     it("explains how it authenticates", () => {
@@ -51,8 +52,8 @@ describe("the help text", () => {
       // Then it says where credentials come from. Somebody who has just run
       // this for the first time is asking what to log in with, and the answer
       // is that there is nothing to log in to.
-      expect(help).toContain("AWS_PROFILE");
-      expect(help).toContain("default credential chain");
+      assertStringIncludes(help, "AWS_PROFILE");
+      assertStringIncludes(help, "default credential chain");
     });
 
     it("explains what it writes and where", () => {
@@ -61,9 +62,9 @@ describe("the help text", () => {
 
       // Then the output formats, the default, and the two streams are all in
       // it, because all three change what a pipeline sees.
-      expect(help).toContain("--output");
-      expect(help).toContain("standard error");
-      expect(help).toContain("exits non-zero");
+      assertStringIncludes(help, "--output");
+      assertStringIncludes(help, "standard error");
+      assertStringIncludes(help, "exits non-zero");
     });
 
     it("stays inside a narrow terminal", () => {
@@ -73,7 +74,7 @@ describe("the help text", () => {
       // Then no line runs past 80 columns, which is what a terminal that has
       // not been widened gives.
       for (const line of help.split("\n")) {
-        expect(line.length).toBeLessThanOrEqual(80);
+        assertTrue(line.length <= 80);
       }
     });
   });
@@ -88,8 +89,8 @@ describe("the help text", () => {
 
       // Then both are in it. The description is the documentation for the
       // command and there is nowhere else it is written down.
-      expect(help).toContain(unwrapped(command.summary));
-      expect(help).toContain(unwrapped(command.description));
+      assertStringIncludes(help, unwrapped(command.summary));
+      assertStringIncludes(help, unwrapped(command.description));
     });
 
     it("keeps an example in a description exactly as it was written", () => {
@@ -112,7 +113,8 @@ describe("the help text", () => {
       // Then the example's own line breaks survive. Wrapping it would join
       // the lines into one, and an example somebody copies has to be the
       // statement that runs.
-      expect(help).toContain(
+      assertStringIncludes(
+        help,
         '  rainlytics query "SELECT 1\n    FROM cloudfront_logs"',
       );
     });
@@ -130,7 +132,10 @@ describe("the help text", () => {
       // Then they arrive as two paragraphs. Wrapping the description as one
       // block ran them together, which is what turned a list of points into
       // a wall.
-      expect(help).toContain("The first thing to know.\n\nThe second thing.");
+      assertStringIncludes(
+        help,
+        "The first thing to know.\n\nThe second thing.",
+      );
     });
 
     it("shows how the command is typed", () => {
@@ -139,7 +144,7 @@ describe("the help text", () => {
       const command = aCommand({ usage });
 
       // Then the usage line is the command's own.
-      expect(commandHelp(command)).toContain(usage);
+      assertStringIncludes(commandHelp(command), usage);
     });
 
     it("makes up a usage line for a command that takes no arguments", () => {
@@ -148,7 +153,8 @@ describe("the help text", () => {
 
       // Then one is derived from its name, so every command's help opens the
       // same way.
-      expect(commandHelp(command)).toContain(
+      assertStringIncludes(
+        commandHelp(command),
         `rainlytics ${command.name} [options]`,
       );
     });
@@ -168,9 +174,9 @@ describe("the help text", () => {
       // Then its option and the ones every command takes are all there.
       // Somebody reading one command's help should not need the root help
       // beside it.
-      expect(help).toContain("--since <date>");
-      expect(help).toContain("-o, --output <format>");
-      expect(help).toContain("-h, --help");
+      assertStringIncludes(help, "--since <date>");
+      assertStringIncludes(help, "-o, --output <format>");
+      assertStringIncludes(help, "-h, --help");
     });
 
     it("names the value of an option that never said what to call it", () => {
@@ -182,7 +188,8 @@ describe("the help text", () => {
       };
 
       // Then help still shows that it takes one.
-      expect(commandHelp(aCommand({ options: [option] }))).toContain(
+      assertStringIncludes(
+        commandHelp(aCommand({ options: [option] })),
         "--region <value>",
       );
     });
@@ -193,7 +200,7 @@ describe("the help text", () => {
 
       // Then nothing wraps past 80 columns.
       for (const line of commandHelp(command).split("\n")) {
-        expect(line.length).toBeLessThanOrEqual(80);
+        assertTrue(line.length <= 80);
       }
     });
   });

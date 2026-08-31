@@ -1,10 +1,21 @@
+import {
+  assertArrayIncludes,
+  assertIdentical,
+  assertObjectEquals,
+  assertStringIncludes,
+  assertStringMatches,
+  assertStringNotIncludes,
+  assertThrowsError,
+  assertThrowsErrorAsync,
+  assertTrue,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
 import { Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { Key } from "aws-cdk-lib/aws-kms";
 import { Annotations, Match, Template } from "aws-cdk-lib/assertions";
 import { App, CfnOutput, Stack } from "aws-cdk-lib/core";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { deployStacks } from "#test/simulated-deployment.js";
 
@@ -127,7 +138,8 @@ describe("delivering CloudFront access logs", () => {
     // Then a delivery source names that distribution, by the ARN CloudFront
     // is identified with rather than by the bare id.
     const sources = await logsApi.describeDeliverySources({ input: {} });
-    expect(sources.deliverySources?.[0]?.resourceArns).toContain(
+    assertArrayIncludes(
+      sources.deliverySources?.[0]?.resourceArns,
       `arn:aws:cloudfront::${account}:distribution/${distributionId}`,
     );
 
@@ -140,7 +152,7 @@ describe("delivering CloudFront access logs", () => {
       .account()
       .cloudFront()
       .getDistribution({ input: { Id: distributionId } });
-    expect(named.Distribution?.Id).toBe(distributionId);
+    assertIdentical(named.Distribution?.Id, distributionId);
   });
 
   it("writes into the log bucket under a prefix of its own", async () => {
@@ -157,7 +169,10 @@ describe("delivering CloudFront access logs", () => {
     const arn =
       destinations.deliveryDestinations?.[0]?.deliveryDestinationConfiguration
         ?.destinationResourceArn;
-    expect(arn).toMatch(/^arn:aws:s3:::rainlytics-logs-[\w-]+\/rainlytics$/u);
+    assertStringMatches(
+      arn,
+      /^arn:aws:s3:::rainlytics-logs-[\w-]+\/rainlytics$/u,
+    );
   });
 
   it("writes the partition layout the reader will address", async () => {
@@ -174,10 +189,9 @@ describe("delivering CloudFront access logs", () => {
     // CloudWatch Logs rejects a suffix path that has already added it.
     const described = await logsApi.describeDeliveries({ input: {} });
     const delivery = described.deliveries?.[0];
-    expect(delivery?.s3DeliveryConfiguration?.enableHiveCompatiblePath).toBe(
-      true,
-    );
-    expect(delivery?.s3DeliveryConfiguration?.suffixPath).toBe(
+    assertTrue(delivery?.s3DeliveryConfiguration?.enableHiveCompatiblePath);
+    assertIdentical(
+      delivery.s3DeliveryConfiguration.suffixPath,
       deliverySuffixPath("hourly"),
     );
   });
@@ -191,10 +205,14 @@ describe("delivering CloudFront access logs", () => {
     // hour to write a partition for.
     const described = await logsApi.describeDeliveries({ input: {} });
     const delivery = described.deliveries?.[0];
-    expect(delivery?.s3DeliveryConfiguration?.suffixPath).toBe(
+    assertIdentical(
+      delivery?.s3DeliveryConfiguration?.suffixPath,
       deliverySuffixPath("daily"),
     );
-    expect(delivery?.s3DeliveryConfiguration?.suffixPath).not.toContain("{HH}");
+    assertStringNotIncludes(
+      delivery.s3DeliveryConfiguration.suffixPath,
+      "{HH}",
+    );
   });
 
   it("asks for the Rainlytics field set", async () => {
@@ -207,13 +225,13 @@ describe("delivering CloudFront access logs", () => {
     // that never exists, since the raw store keeps what was delivered.
     const described = await logsApi.describeDeliveries({ input: {} });
     const delivery = described.deliveries?.[0];
-    expect(delivery?.recordFields).toStrictEqual([...deliveredLogFieldNames]);
-    expect(delivery?.recordFields).toContain("cs-uri-query");
+    assertObjectEquals(delivery?.recordFields, [...deliveredLogFieldNames]);
+    assertArrayIncludes(delivery.recordFields, "cs-uri-query");
 
     // And the viewer's address among them. A visitor count is hashed from
     // it downstream, and a field the delivery leaves out is one no later
     // job can put back into records already written.
-    expect(delivery?.recordFields).toContain("c-ip");
+    assertArrayIncludes(delivery.recordFields, "c-ip");
   });
 
   it("delivers only the fields it is given", async () => {
@@ -226,7 +244,7 @@ describe("delivering CloudFront access logs", () => {
     // Then that is what CloudFront is asked for.
     const described = await logsApi.describeDeliveries({ input: {} });
     const delivery = described.deliveries?.[0];
-    expect(delivery?.recordFields).toStrictEqual(fields);
+    assertObjectEquals(delivery?.recordFields, fields);
   });
 
   it("writes JSON unless another format is chosen", async () => {
@@ -240,7 +258,10 @@ describe("delivering CloudFront access logs", () => {
     const destinations = await logsApi.describeDeliveryDestinations({
       input: {},
     });
-    expect(destinations.deliveryDestinations?.[0]?.outputFormat).toBe("json");
+    assertIdentical(
+      destinations.deliveryDestinations?.[0]?.outputFormat,
+      "json",
+    );
   });
 
   it("writes Parquet when asked to", async () => {
@@ -252,7 +273,8 @@ describe("delivering CloudFront access logs", () => {
     const destinations = await logsApi.describeDeliveryDestinations({
       input: {},
     });
-    expect(destinations.deliveryDestinations?.[0]?.outputFormat).toBe(
+    assertIdentical(
+      destinations.deliveryDestinations?.[0]?.outputFormat,
       "parquet",
     );
   });
@@ -306,8 +328,9 @@ describe("delivering CloudFront access logs", () => {
       // The ARN is assembled from the partition at deploy time, so this
       // reads the serialised statement rather than matching a literal.
       const keyPolicy = JSON.stringify(template.findResources("AWS::KMS::Key"));
-      expect(keyPolicy).toContain('"aws:SourceAccount":"123456789012"');
-      expect(keyPolicy).toContain(
+      assertStringIncludes(keyPolicy, '"aws:SourceAccount":"123456789012"');
+      assertStringIncludes(
+        keyPolicy,
         ":logs:us-east-1:123456789012:delivery-source:*",
       );
     });
@@ -365,8 +388,14 @@ describe("delivering CloudFront access logs", () => {
     // Then it fails at synthesis. The delivery writes to the ARN and an
     // Athena table over it reads the name, so the pair would fill one bucket
     // and query another, with both halves reporting success.
-    expect(deploying).toThrow(/rainlytics-archive/u);
-    expect(deploying).toThrow(/arn:aws:s3:::rainlytics-logs/u);
+    {
+      const error = assertThrowsError(deploying);
+      assertStringMatches(error.message, /rainlytics-archive/u);
+    }
+    {
+      const error = assertThrowsError(deploying);
+      assertStringMatches(error.message, /arn:aws:s3:::rainlytics-logs/u);
+    }
   });
 
   it("refuses to be deployed outside us-east-1", async () => {
@@ -387,7 +416,13 @@ describe("delivering CloudFront access logs", () => {
 
     // Then it fails at synthesis, naming the stack. The CloudWatch Logs API
     // takes these calls in us-east-1 and nowhere else.
-    await expect(deploying).rejects.toThrow(/SiteStack/u);
-    await expect(deploying).rejects.toThrow(/us-east-1/u);
+    {
+      const error = await assertThrowsErrorAsync(() => deploying);
+      assertStringMatches(error.message, /SiteStack/u);
+    }
+    {
+      const error = await assertThrowsErrorAsync(() => deploying);
+      assertStringMatches(error.message, /us-east-1/u);
+    }
   });
 });

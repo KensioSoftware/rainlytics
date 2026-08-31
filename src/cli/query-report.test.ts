@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import {
+  assertIdentical,
+  assertStringIncludes,
+  assertStringNotIncludes,
+} from "@kensio/smartass";
+import { describe, it } from "vitest";
 
 import { bytesBilledMinimum } from "../athena-pricing.js";
 import { inBytes, inDollars, scanReport } from "./query-report.js";
@@ -15,7 +20,7 @@ describe("saying what a query scanned", () => {
     // Given a byte count Athena reported.
     // Then it reads the way AWS writes one, in the decimal units it prices
     // and reports in.
-    expect(inBytes(bytes)).toBe(expected);
+    assertIdentical(inBytes(bytes), expected);
   });
 
   it("keeps counting in terabytes past the largest unit it knows", () => {
@@ -23,7 +28,7 @@ describe("saying what a query scanned", () => {
     // Then it stays in terabytes rather than running off the end of the list.
     // Nothing Rainlytics stores gets here, and a number with no unit would be
     // worse than a big one.
-    expect(inBytes(5_000_000_000_000_000)).toBe("5000.0 TB");
+    assertIdentical(inBytes(5_000_000_000_000_000), "5000.0 TB");
   });
 });
 
@@ -31,8 +36,8 @@ describe("saying what a query cost", () => {
   it("shows cents where there are cents to see", () => {
     // Given a charge somebody would recognise on a bill.
     // Then it is written the way money is.
-    expect(inDollars(1.5)).toBe("$1.50");
-    expect(inDollars(0.01)).toBe("$0.01");
+    assertIdentical(inDollars(1.5), "$1.50");
+    assertIdentical(inDollars(0.01), "$0.01");
   });
 
   it("shows the order of magnitude below a cent", () => {
@@ -40,8 +45,8 @@ describe("saying what a query cost", () => {
     // Then it says so rather than rounding to nothing. Somebody deciding
     // whether to run it again wants the size of the number, and "$0.00"
     // would tell them it was free.
-    expect(inDollars(0.00005)).toBe("$0.000050");
-    expect(inDollars(0.008)).toBe("$0.0080");
+    assertIdentical(inDollars(0.00005), "$0.000050");
+    assertIdentical(inDollars(0.008), "$0.0080");
   });
 });
 
@@ -54,9 +59,9 @@ describe("the line a query leaves on standard error", () => {
     // Then it says what was read, what was billed, and what that came to.
     // Athena bills ten million bytes whatever a query reads, so a report
     // quoting 512 bytes alone would make the query look free.
-    expect(report).toContain("Scanned 512 B in 0.3s");
-    expect(report).toContain("billed as 10.0 MB (the per-query minimum)");
-    expect(report).toContain("About $0.000050 at the us-east-1 rate");
+    assertStringIncludes(report, "Scanned 512 B in 0.3s");
+    assertStringIncludes(report, "billed as 10.0 MB (the per-query minimum)");
+    assertStringIncludes(report, "About $0.000050 at the us-east-1 rate");
   });
 
   it("names the rate it priced with", () => {
@@ -64,7 +69,7 @@ describe("the line a query leaves on standard error", () => {
     // Then the region is on the line. Every region charges its own rate and
     // this one is us-east-1's, so a figure quoted without saying which would
     // be wrong everywhere else and look authoritative.
-    expect(scanReport(512, 100)).toContain("at the us-east-1 rate");
+    assertStringIncludes(scanReport(512, 100), "at the us-east-1 rate");
   });
 
   it("prices nothing for a query that failed", () => {
@@ -74,9 +79,9 @@ describe("the line a query leaves on standard error", () => {
     // Then what it read is still reported, since a query that scanned a lot
     // before giving up is worth knowing about, and no charge is invented for
     // it.
-    expect(report).toContain("Scanned 4.10 KB in 0.2s");
-    expect(report).toContain("does not charge for a query that failed");
-    expect(report).not.toContain("About $");
+    assertStringIncludes(report, "Scanned 4.10 KB in 0.2s");
+    assertStringIncludes(report, "does not charge for a query that failed");
+    assertStringNotIncludes(report, "About $");
   });
 
   it("leaves the minimum out where the query went past it", () => {
@@ -84,8 +89,8 @@ describe("the line a query leaves on standard error", () => {
     const report = scanReport(bytesBilledMinimum * 100, 4200);
 
     // Then there is nothing to explain, and the line says what it scanned.
-    expect(report).toContain("Scanned 1.00 GB in 4.2s.");
-    expect(report).not.toContain("minimum");
+    assertStringIncludes(report, "Scanned 1.00 GB in 4.2s.");
+    assertStringNotIncludes(report, "minimum");
   });
 
   it("says nothing about time where Athena reported none", () => {
@@ -94,7 +99,8 @@ describe("the line a query leaves on standard error", () => {
     const report = scanReport(512, undefined);
 
     // Then the rest of the line still stands.
-    expect(report).toBe(
+    assertIdentical(
+      report,
       "Scanned 512 B, billed as 10.0 MB (the per-query minimum)." +
         " About $0.000050 at the us-east-1 rate.\n",
     );

@@ -1,5 +1,14 @@
+import {
+  assertIdentical,
+  assertObjectEquals,
+  assertStringIncludes,
+  assertStringMatches,
+  assertStringNotIncludes,
+  assertThrowsError,
+  assertTrue,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { defaultLogDataset, qualifiedTableName } from "./dataset.js";
 import { decodedParameter } from "./log-encoding.js";
@@ -40,7 +49,8 @@ describe("the SQL a rollup runs", () => {
       // Then it names the table the constructs create, qualified by its
       // database. Writing either out here would be a second definition, and
       // the one that drifts is the one nothing deploys.
-      expect(sqlFor(name)).toContain(
+      assertStringIncludes(
+        sqlFor(name),
         `"${defaultLogDataset.databaseName}"."${defaultLogDataset.tableName}"`,
       );
     },
@@ -55,9 +65,10 @@ describe("the SQL a rollup runs", () => {
       // Then the partition keys are pinned to the values that week touches.
       // This is the part that decides what the query costs. Everything after
       // it narrows rows already paid for.
-      expect(sql).toContain("year IN ('2026')");
-      expect(sql).toContain("month IN ('08')");
-      expect(sql).toContain(
+      assertStringIncludes(sql, "year IN ('2026')");
+      assertStringIncludes(sql, "month IN ('08')");
+      assertStringIncludes(
+        sql,
         "day IN ('20', '21', '22', '23', '24', '25', '26', '27')",
       );
     },
@@ -70,7 +81,8 @@ describe("the SQL a rollup runs", () => {
       // Then the record's own timestamp bounds it too. The partition values
       // are a cross product, so a range crossing a month reads days at both
       // ends that fall outside it, and this is what leaves their rows out.
-      expect(sqlFor(name)).toContain(
+      assertStringIncludes(
+        sqlFor(name),
         `cast(timestamp_ms AS bigint) BETWEEN ${String(aWeek.from.getTime())}` +
           ` AND ${String(aWeek.to.getTime())}`,
       );
@@ -83,7 +95,8 @@ describe("the SQL a rollup runs", () => {
       // Given a rollup nobody asked to include bots in.
       // Then the filter is there, matched against a lowercased user agent so
       // that every engine reads the pattern the same way.
-      expect(sqlFor(name)).toContain(
+      assertStringIncludes(
+        sqlFor(name),
         `NOT regexp_like(lower(cs_user_agent), '${botUserAgentPattern}')`,
       );
     },
@@ -95,7 +108,8 @@ describe("the SQL a rollup runs", () => {
       // Given a rollup told to include bots.
       // Then the shared bot condition is absent. A question about browsers
       // still reads the user agent for its own answer.
-      expect(sqlFor(name, { includeBots: true })).not.toContain(
+      assertStringNotIncludes(
+        sqlFor(name, { includeBots: true }),
         `NOT regexp_like(lower(cs_user_agent), '${botUserAgentPattern}')`,
       );
     },
@@ -107,9 +121,9 @@ describe("the SQL a rollup runs", () => {
 
     // Then it is a GET that answered HTML and succeeded, which is what
     // separates a page from the assets the same log records.
-    expect(sql).toContain("cs_method = 'GET'");
-    expect(sql).toContain("sc_content_type LIKE 'text/html%'");
-    expect(sql).toContain("sc_status IN ('200', '304')");
+    assertStringIncludes(sql, "cs_method = 'GET'");
+    assertStringIncludes(sql, "sc_content_type LIKE 'text/html%'");
+    assertStringIncludes(sql, "sc_status IN ('200', '304')");
   });
 
   it("classifies browsers before their compatibility tokens", () => {
@@ -119,12 +133,16 @@ describe("the SQL a rollup runs", () => {
 
     // Then the specific families are tested first. A device uses a small
     // fixed ladder of its own, and unmatched agents stay visible as Other.
-    expect([
-      sql.indexOf("edg(e|a|ios)?/") < sql.indexOf("(chrome|crios|chromium)/"),
-      sql.indexOf("samsungbrowser/") < sql.indexOf("(chrome|crios|chromium)/"),
-      sql.indexOf("(chrome|crios|chromium)/") < sql.indexOf("safari/"),
-    ]).toStrictEqual([true, true, true]);
-    expect(
+    assertObjectEquals(
+      [
+        sql.indexOf("edg(e|a|ios)?/") < sql.indexOf("(chrome|crios|chromium)/"),
+        sql.indexOf("samsungbrowser/") <
+          sql.indexOf("(chrome|crios|chromium)/"),
+        sql.indexOf("(chrome|crios|chromium)/") < sql.indexOf("safari/"),
+      ],
+      [true, true, true],
+    );
+    assertTrue(
       [
         "opera(%20| )mini/",
         "THEN 'Tablet'",
@@ -132,19 +150,19 @@ describe("the SQL a rollup runs", () => {
         "THEN 'Desktop'",
         "ELSE 'Other'",
       ].every((text) => sql.includes(text)),
-    ).toBe(true);
-    expect(sql).toContain("GROUP BY 1, 2");
-    expect(sql).toContain("ORDER BY 3 DESC, 1, 2");
+    );
+    assertStringIncludes(sql, "GROUP BY 1, 2");
+    assertStringIncludes(sql, "ORDER BY 3 DESC, 1, 2");
 
     // And the count covers pageviews. A stylesheet should not make the
     // browser that loaded it look busier than one whose assets were cached.
-    expect(
+    assertTrue(
       [
         "cs_method = 'GET'",
         "sc_content_type LIKE 'text/html%'",
         "sc_status IN ('200', '304')",
       ].every((condition) => sql.includes(condition)),
-    ).toBe(true);
+    );
   });
 
   it.each(rollups.map((rollup) => rollup.name))(
@@ -156,13 +174,14 @@ describe("the SQL a rollup runs", () => {
       // Then it matches a prefix of the decoded path, so the option names
       // the address a reader sees. `strpos` takes the text literally, where
       // LIKE would read a path holding `_` as a wildcard.
-      expect(sql).toContain(
+      assertStringIncludes(
+        sql,
         "strpos(url_decode(url_decode(cs_uri_stem)), '/guides/') = 1",
       );
 
       // And nothing is bracketed or joined by OR. One section asked for
       // writes what it has always written, since a set of one is a set.
-      expect(sql).not.toContain(" OR ");
+      assertStringNotIncludes(sql, " OR ");
     },
   );
 
@@ -176,7 +195,8 @@ describe("the SQL a rollup runs", () => {
       // bracketed. Without the bracket the `AND` above would take the first
       // one and the rest of the WHERE clause would answer a different
       // question.
-      expect(sql).toContain(
+      assertStringIncludes(
+        sql,
         "(strpos(url_decode(url_decode(cs_uri_stem)), '/guides/') = 1" +
           " OR strpos(url_decode(url_decode(cs_uri_stem)), '/tutorials/') = 1)",
       );
@@ -189,7 +209,8 @@ describe("the SQL a rollup runs", () => {
       // Given a rollup asked for one host.
       // Then it matches in full. A site and its www name are two hosts, and
       // a suffix match would quietly fold them together.
-      expect(sqlFor(name, { host: "docs.example.com" })).toContain(
+      assertStringIncludes(
+        sqlFor(name, { host: "docs.example.com" }),
         "x_host_header = 'docs.example.com'",
       );
     },
@@ -206,8 +227,8 @@ describe("the SQL a rollup runs", () => {
         // condition matching everything. `--path` matches the decoded
         // address, which is what tells its prefix test from the one
         // `status-codes` writes to leave the beacon out.
-        expect(sql).not.toContain("x_host_header =");
-        expect(sql).not.toContain("strpos(url_decode");
+        assertStringNotIncludes(sql, "x_host_header =");
+        assertStringNotIncludes(sql, "strpos(url_decode");
       }
     },
   );
@@ -216,7 +237,10 @@ describe("the SQL a rollup runs", () => {
     // Given a path carrying the one character SQL string syntax cares about.
     // Then it is doubled, so the statement still parses and still means the
     // path that was asked for.
-    expect(sqlFor("pageviews", { paths: ["/it's/"] })).toContain("'/it''s/'");
+    assertStringIncludes(
+      sqlFor("pageviews", { paths: ["/it's/"] }),
+      "'/it''s/'",
+    );
   });
 
   it("reads CloudFront's encoding back off the path", () => {
@@ -226,7 +250,7 @@ describe("the SQL a rollup runs", () => {
     // Then the path is decoded twice, which is what CloudFront encoded it.
     // One pass answers the URI as the browser sent it, which is the shape
     // this reads like when it is half done.
-    expect(sql).toContain("url_decode(url_decode(cs_uri_stem)) AS path");
+    assertStringIncludes(sql, "url_decode(url_decode(cs_uri_stem)) AS path");
   });
 
   it("decodes a search term once, where the path is decoded twice", () => {
@@ -236,7 +260,8 @@ describe("the SQL a rollup runs", () => {
     // Then the term is read out of the query string and decoded once.
     // `url_extract_parameter` decodes its own answer, and a second pass
     // would decode a term holding a percent sequence twice.
-    expect(sql).toContain(
+    assertStringIncludes(
+      sql,
       "url_decode(url_extract_parameter(cs_uri_stem || '?' || cs_uri_query," +
         " 'q'))",
     );
@@ -245,7 +270,7 @@ describe("the SQL a rollup runs", () => {
   it("reads the parameter a request named", () => {
     // Given a search page taking its term under another name.
     // Then that is the parameter read, quoted as a literal.
-    expect(sqlFor("searches", { param: "hanzi" })).toContain("'hanzi'))");
+    assertStringIncludes(sqlFor("searches", { param: "hanzi" }), "'hanzi'))");
   });
 
   it("says which search box a row came from", () => {
@@ -257,7 +282,8 @@ describe("the SQL a rollup runs", () => {
     // Then every row names the one it started with. A term typed into both
     // is otherwise one row and one number, and which corpus answered it is
     // the question a second box creates.
-    expect(sql).toContain(
+    assertStringIncludes(
+      sql,
       "CASE" +
         " WHEN strpos(url_decode(url_decode(cs_uri_stem)), '/words/search/')" +
         " = 1 THEN '/words/search/'" +
@@ -268,8 +294,8 @@ describe("the SQL a rollup runs", () => {
 
     // And the count is per term per box, with the ordinals moved along by
     // the column in front of them.
-    expect(sql).toContain("GROUP BY 1, 2");
-    expect(sql).toContain("ORDER BY 3 DESC, 1, 2");
+    assertStringIncludes(sql, "GROUP BY 1, 2");
+    assertStringIncludes(sql, "ORDER BY 3 DESC, 1, 2");
   });
 
   it("leaves the section out of a search over one page", () => {
@@ -278,9 +304,9 @@ describe("the SQL a rollup runs", () => {
 
     // Then the answer is the terms alone. Every row would carry the same
     // section, and the counts stay where they were.
-    expect(sql).not.toContain("AS section");
-    expect(sql).toContain("GROUP BY 1\n");
-    expect(sql).toContain("ORDER BY 2 DESC, 1");
+    assertStringNotIncludes(sql, "AS section");
+    assertStringIncludes(sql, "GROUP BY 1\n");
+    assertStringIncludes(sql, "ORDER BY 2 DESC, 1");
   });
 
   it("leaves the other rollups' columns as they were delivered", () => {
@@ -289,10 +315,10 @@ describe("the SQL a rollup runs", () => {
     // which is ASCII whatever the rest of the URL holds, and a status code
     // and a result type carry no encoding at all. The beacon's path that
     // status-codes leaves out is matched undecoded for the same reason.
-    expect(sqlFor("referrers")).not.toContain("url_decode");
-    expect(sqlFor("status-codes")).not.toContain("url_decode");
-    expect(sqlFor("cache-hit-ratio")).not.toContain("url_decode");
-    expect(sqlFor("browsers")).not.toContain("url_decode");
+    assertStringNotIncludes(sqlFor("referrers"), "url_decode");
+    assertStringNotIncludes(sqlFor("status-codes"), "url_decode");
+    assertStringNotIncludes(sqlFor("cache-hit-ratio"), "url_decode");
+    assertStringNotIncludes(sqlFor("browsers"), "url_decode");
   });
 
   it("leaves this site out of its own referrers", () => {
@@ -301,8 +327,8 @@ describe("the SQL a rollup runs", () => {
 
     // Then a referral from the host being measured is left out, since that
     // is somebody moving around rather than arriving.
-    expect(sql).toContain("url_extract_host(cs_referer) <> x_host_header");
-    expect(sql).toContain("cs_referer <> '-'");
+    assertStringIncludes(sql, "url_extract_host(cs_referer) <> x_host_header");
+    assertStringIncludes(sql, "cs_referer <> '-'");
   });
 
   it("leaves the beacon's own requests out of the status codes", () => {
@@ -312,8 +338,8 @@ describe("the SQL a rollup runs", () => {
     // Then a request to the beacon's path is not counted. The beacon writes
     // one row per event, and a single-page app's 204s can outnumber every
     // response the site itself served.
-    expect(sql).toContain(outsideTheBeaconPath);
-    expect(sql).toContain(`'${defaultBeaconPath}'`);
+    assertStringIncludes(sql, outsideTheBeaconPath);
+    assertStringIncludes(sql, `'${defaultBeaconPath}'`);
   });
 
   it("counts the cache over the requests it had a say in", () => {
@@ -324,10 +350,11 @@ describe("the SQL a rollup runs", () => {
     // redirect never reached the cache, and an error says too little either
     // way, so counting them would move the ratio without the cache having
     // changed.
-    expect(sql).toContain(
+    assertStringIncludes(
+      sql,
       "x_edge_result_type IN ('Hit', 'RefreshHit', 'Miss')",
     );
-    expect(sql).toContain("nullif(");
+    assertStringIncludes(sql, "nullif(");
   });
 
   it("counts a search sent to its answer and not one tidying an address", () => {
@@ -339,8 +366,8 @@ describe("the SQL a rollup runs", () => {
     // a reader gets one whatever they typed, so counting those reports one
     // reader twice and calls the first of the two a term the site publishes
     // a page for.
-    expect(sql).toContain("sc_status IN ('302', '303', '307')");
-    expect(sql).not.toContain("sc_status LIKE '3%'");
+    assertStringIncludes(sql, "sc_status IN ('302', '303', '307')");
+    assertStringNotIncludes(sql, "sc_status LIKE '3%'");
   });
 
   it("counts the statuses a search was told to count", () => {
@@ -349,7 +376,7 @@ describe("the SQL a rollup runs", () => {
 
     // Then its column is right for it. The site knows what its own search
     // page answers with, and nothing else does.
-    expect(sql).toContain("sc_status IN ('301', '302')");
+    assertStringIncludes(sql, "sc_status IN ('301', '302')");
   });
 
   it("counts no search as redirected where the list is empty", () => {
@@ -358,16 +385,16 @@ describe("the SQL a rollup runs", () => {
 
     // Then the column counts nothing. `IN ()` is not something Athena
     // parses, and a query that will not run is worse than a column of zeros.
-    expect(sql).toContain("sum(CASE WHEN false THEN 1 ELSE 0 END)");
-    expect(sql).not.toContain("IN ()");
+    assertStringIncludes(sql, "sum(CASE WHEN false THEN 1 ELSE 0 END)");
+    assertStringNotIncludes(sql, "IN ()");
   });
 
   it("takes as many rows as a ranked rollup was asked for", () => {
     // Given a limit.
     // Then the ranked rollups carry it, and the one answering a single row
     // has nothing to limit.
-    expect(sqlFor("pageviews", { limit: 5 })).toContain("LIMIT 5");
-    expect(sqlFor("cache-hit-ratio", { limit: 5 })).not.toContain("LIMIT");
+    assertStringIncludes(sqlFor("pageviews", { limit: 5 }), "LIMIT 5");
+    assertStringNotIncludes(sqlFor("cache-hit-ratio", { limit: 5 }), "LIMIT");
   });
 
   it("breaks a tie the same way every time", () => {
@@ -376,7 +403,7 @@ describe("the SQL a rollup runs", () => {
     // Two paths with the same views are otherwise ordered however the engine
     // finds convenient, and a person comparing two runs wants the same
     // answer twice.
-    expect(sqlFor("pageviews")).toContain("ORDER BY 2 DESC, 1");
+    assertStringIncludes(sqlFor("pageviews"), "ORDER BY 2 DESC, 1");
   });
 
   it("writes a standing range for a copy nobody can date", () => {
@@ -386,9 +413,9 @@ describe("the SQL a rollup runs", () => {
     // Then it asks Athena what month it is. Dates baked in at deploy time
     // would be the dates of whoever last deployed, and would go stale
     // without anybody being told.
-    expect(sql).toContain("year = date_format(current_date, '%Y')");
-    expect(sql).toContain("month = date_format(current_date, '%m')");
-    expect(sql).not.toContain("timestamp_ms");
+    assertStringIncludes(sql, "year = date_format(current_date, '%Y')");
+    assertStringIncludes(sql, "month = date_format(current_date, '%m')");
+    assertStringNotIncludes(sql, "timestamp_ms");
   });
 });
 
@@ -414,10 +441,11 @@ describe("the path a row matched", () => {
     // the filter beside it, and the drift shows up as rows counted under a
     // section they say they are not in.
     for (const path of ["/words/", "/a_b/"]) {
-      expect(matchedPath(request)).toContain(
+      assertStringIncludes(
+        matchedPath(request),
         `WHEN ${prefixTest(path)} THEN '${path}'`,
       );
-      expect(rowsFor(request)).toContain(prefixTest(path));
+      assertStringIncludes(rowsFor(request), prefixTest(path));
     }
   });
 
@@ -429,8 +457,8 @@ describe("the path a row matched", () => {
     // both reports the wider one. Whichever way that goes it has to be
     // said, since a reader adding the rows up needs to know a row is in
     // exactly one of them.
-    expect(sql.indexOf("THEN '/guides/'")).toBeLessThan(
-      sql.indexOf("THEN '/guides/advanced/'"),
+    assertTrue(
+      sql.indexOf("THEN '/guides/'") < sql.indexOf("THEN '/guides/advanced/'"),
     );
   });
 
@@ -440,7 +468,7 @@ describe("the path a row matched", () => {
 
     // Then the column is that path, written as a literal. Every row counted
     // began with it, and a CASE there asks a question with one answer.
-    expect(matchedPath(asked([section]))).toBe(`'${section}'`);
+    assertIdentical(matchedPath(asked([section])), `'${section}'`);
   });
 
   it("is a typed NULL where the whole distribution was counted", () => {
@@ -451,7 +479,7 @@ describe("the path a row matched", () => {
       // Then no prefix matched and the column says so. An empty string
       // would claim a prefix nobody asked for, and the cast is what gives
       // the column a type Athena can report.
-      expect(matchedPath(request)).toBe("CAST(NULL AS varchar)");
+      assertIdentical(matchedPath(request), "CAST(NULL AS varchar)");
     }
   });
 
@@ -462,7 +490,7 @@ describe("the path a row matched", () => {
 
     // Then it is doubled on both sides of the branch, so the statement
     // still parses and still means the path that was asked for.
-    expect(sql).toContain("'/it''s/') = 1 THEN '/it''s/'");
+    assertStringIncludes(sql, "'/it''s/') = 1 THEN '/it''s/'");
   });
 });
 
@@ -503,9 +531,10 @@ describe("a rollup a site wrote for itself", () => {
     // Then the partition predicate is the one the six carry. This is the
     // part that decides what Athena bills for, and a site writing its own
     // copy of it is a site one edit away from reading a year of objects.
-    expect(sql).toContain("year IN ('2026')");
-    expect(sql).toContain("month IN ('08')");
-    expect(sql).toContain(
+    assertStringIncludes(sql, "year IN ('2026')");
+    assertStringIncludes(sql, "month IN ('08')");
+    assertStringIncludes(
+      sql,
       `cast(timestamp_ms AS bigint) BETWEEN ${String(aWeek.from.getTime())}` +
         ` AND ${String(aWeek.to.getTime())}`,
     );
@@ -514,7 +543,8 @@ describe("a rollup a site wrote for itself", () => {
   it("leaves automated traffic out on the same terms", () => {
     // Given the same question.
     // Then the bot filter is the one Rainlytics argues for, written once.
-    expect(sqlFor()).toContain(
+    assertStringIncludes(
+      sqlFor(),
       `NOT regexp_like(lower(cs_user_agent), '${botUserAgentPattern}')`,
     );
   });
@@ -525,14 +555,14 @@ describe("a rollup a site wrote for itself", () => {
 
     // Then it narrows without the question having said how. A site asking
     // for `--host` would otherwise write the column name itself.
-    expect(sql).toContain("x_host_header = 'example.com'");
-    expect(sql).toContain("'/words/') = 1");
+    assertStringIncludes(sql, "x_host_header = 'example.com'");
+    assertStringIncludes(sql, "'/words/') = 1");
   });
 
   it("carries the conditions its own question adds", () => {
     // Given a question that reads the HTML responses alone.
     // Then its own condition joins the rest.
-    expect(sqlFor()).toContain("AND sc_content_type LIKE 'text/html%'");
+    assertStringIncludes(sqlFor(), "AND sc_content_type LIKE 'text/html%'");
   });
 
   it("names the section a row came from without writing the test", () => {
@@ -560,13 +590,15 @@ describe("a rollup a site wrote for itself", () => {
     // second definition of a prefix match, and the copy is the one that
     // stops agreeing with the filter it sits above.
     for (const path of ["/guides/", "/tutorials/"]) {
-      expect(sql).toContain(
+      assertStringIncludes(
+        sql,
         `WHEN strpos(url_decode(url_decode(cs_uri_stem)), '${path}') = 1` +
           ` THEN '${path}'`,
       );
     }
 
-    expect(sql).toContain(
+    assertStringIncludes(
+      sql,
       "(strpos(url_decode(url_decode(cs_uri_stem)), '/guides/') = 1" +
         " OR strpos(url_decode(url_decode(cs_uri_stem)), '/tutorials/') = 1)",
     );
@@ -613,7 +645,8 @@ describe("a rollup a site wrote to read a query string", () => {
 
     // Then it gets the expression the package argues for, naming the two
     // columns a record splits a URL across and decoding the value once.
-    expect(sql).toContain(
+    assertStringIncludes(
+      sql,
       "url_decode(url_extract_parameter(cs_uri_stem || '?' || cs_uri_query," +
         " 'utm_campaign'))",
     );
@@ -624,11 +657,12 @@ describe("a rollup a site wrote to read a query string", () => {
     const sql = sqlFor({ host: "example.com" });
 
     // Then reading a parameter costs it none of what `rowsFor` writes.
-    expect(sql).toContain("year IN ('2026')");
-    expect(sql).toContain(
+    assertStringIncludes(sql, "year IN ('2026')");
+    assertStringIncludes(
+      sql,
       `NOT regexp_like(lower(cs_user_agent), '${botUserAgentPattern}')`,
     );
-    expect(sql).toContain("x_host_header = 'example.com'");
+    assertStringIncludes(sql, "x_host_header = 'example.com'");
   });
 });
 
@@ -637,9 +671,7 @@ describe("what a rollup may be called", () => {
     // Given a name one of the built-in six carries.
     // Then nothing objects. The rule has to admit the names already
     // deployed, or the first thing it refuses is Rainlytics itself.
-    expect(() => {
-      assertRollupName(name);
-    }).not.toThrow();
+    assertRollupName(name);
   });
 
   it.each([
@@ -659,7 +691,10 @@ describe("what a rollup may be called", () => {
     // Then it is refused where somebody can still change it. The same name
     // becomes a CDK logical id and an Athena named query, and neither says
     // anything useful when it arrives malformed.
-    expect(naming).toThrow(/lowercase words/u);
+    {
+      const error = assertThrowsError(naming);
+      assertStringMatches(error.message, /lowercase words/u);
+    }
   });
 
   it("names what it refused, so the message can be acted on", () => {
@@ -667,8 +702,11 @@ describe("what a rollup may be called", () => {
     const name = faker.word.noun().toUpperCase();
 
     // Then the refusal quotes it back.
-    expect(() => {
-      assertRollupName(name);
-    }).toThrow(name);
+    {
+      const error = assertThrowsError(() => {
+        assertRollupName(name);
+      });
+      assertStringIncludes(error.message, name);
+    }
   });
 });

@@ -1,5 +1,6 @@
+import { assertObjectEquals } from "@kensio/smartass";
 import type { GetQueryResultsCommandOutput } from "@aws-sdk/client-athena";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { columnsOf, dataRows } from "./athena-results.js";
 
@@ -24,7 +25,7 @@ describe("reading one page of a result", () => {
     // Then those are the columns, whatever the rows hold. A statement
     // answering nothing still names them, and an empty CSV still needs a
     // header.
-    expect(columnsOf(aPage([]))).toStrictEqual([
+    assertObjectEquals(columnsOf(aPage([])), [
       { name: "path", type: "varchar" },
       { name: "views", type: "varchar" },
     ]);
@@ -32,7 +33,7 @@ describe("reading one page of a result", () => {
 
   it("names no columns where the page described none", () => {
     // Given a page with no metadata, which the SDK's types allow.
-    expect(columnsOf({ $metadata: {} })).toStrictEqual([]);
+    assertObjectEquals(columnsOf({ $metadata: {} }), []);
   });
 
   it("drops the header Athena puts on the first page", () => {
@@ -45,7 +46,7 @@ describe("reading one page of a result", () => {
     // Then only the data comes back. Left in, the header would print as a
     // row saying "path" and "views", which reads as data in every one of the
     // three output formats.
-    expect(dataRows(page, columnsOf(page), true)).toStrictEqual([["/", "2"]]);
+    assertObjectEquals(dataRows(page, columnsOf(page), true), [["/", "2"]]);
   });
 
   it("keeps a first page whose first row is data", () => {
@@ -58,7 +59,7 @@ describe("reading one page of a result", () => {
 
     // Then nothing is dropped. The header is recognised by what it holds
     // rather than by where it sits, so a result without one keeps every row.
-    expect(dataRows(page, columnsOf(page), true)).toStrictEqual([
+    assertObjectEquals(dataRows(page, columnsOf(page), true), [
       ["/", "2"],
       ["/liju/", "1"],
     ]);
@@ -74,7 +75,7 @@ describe("reading one page of a result", () => {
 
     // Then nothing is dropped. Athena writes the header once, on the first
     // page, and a row that looks like one anywhere else is a row.
-    expect(dataRows(page, columnsOf(page), false)).toStrictEqual([
+    assertObjectEquals(dataRows(page, columnsOf(page), false), [
       ["path", "views"],
       ["/", "2"],
     ]);
@@ -83,7 +84,7 @@ describe("reading one page of a result", () => {
   it("reads a page holding no rows at all", () => {
     // Given a page with nothing in it, which is the second page of a result
     // whose first page held everything.
-    expect(dataRows({ $metadata: {} }, [], true)).toStrictEqual([]);
+    assertObjectEquals(dataRows({ $metadata: {} }, [], true), []);
   });
 
   it("reads a row shorter than the columns say", () => {
@@ -96,6 +97,6 @@ describe("reading one page of a result", () => {
 
     // Then it comes back as a row with no cells, rather than throwing on the
     // way past.
-    expect(dataRows(page, [], false)).toStrictEqual([[]]);
+    assertObjectEquals(dataRows(page, [], false), [[]]);
   });
 });

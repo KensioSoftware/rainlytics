@@ -1,7 +1,14 @@
+import {
+  assertIdentical,
+  assertObjectEquals,
+  assertStringIncludes,
+  assertStringLength,
+  assertStringNotIncludes,
+} from "@kensio/smartass";
 // @vitest-environment happy-dom
 
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import {
   collectionEndpoint,
@@ -56,8 +63,11 @@ describe("reporting uncaught errors", () => {
     // can tell it from a page that worked.
     const [request] = await endpoint.received(1);
 
-    expect(eventOf(request ?? "")).toBe(errorEventNames.uncaught);
-    expect(messageOf(request ?? "")).toBe("TypeError: liju is not a function");
+    assertIdentical(eventOf(request ?? ""), errorEventNames.uncaught);
+    assertIdentical(
+      messageOf(request ?? ""),
+      "TypeError: liju is not a function",
+    );
 
     stop();
     await endpoint.close();
@@ -85,8 +95,8 @@ describe("reporting uncaught errors", () => {
     // one is not chasing the other.
     const [request] = await endpoint.received(1);
 
-    expect(eventOf(request ?? "")).toBe(errorEventNames.rejection);
-    expect(messageOf(request ?? "")).toBe("RangeError: page 400 of 12");
+    assertIdentical(eventOf(request ?? ""), errorEventNames.rejection);
+    assertIdentical(messageOf(request ?? ""), "RangeError: page 400 of 12");
 
     stop();
     await endpoint.close();
@@ -104,7 +114,7 @@ describe("reporting uncaught errors", () => {
     // reports nothing worth reading if this only handles an `Error`.
     const [request] = await endpoint.received(1);
 
-    expect(messageOf(request ?? "")).toBe("liju went wrong");
+    assertIdentical(messageOf(request ?? ""), "liju went wrong");
 
     stop();
     await endpoint.close();
@@ -124,8 +134,8 @@ describe("reporting uncaught errors", () => {
     // name and message are what a rollup would group by anyway.
     const [request] = await endpoint.received(1);
 
-    expect(thrown.stack ?? "").toContain("errors.test.ts");
-    expect(request).not.toContain("errors.test.ts");
+    assertStringIncludes(thrown.stack ?? "", "errors.test.ts");
+    assertStringNotIncludes(request, "errors.test.ts");
 
     stop();
     await endpoint.close();
@@ -146,7 +156,7 @@ describe("reporting uncaught errors", () => {
     // an unbounded message would reach.
     const [request] = await endpoint.received(1);
 
-    expect(messageOf(request ?? "")).toHaveLength(errorMessageLimit);
+    assertStringLength(messageOf(request ?? ""), errorMessageLimit);
 
     stop();
     await endpoint.close();
@@ -173,8 +183,8 @@ describe("reporting uncaught errors", () => {
     // the half that survives goes to the log.
     const [request] = await endpoint.received(1);
 
-    expect(messageOf(request ?? "")).not.toContain("liju@");
-    expect(messageOf(request ?? "")).toContain("[email]");
+    assertStringNotIncludes(messageOf(request ?? ""), "liju@");
+    assertStringIncludes(messageOf(request ?? ""), "[email]");
 
     stop();
     await endpoint.close();
@@ -200,7 +210,7 @@ describe("reporting uncaught errors", () => {
     // otherwise let its own error text undo that.
     const [request] = await endpoint.received(1);
 
-    expect(messageOf(request ?? "")).toBe("Error: no account for [email]");
+    assertIdentical(messageOf(request ?? ""), "Error: no account for [email]");
 
     stop();
     await endpoint.close();
@@ -220,7 +230,7 @@ describe("reporting uncaught errors", () => {
     const marked = `/marked-${faker.string.uuid()}`;
     await fetch(marked);
 
-    expect(endpoint.requests).toStrictEqual([marked]);
+    assertObjectEquals(endpoint.requests, [marked]);
 
     stop();
     await endpoint.close();

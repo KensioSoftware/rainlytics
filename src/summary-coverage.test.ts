@@ -1,4 +1,11 @@
-import { describe, expect, it } from "vitest";
+import {
+  assertArrayLength,
+  assertIdentical,
+  assertInstanceOf,
+  assertObjectEquals,
+  assertThrowsError,
+} from "@kensio/smartass";
+import { describe, it } from "vitest";
 
 import { hoursIn, summaryCoverage } from "./summary-coverage.js";
 import { summarySpan } from "./summary-windows.js";
@@ -27,7 +34,7 @@ describe("the stored windows a range covers", () => {
     // Then the three whole hours between are covered and the two part hours
     // at the edges are left out. A question about a partly finished hour has
     // no stored window to answer it.
-    expect(covered).toStrictEqual([
+    assertObjectEquals(covered, [
       { granularity: "hourly", from: "2026-08-23T10:00:00.000Z" },
       { granularity: "hourly", from: "2026-08-23T11:00:00.000Z" },
       { granularity: "hourly", from: "2026-08-23T12:00:00.000Z" },
@@ -45,7 +52,7 @@ describe("the stored windows a range covers", () => {
     // Then the day between is one object and the edges are hours. Reading
     // the day as 24 hourly objects would cost 24 GETs for the same answer,
     // and the stored day was counted from raw in one query.
-    expect(covered).toStrictEqual([
+    assertObjectEquals(covered, [
       { granularity: "hourly", from: "2026-08-22T22:00:00.000Z" },
       { granularity: "hourly", from: "2026-08-22T23:00:00.000Z" },
       { granularity: "daily", from: "2026-08-23T00:00:00.000Z" },
@@ -64,10 +71,11 @@ describe("the stored windows a range covers", () => {
 
     // Then it is 14 hours, six days and nine hours. Hours all the way
     // through would be 167 GETs for the same week.
-    expect(covered).toHaveLength(29);
-    expect(
+    assertArrayLength(covered, 29);
+    assertArrayLength(
       covered.filter((window) => window.granularity === "daily"),
-    ).toHaveLength(6);
+      6,
+    );
   });
 
   it("covers nothing where the span falls inside one hour", () => {
@@ -79,7 +87,7 @@ describe("the stored windows a range covers", () => {
 
     // Then there is nothing to read. Whatever asks reports that rather than
     // answering over a window nobody wrote.
-    expect(covered).toStrictEqual([]);
+    assertObjectEquals(covered, []);
   });
 
   it("refuses a span it cannot read", () => {
@@ -88,7 +96,10 @@ describe("the stored windows a range covers", () => {
 
     // Then it says so, rather than answering with an empty coverage that
     // reads exactly like a range nobody has computed.
-    expect(() => summaryCoverage(asked)).toThrow(RangeError);
+    assertInstanceOf(
+      assertThrowsError(() => summaryCoverage(asked)),
+      RangeError,
+    );
   });
 
   it("names the 24 hours of the day holding an instant", () => {
@@ -102,8 +113,8 @@ describe("the stored windows a range covers", () => {
     // nobody computed is assembled from these.
     const opened = hours.map((hour) => summarySpan(hour).from);
 
-    expect(opened).toHaveLength(24);
-    expect(opened.at(0)).toBe("2026-08-23T00:00:00.000Z");
-    expect(opened.at(-1)).toBe("2026-08-23T23:00:00.000Z");
+    assertArrayLength(opened, 24);
+    assertIdentical(opened.at(0), "2026-08-23T00:00:00.000Z");
+    assertIdentical(opened.at(-1), "2026-08-23T23:00:00.000Z");
   });
 });

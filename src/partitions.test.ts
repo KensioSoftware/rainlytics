@@ -1,5 +1,16 @@
+import {
+  assertFalse,
+  assertIdentical,
+  assertInstanceOf,
+  assertObjectEquals,
+  assertSetSize,
+  assertStringIncludes,
+  assertStringNotIncludes,
+  assertThrowsError,
+  assertTrue,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import {
   defaultPartitionGranularity,
@@ -69,7 +80,7 @@ describe("the S3 partition layout", () => {
       // Then they name the same partition keys in the same order. This is the
       // agreement the whole module exists to hold. CloudFront writing under a
       // prefix Athena does not read fails silently at both ends.
-      expect(read).toStrictEqual(written);
+      assertObjectEquals(read, written);
     },
   );
 
@@ -80,12 +91,12 @@ describe("the S3 partition layout", () => {
 
     // Then it carries the variables alone, spelled the way CloudFront spells
     // them. A typo here deploys and then writes a literal "{yyyy}" directory.
-    expect(written).toBe("{distributionid}/{yyyy}/{MM}/{dd}/{HH}");
+    assertIdentical(written, "{distributionid}/{yyyy}/{MM}/{dd}/{HH}");
 
     // And it writes none of the `key=` halves. CloudFront adds those itself
     // when the delivery is Hive-compatible, and CloudWatch Logs rejects a
     // suffix path that has already done it: "Provided suffixPath is invalid".
-    expect(written).not.toContain("=");
+    assertStringNotIncludes(written, "=");
   });
 
   it("uses lowercase key names, which is what Glue reads", () => {
@@ -102,9 +113,9 @@ describe("the S3 partition layout", () => {
     // settles this by its choice of variable, since CloudFront carries the
     // case of the variable into the key it writes.
     for (const name of [...asCloudFrontWrites(written), ...keyNamesIn(read)]) {
-      expect(name).toBe(name.toLowerCase());
+      assertIdentical(name, name.toLowerCase());
     }
-    expect(written).toContain("{distributionid}");
+    assertStringIncludes(written, "{distributionid}");
   });
 
   it("pads every component to the width partition projection expects", () => {
@@ -115,7 +126,8 @@ describe("the S3 partition layout", () => {
     const read = partitionPrefix({ distributionId: "E1EXAMPLE1234", at });
 
     // Then each component carries the leading zero projection matches on.
-    expect(read).toBe(
+    assertIdentical(
+      read,
       "distributionid=E1EXAMPLE1234/year=2026/month=01/day=05/hour=04",
     );
   });
@@ -133,10 +145,10 @@ describe("the S3 partition layout", () => {
     // Then its components are the ones ISO 8601 gives, which is a different
     // route to them than the one under test.
     const iso = at.toISOString();
-    expect(read).toContain(`year=${iso.slice(0, 4)}`);
-    expect(read).toContain(`month=${iso.slice(5, 7)}`);
-    expect(read).toContain(`day=${iso.slice(8, 10)}`);
-    expect(read).toContain(`hour=${iso.slice(11, 13)}`);
+    assertStringIncludes(read, `year=${iso.slice(0, 4)}`);
+    assertStringIncludes(read, `month=${iso.slice(5, 7)}`);
+    assertStringIncludes(read, `day=${iso.slice(8, 10)}`);
+    assertStringIncludes(read, `hour=${iso.slice(11, 13)}`);
   });
 
   it("drops the hour when partitioning daily, and keeps the rest", () => {
@@ -145,8 +157,8 @@ describe("the S3 partition layout", () => {
     const daily = timePartitionKeyNames("daily");
 
     // Then it partitions to the day and no finer.
-    expect(daily).toStrictEqual(["year", "month", "day"]);
-    expect(timePartitionKeyNames("hourly")).toStrictEqual([
+    assertObjectEquals(daily, ["year", "month", "day"]);
+    assertObjectEquals(timePartitionKeyNames("hourly"), [
       "year",
       "month",
       "day",
@@ -158,8 +170,8 @@ describe("the S3 partition layout", () => {
     // Given no granularity, which is what a consumer taking the default gets.
     // Then it is the hourly layout, which is the one that keeps a rollup able
     // to read one hour without rereading the hours before it.
-    expect(defaultPartitionGranularity).toBe("hourly");
-    expect(deliverySuffixPath()).toBe(deliverySuffixPath("hourly"));
+    assertIdentical(defaultPartitionGranularity, "hourly");
+    assertIdentical(deliverySuffixPath(), deliverySuffixPath("hourly"));
   });
 
   it("refuses an invalid Date rather than addressing year=NaN", () => {
@@ -172,7 +184,7 @@ describe("the S3 partition layout", () => {
 
     // Then it fails here, and not as a prefix on S3 that every later query
     // silently misses.
-    expect(addressing).toThrow(RangeError);
+    assertInstanceOf(assertThrowsError(addressing), RangeError);
   });
 });
 
@@ -211,7 +223,7 @@ describe("what Athena is told about the partitions", () => {
       // The template is where Athena looks for the data, so a template
       // disagreeing with the writer reads an empty prefix and answers no
       // rows.
-      expect(filled).toBe(partitionPrefix(address, granularity));
+      assertIdentical(filled, partitionPrefix(address, granularity));
     },
   );
 
@@ -227,9 +239,9 @@ describe("what Athena is told about the partitions", () => {
       // Then projection is on, and each key declares the values it takes. A
       // key without a projection is what makes Athena refuse the whole
       // query, since a projected table has no other way to know.
-      expect(projection["projection.enabled"]).toBe("true");
+      assertIdentical(projection["projection.enabled"], "true");
       for (const name of partitionKeyNames(granularity)) {
-        expect(projection[`projection.${name}.type`]).toBeDefined();
+        assertFalse(projection[`projection.${name}.type`] === undefined);
       }
 
       // And nothing is projected that the writer never writes. A projected
@@ -240,7 +252,11 @@ describe("what Athena is told about the partitions", () => {
           .filter((parameter) => parameter !== "projection.enabled")
           .map((parameter) => parameter.split(".")[1] ?? ""),
       );
-      expect(projected).toStrictEqual(new Set(partitionKeyNames(granularity)));
+      const partitionKeys = partitionKeyNames(granularity);
+      assertSetSize(projected, partitionKeys.length);
+      for (const partitionKey of partitionKeys) {
+        assertTrue(projected.has(partitionKey));
+      }
     },
   );
 
@@ -250,7 +266,8 @@ describe("what Athena is told about the partitions", () => {
     // Then every segment carries the key and the placeholder Athena
     // substitutes. A literal `${year}` left in the path is a table reading a
     // prefix that never exists.
-    expect(partitionLocationTemplate("hourly")).toBe(
+    assertIdentical(
+      partitionLocationTemplate("hourly"),
       `distributionid=\${distributionid}/year=\${year}/month=\${month}` +
         `/day=\${day}/hour=\${hour}`,
     );
@@ -265,7 +282,7 @@ describe("what Athena is told about the partitions", () => {
 
     // Then the range is open at the top. A fixed end year is a table that
     // stops finding data on a New Year's Day, and nothing reports it.
-    expect(projection["projection.year.range"]).toBe("2026,NOW");
+    assertIdentical(projection["projection.year.range"], "2026,NOW");
   });
 
   it("names every distribution delivering into the dataset", () => {
@@ -280,8 +297,9 @@ describe("what Athena is told about the partitions", () => {
 
     // Then the first partition key enumerates them. This is the one key
     // whose values no rule can work out.
-    expect(projection["projection.distributionid.type"]).toBe("enum");
-    expect(projection["projection.distributionid.values"]).toBe(
+    assertIdentical(projection["projection.distributionid.type"], "enum");
+    assertIdentical(
+      projection["projection.distributionid.values"],
       "E1AAAA,E2BBBB,E3CCCC",
     );
   });

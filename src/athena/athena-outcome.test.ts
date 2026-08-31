@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import {
+  assertIdentical,
+  assertObjectEquals,
+  assertUndefined,
+} from "@kensio/smartass";
+import { describe, it } from "vitest";
 
 import { outcomeFrom } from "./athena-outcome.js";
 
@@ -22,7 +27,7 @@ describe("what running a query came to", () => {
 
     // Then every part of it survives, including the id that finds the query
     // again in the console.
-    expect(outcome).toStrictEqual({
+    assertObjectEquals(outcome, {
       queryExecutionId: "abc-123",
       region: "eu-west-1",
       state: "SUCCEEDED",
@@ -44,10 +49,10 @@ describe("what running a query came to", () => {
     // whether a byte count is a number before adding it up, and the scan
     // report says zero rather than throwing on a query that reported
     // nothing.
-    expect(outcome.queryExecutionId).toBe("");
-    expect(outcome.bytesScanned).toBe(0);
-    expect(outcome.state).toBeUndefined();
-    expect(outcome.milliseconds).toBeUndefined();
+    assertIdentical(outcome.queryExecutionId, "");
+    assertIdentical(outcome.bytesScanned, 0);
+    assertUndefined(outcome.state);
+    assertUndefined(outcome.milliseconds);
   });
 
   it("keeps the reason a query gave for stopping", () => {
@@ -64,7 +69,7 @@ describe("what running a query came to", () => {
 
     // Then the reason comes through, which is the only thing the caller has
     // to explain the failure with.
-    expect(outcome.state).toBe("FAILED");
-    expect(outcome.stateChangeReason).toBe("Table not found");
+    assertIdentical(outcome.state, "FAILED");
+    assertIdentical(outcome.stateChangeReason, "Table not found");
   });
 });

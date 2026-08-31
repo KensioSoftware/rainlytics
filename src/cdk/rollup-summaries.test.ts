@@ -1,3 +1,12 @@
+import {
+  assertArrayIncludes,
+  assertArrayNotIncludes,
+  assertIdentical,
+  assertObjectEquals,
+  assertObjectMatches,
+  assertStringIncludes,
+  assertUndefined,
+} from "@kensio/smartass";
 import type { Readable } from "node:stream";
 import { text } from "node:stream/consumers";
 import { gzipSync } from "node:zlib";
@@ -17,7 +26,7 @@ import {
   RemovalPolicy,
   Stack,
 } from "aws-cdk-lib/core";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { deployStacks, simStartedAt } from "#test/simulated-deployment.js";
 
@@ -247,13 +256,13 @@ describe("computing rollup summaries on a schedule", () => {
     // the rows the question answered.
     const summary = await summaryAt(deployed, closedHourKey);
 
-    expect(summary?.window).toStrictEqual({
+    assertObjectEquals(summary?.window, {
       granularity: "hourly",
       from: "2026-08-23T08:00:00.000Z",
       until: "2026-08-23T09:00:00.000Z",
     });
-    expect(summary?.columns).toStrictEqual(["path", "views"]);
-    expect(summary?.rows).toStrictEqual([
+    assertObjectEquals(summary.columns, ["path", "views"]);
+    assertObjectEquals(summary.rows, [
       { path: "/", views: "2" },
       { path: "/grammar/", views: "1" },
     ]);
@@ -273,8 +282,8 @@ describe("computing rollup summaries on a schedule", () => {
     // question can see that this answer is a narrower one.
     const summary = await summaryAt(deployed, closedHourKey);
 
-    expect(summary?.schemaVersion).toBe(summarySchemaVersion);
-    expect(summary?.question).toStrictEqual({
+    assertIdentical(summary?.schemaVersion, summarySchemaVersion);
+    assertObjectEquals(summary.question, {
       name: "pageviews",
       host: "www.example.com",
       includeBots: false,
@@ -282,7 +291,7 @@ describe("computing rollup summaries on a schedule", () => {
       param: "q",
       redirectStatuses: defaultRedirectStatuses,
     });
-    expect(summary?.computedAt).toBe("2026-08-23T09:15:00.000Z");
+    assertIdentical(summary.computedAt, "2026-08-23T09:15:00.000Z");
   });
 
   it("writes an empty answer for a window that saw no traffic", async () => {
@@ -298,14 +307,14 @@ describe("computing rollup summaries on a schedule", () => {
     // Then both hours have a summary, and the quiet one holds no rows. A
     // window nobody computed is no object at all, and a reader has to be able
     // to tell the two apart.
-    await expect(rowsIn(deployed, hourBeforeKey)).resolves.toStrictEqual([
+    assertObjectEquals(await rowsIn(deployed, hourBeforeKey), [
       { path: "/", views: "1" },
     ]);
 
     const quiet = await summaryAt(deployed, closedHourKey);
 
-    expect(quiet?.rows).toStrictEqual([]);
-    expect(quiet?.columns).toStrictEqual(["path", "views"]);
+    assertObjectEquals(quiet?.rows, []);
+    assertObjectEquals(quiet.columns, ["path", "views"]);
   });
 
   it("picks up a record that arrived after its window was computed", async () => {
@@ -316,7 +325,7 @@ describe("computing rollup summaries on a schedule", () => {
       aRecord(theClosedHour),
     ]);
     await deployed.simAws.clock().advanceBy({ minutes: 16 });
-    await expect(rowsIn(deployed, closedHourKey)).resolves.toStrictEqual([
+    assertObjectEquals(await rowsIn(deployed, closedHourKey), [
       { path: "/", views: "2" },
     ]);
 
@@ -330,7 +339,7 @@ describe("computing rollup summaries on a schedule", () => {
     // Then the hour is recomputed and counts it. A run that only ever wrote
     // the window that had just closed would have left this record out for as
     // long as the summary lived.
-    await expect(rowsIn(deployed, closedHourKey)).resolves.toStrictEqual([
+    assertObjectEquals(await rowsIn(deployed, closedHourKey), [
       { path: "/", views: "3" },
     ]);
   });
@@ -352,12 +361,12 @@ describe("computing rollup summaries on a schedule", () => {
     // out of its hours.
     const summary = await summaryAt(deployed, closedDayKey);
 
-    expect(summary?.window).toStrictEqual({
+    assertObjectEquals(summary?.window, {
       granularity: "daily",
       from: "2026-08-23T00:00:00.000Z",
       until: "2026-08-24T00:00:00.000Z",
     });
-    expect(summary?.rows).toStrictEqual([
+    assertObjectEquals(summary.rows, [
       { path: "/", views: "1" },
       { path: "/grammar/", views: "1" },
     ]);
@@ -383,10 +392,10 @@ describe("computing rollup summaries on a schedule", () => {
     // Then the hour that closed is there and the one before it was left
     // alone. No object at all is a window nobody computed, and it reads
     // differently from a window that saw no traffic.
-    await expect(rowsIn(deployed, closedHourKey)).resolves.toStrictEqual([
+    assertObjectEquals(await rowsIn(deployed, closedHourKey), [
       { path: "/", views: "1" },
     ]);
-    await expect(summaryAt(deployed, hourBeforeKey)).resolves.toBeUndefined();
+    assertUndefined(await summaryAt(deployed, hourBeforeKey));
   });
 
   it("writes into a bucket the site brought with it", async () => {
@@ -412,11 +421,12 @@ describe("computing rollup summaries on a schedule", () => {
       .s3()
       .getObject({ input: { Bucket: ownBucketName, Key: closedHourKey } });
 
-    expect(
+    assertObjectMatches(
       JSON.parse(await text(found.Body as unknown as Readable)),
-    ).toMatchObject({
-      rows: [{ path: "/", views: "1" }],
-    });
+      {
+        rows: [{ path: "/", views: "1" }],
+      },
+    );
   });
 
   it("counts the visitors the closed hour saw", async () => {
@@ -439,8 +449,8 @@ describe("computing rollup summaries on a schedule", () => {
     // the two numbers is the address that came back, counted once.
     const summary = await summaryAt(deployed, closedHourKey);
 
-    expect(summary?.rows).toStrictEqual([{ path: "/", views: "3" }]);
-    expect(summary?.visitors).toStrictEqual({ distinct: 2, additive: false });
+    assertObjectEquals(summary?.rows, [{ path: "/", views: "3" }]);
+    assertObjectEquals(summary.visitors, { distinct: 2, additive: false });
   });
 
   it("asks Athena nothing where the salt parameter is missing", async () => {
@@ -460,9 +470,9 @@ describe("computing rollup summaries on a schedule", () => {
     // simulation's record of it stands in for the log group.
     const [failure] = account.scheduler().deliveryFailures;
 
-    expect(failure?.message).toContain(parameter);
-    expect(account.athena().queryExecutions()).toStrictEqual([]);
-    await expect(summaryAt(deployed, closedHourKey)).resolves.toBeUndefined();
+    assertStringIncludes(failure?.message, parameter);
+    assertObjectEquals(account.athena().queryExecutions(), []);
+    assertUndefined(await summaryAt(deployed, closedHourKey));
   });
 
   it("summarises an hour with no salt where the address is undelivered", async () => {
@@ -484,8 +494,8 @@ describe("computing rollup summaries on a schedule", () => {
     // parameter to get there.
     const summary = await summaryAt(deployed, closedHourKey);
 
-    expect(summary?.rows).toStrictEqual([{ path: "/", views: "2" }]);
-    expect(summary?.visitors).toBeUndefined();
+    assertObjectEquals(summary?.rows, [{ path: "/", views: "2" }]);
+    assertUndefined(summary.visitors);
   });
 
   it("hands the visitor count to the schedule without the salt", async () => {
@@ -504,9 +514,9 @@ describe("computing rollup summaries on a schedule", () => {
     // Then it carries the count and neither the window nor the salt. Both
     // arrive when the run happens, which is what keeps a salt out of the
     // schedule and out of the CloudFormation template holding it.
-    expect(input).toContain("visitorSql");
-    expect(input).toContain(windowPlaceholder);
-    expect(input).toContain(visitorSaltPlaceholder);
+    assertStringIncludes(input, "visitorSql");
+    assertStringIncludes(input, windowPlaceholder);
+    assertStringIncludes(input, visitorSaltPlaceholder);
   });
 
   it("tells the job which parameter the salt is in", async () => {
@@ -522,7 +532,7 @@ describe("computing rollup summaries on a schedule", () => {
       input: { FunctionName: String(functions.Functions[0]?.FunctionName) },
     });
 
-    expect(found.Configuration.Environment?.Variables).toMatchObject({
+    assertObjectMatches(found.Configuration.Environment?.Variables, {
       [summaryEnvironment.visitorSaltParameter]: parameter,
     });
   });
@@ -538,7 +548,7 @@ describe("computing rollup summaries on a schedule", () => {
       input: { FunctionName: String(functions.Functions[0]?.FunctionName) },
     });
 
-    expect(found.Configuration.Environment?.Variables).toMatchObject({
+    assertObjectMatches(found.Configuration.Environment?.Variables, {
       [summaryEnvironment.visitorSaltParameter]: defaultVisitorSaltParameter,
     });
   });
@@ -546,7 +556,7 @@ describe("computing rollup summaries on a schedule", () => {
   it("starts from the instant the simulation does", () => {
     // Given nothing but the fixed clock these cases count their hours from.
     // Then the windows written out above are the ones a run would meet.
-    expect(simStartedAt.toISOString()).toBe("2026-08-23T09:00:00.000Z");
+    assertIdentical(simStartedAt.toISOString(), "2026-08-23T09:00:00.000Z");
   });
 
   describe("what an identity granted reading summaries can reach", () => {
@@ -626,10 +636,10 @@ describe("computing rollup summaries on a schedule", () => {
 
       // Then it can fetch a summary. Every key a reader wants is built from
       // the question and the window, so this is the whole of the read path.
-      expect(actions).toContain("s3:GetObject");
+      assertArrayIncludes(actions, "s3:GetObject");
       // And it cannot write one. A reader that could put an object could
       // answer a question with a figure nothing computed.
-      expect(actions).not.toContain("s3:PutObject");
+      assertArrayNotIncludes(actions, "s3:PutObject");
     });
 
     it("decrypts a summaries bucket a site keeps under its own key", () => {
@@ -645,7 +655,7 @@ describe("computing rollup summaries on a schedule", () => {
 
       // Then the reader can decrypt what it reads. S3 answers a GetObject
       // under a key the caller cannot use with an AccessDenied from KMS.
-      expect(allowed(stack)).toContain("kms:Decrypt");
+      assertArrayIncludes(allowed(stack), "kms:Decrypt");
     });
   });
 });

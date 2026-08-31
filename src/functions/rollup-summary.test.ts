@@ -1,3 +1,12 @@
+import {
+  assertFalse,
+  assertNonNullable,
+  assertObjectEquals,
+  assertStringIncludes,
+  assertStringMatches,
+  assertThrowsErrorAsync,
+  assertUndefined,
+} from "@kensio/smartass";
 import type { Readable } from "node:stream";
 import { text } from "node:stream/consumers";
 import { gzipSync } from "node:zlib";
@@ -11,7 +20,7 @@ import { Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { Bucket } from "aws-cdk-lib/aws-s3";
 import { type App, CfnOutput, RemovalPolicy, Stack } from "aws-cdk-lib/core";
-import { describe, expect, it, vi } from "vitest";
+import { describe, it, vi } from "vitest";
 
 import { deployStacks } from "#test/simulated-deployment.js";
 
@@ -243,12 +252,20 @@ describe("one run of the rollup summary job", () => {
     // Then both closed hours are in the bucket. The trailing one is what
     // picks up a record CloudFront delivered after its window was first
     // computed.
-    await expect(
-      rowsIn(deployed, "summaries/v1/pageviews/hourly/2026-08-23T08Z.json"),
-    ).resolves.toStrictEqual([{ path: "/", views: "1" }]);
-    await expect(
-      rowsIn(deployed, "summaries/v1/pageviews/hourly/2026-08-23T07Z.json"),
-    ).resolves.toStrictEqual([]);
+    assertObjectEquals(
+      await rowsIn(
+        deployed,
+        "summaries/v1/pageviews/hourly/2026-08-23T08Z.json",
+      ),
+      [{ path: "/", views: "1" }],
+    );
+    assertObjectEquals(
+      await rowsIn(
+        deployed,
+        "summaries/v1/pageviews/hourly/2026-08-23T07Z.json",
+      ),
+      [],
+    );
   });
 
   it("carries the visitor count where the question asks for one", async () => {
@@ -270,8 +287,8 @@ describe("one run of the rollup summary job", () => {
       "summaries/v1/pageviews/hourly/2026-08-23T08Z.json",
     );
 
-    expect(summary?.rows).toStrictEqual([{ path: "/", views: "3" }]);
-    expect(summary?.visitors).toStrictEqual({ distinct: 2, additive: false });
+    assertObjectEquals(summary?.rows, [{ path: "/", views: "3" }]);
+    assertObjectEquals(summary.visitors, { distinct: 2, additive: false });
   });
 
   it("counts nobody for a window that saw nobody", async () => {
@@ -289,7 +306,7 @@ describe("one run of the rollup summary job", () => {
       "summaries/v1/pageviews/hourly/2026-08-23T08Z.json",
     );
 
-    expect(summary?.visitors).toStrictEqual({ distinct: 0, additive: false });
+    assertObjectEquals(summary?.visitors, { distinct: 0, additive: false });
   });
 
   it("leaves the field out where the question counts something else", async () => {
@@ -308,7 +325,8 @@ describe("one run of the rollup summary job", () => {
       "summaries/v1/pageviews/hourly/2026-08-23T08Z.json",
     );
 
-    expect(summary).not.toHaveProperty("visitors");
+    assertNonNullable(summary);
+    assertFalse(Object.hasOwn(summary, "visitors"));
   });
 
   it("fails the run rather than reporting a count Athena did not give", async () => {
@@ -329,10 +347,16 @@ describe("one run of the rollup summary job", () => {
 
     // Then the run fails and writes no summary. A window full of views
     // reporting no visitors is the failure nobody would see.
-    await expect(running).rejects.toThrow(/not a number of visitors/u);
-    await expect(
-      summaryAt(deployed, "summaries/v1/pageviews/hourly/2026-08-23T08Z.json"),
-    ).resolves.toBeUndefined();
+    {
+      const error = await assertThrowsErrorAsync(() => running);
+      assertStringMatches(error.message, /not a number of visitors/u);
+    }
+    assertUndefined(
+      await summaryAt(
+        deployed,
+        "summaries/v1/pageviews/hourly/2026-08-23T08Z.json",
+      ),
+    );
   });
 
   it("fails the run when Athena will not answer the visitor count", async () => {
@@ -354,10 +378,16 @@ describe("one run of the rollup summary job", () => {
     // Then the run fails naming the question and writes nothing. The views
     // were counted, and a summary carrying them without the count would say
     // the question had been answered.
-    await expect(running).rejects.toThrow(/visitors for pageviews/u);
-    await expect(
-      summaryAt(deployed, "summaries/v1/pageviews/hourly/2026-08-23T08Z.json"),
-    ).resolves.toBeUndefined();
+    {
+      const error = await assertThrowsErrorAsync(() => running);
+      assertStringMatches(error.message, /visitors for pageviews/u);
+    }
+    assertUndefined(
+      await summaryAt(
+        deployed,
+        "summaries/v1/pageviews/hourly/2026-08-23T08Z.json",
+      ),
+    );
   });
 
   it("fails the run where the deployment has no salt secret", async () => {
@@ -374,10 +404,16 @@ describe("one run of the rollup summary job", () => {
     });
 
     // Then it fails naming the parameter, before Athena is asked anything.
-    await expect(running).rejects.toThrow("/nobody/made-this");
-    await expect(
-      summaryAt(deployed, "summaries/v1/pageviews/hourly/2026-08-23T08Z.json"),
-    ).resolves.toBeUndefined();
+    {
+      const error = await assertThrowsErrorAsync(() => running);
+      assertStringIncludes(error.message, "/nobody/made-this");
+    }
+    assertUndefined(
+      await summaryAt(
+        deployed,
+        "summaries/v1/pageviews/hourly/2026-08-23T08Z.json",
+      ),
+    );
   });
 
   it("fails the run when Athena will not answer the question", async () => {
@@ -397,9 +433,15 @@ describe("one run of the rollup summary job", () => {
     // Then the run fails rather than writing a summary of nothing. Nobody is
     // watching, so the throw is what puts it on the function's error metric
     // and in its log group.
-    await expect(running).rejects.toThrow(/pageviews/u);
-    await expect(
-      summaryAt(deployed, "summaries/v1/pageviews/hourly/2026-08-23T08Z.json"),
-    ).resolves.toBeUndefined();
+    {
+      const error = await assertThrowsErrorAsync(() => running);
+      assertStringMatches(error.message, /pageviews/u);
+    }
+    assertUndefined(
+      await summaryAt(
+        deployed,
+        "summaries/v1/pageviews/hourly/2026-08-23T08Z.json",
+      ),
+    );
   });
 });

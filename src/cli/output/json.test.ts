@@ -1,5 +1,10 @@
+import {
+  assertIdentical,
+  assertObjectEquals,
+  assertStringEndsWith,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { toJson } from "./json.js";
 
@@ -21,7 +26,7 @@ describe("JSON output", () => {
     // Then it is the rows themselves, with no envelope around them. `jq
     // '.[0].path'` is the expression people already know, and a wrapper would
     // put a key in front of every one anybody writes.
-    expect(parsed).toStrictEqual(rows);
+    assertObjectEquals(parsed, rows);
   });
 
   it("gives every object every column", () => {
@@ -39,8 +44,8 @@ describe("JSON output", () => {
     // Then the gap is an explicit null. A key that appears in some objects
     // and vanishes from others makes every reader of the output special-case
     // it.
-    expect(Object.keys(parsed[1] ?? {})).toStrictEqual(["path", "views"]);
-    expect(parsed[1]?.["views"]).toBeNull();
+    assertObjectEquals(Object.keys(parsed[1] ?? {}), ["path", "views"]);
+    assertIdentical(parsed[1]?.["views"], null);
   });
 
   it("orders the keys the way the columns are ordered", () => {
@@ -57,7 +62,7 @@ describe("JSON output", () => {
 
     // Then the columns decide, so two runs of the same command produce the
     // same bytes for the same data.
-    expect(Object.keys(parsed[0] ?? {})).toStrictEqual(["views", "path"]);
+    assertObjectEquals(Object.keys(parsed[0] ?? {}), ["views", "path"]);
   });
 
   it("ends in a newline", () => {
@@ -66,6 +71,6 @@ describe("JSON output", () => {
     const json = toJson({ columns: ["path"], rows: [aRow()] });
 
     // Then a shell prompt lands on a line of its own.
-    expect(json.endsWith("\n")).toBe(true);
+    assertStringEndsWith(json, "\n");
   });
 });

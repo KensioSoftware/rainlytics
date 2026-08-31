@@ -1,5 +1,10 @@
+import {
+  assertIdentical,
+  assertSetSize,
+  assertStringNotIncludes,
+} from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { toTable } from "./table.js";
 
@@ -35,7 +40,7 @@ describe("table output", () => {
     // Then every line starts its second column in the same place, which is
     // the whole reason a person at a terminal gets this format.
     const starts = linesOf(table).map((line) => lastColumnStart(line));
-    expect(new Set(starts).size).toBe(1);
+    assertSetSize(new Set(starts), 1);
   });
 
   it("rules the heading off from the rows", () => {
@@ -52,9 +57,9 @@ describe("table output", () => {
     );
 
     // Then the heading, a rule as wide as the column, and the row.
-    expect(heading).toBe("path");
-    expect(rule).toBe("-".repeat(path.length));
-    expect(row).toBe(path);
+    assertIdentical(heading, "path");
+    assertIdentical(rule, "-".repeat(path.length));
+    assertIdentical(row, path);
   });
 
   it("leaves no trailing spaces on a line", () => {
@@ -73,7 +78,7 @@ describe("table output", () => {
     // Then nothing carries invisible whitespace to the end of the line, which
     // a diff, a copy and a paste into anything else all pick up.
     for (const line of linesOf(table)) {
-      expect(line).toBe(line.trimEnd());
+      assertIdentical(line, line.trimEnd());
     }
   });
 
@@ -89,9 +94,9 @@ describe("table output", () => {
 
     // Then nothing spells the absence out. "undefined" in a column is a
     // reading of the data nobody meant.
-    expect(table).not.toContain("undefined");
-    expect(table).not.toContain("null");
-    expect(linesOf(table).at(-1)).toBe(path);
+    assertStringNotIncludes(table, "undefined");
+    assertStringNotIncludes(table, "null");
+    assertIdentical(linesOf(table).at(-1), path);
   });
 
   it("widens a column its heading is wider than its values", () => {
@@ -104,6 +109,6 @@ describe("table output", () => {
     );
 
     // Then the column is as wide as the heading, and the rule says so.
-    expect(rule).toBe("-----");
+    assertIdentical(rule, "-----");
   });
 });
