@@ -225,7 +225,8 @@ rainlytics --output csv <command>     # refused, with that sentence
 
 Answer the five default questions with [`rainlytics pageviews`, `referrers`, `status-codes`,
 `cache-hit-ratio` and `searches`](../rollups/). A deployment using the browser beacon can add the
-shipped [`web-vitals`](../web-vitals/) question. Run a question a site saved for itself with
+shipped [`javascript-errors`](../javascript-errors/) and [`web-vitals`](../web-vitals/) questions.
+Run a question a site saved for itself with
 [`rainlytics saved-query`](#running-a-query-saved-in-the-workgroup), and run SQL for anything else
 with [`rainlytics query`](../query/).
 

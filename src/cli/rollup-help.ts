@@ -1,5 +1,4 @@
-// The options the four named questions share, and the words that describe
-// them.
+// The options the named questions share, and the words that describe them.
 //
 // Apart from the commands for the reason `help-text.ts` is apart from
 // `help.ts`. These are documentation, meant to be edited as prose.

@@ -72,11 +72,11 @@ path         views
 /grammar/       97
 ```
 
-`referrers`, `status-codes` and `cache-hit-ratio` are the others, `searches`
-counts what people typed into a search box, and `web-vitals` reads the optional
-browser measurements once a deployment opts into that rollup. `query` takes
-SQL for anything else. Crawlers are left out by default, which on the
-reference site is 39% of the traffic in a typical hour.
+`referrers`, `status-codes` and `cache-hit-ratio` are the others, and `searches`
+counts what people typed into a search box. `javascript-errors` and
+`web-vitals` read optional browser reports once a deployment opts into those
+rollups. `query` takes SQL for anything else. Crawlers are left out by default,
+which on the reference site is 39% of the traffic in a typical hour.
 
 It authenticates through the AWS SDK's default credential chain and writes
 JSON, CSV or a table, defaulting to the table at a terminal and to JSON when
@@ -138,8 +138,9 @@ reportErrors(beacon);
 
 That is TTFB, FCP, LCP and CLS, plus what an uncaught error said. All of it
 together comes to 1349 bytes gzipped. See the [browser beacon](docs/beacon/),
-[beacon path](docs/beacon-path/), [beacon events](docs/beacon-events/) and
-[Web Vitals](docs/web-vitals/) pages.
+[beacon path](docs/beacon-path/), [beacon events](docs/beacon-events/),
+[JavaScript errors](docs/javascript-errors/) and [Web Vitals](docs/web-vitals/)
+pages.
 
 ## Status
 

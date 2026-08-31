@@ -125,6 +125,9 @@ carrying what it said in `m`. The page is read when the error happens, so an err
 app is reported against the route it happened on. Neither listener handles the error. The browser
 still logs to the console and any other handler on the page still runs.
 
+[`javascript-errors`](../javascript-errors/) counts those rows by page and message, most reported
+first. A deployment opts into that rollup when it opts into error reporting.
+
 **No stack.** A stack names the URL of every frame and often a good deal more, none of it fits in a
 query string worth storing, and the name and message are what a rollup counting errors would group
 by. The message is cut at 200 characters, because the whole query string is stored for as long as
@@ -236,10 +239,6 @@ rather call its own router's hook.
 worth saving, and it would put a scaling factor in front of numbers that are otherwise counts.
 
 **No INP.** The section on vitals above has why, and what to do about it.
-
-**No JavaScript error rollup.** [`web-vitals`](../web-vitals/) reads the measurements in `n`.
-Nothing shipped reads the error text in `m` yet. `rainlytics query` answers one in the meantime,
-and the column is `beaconMessageColumn`.
 
 **No `navigator.sendBeacon`.** It is POST-only, and the whole design rests on a GET whose query
 string CloudFront writes into `cs-uri-query`.
