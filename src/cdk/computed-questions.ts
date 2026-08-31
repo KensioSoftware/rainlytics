@@ -18,7 +18,7 @@ import type { RollupSummariesProps } from "./summary-configuration.js";
  *
  * A visitor count is the one question needing a field the delivery can be
  * configured without. The shipped questions therefore follow the table. A
- * deployment over a table carrying no viewer address gets the same five
+ * deployment over a table carrying no viewer address gets the same six
  * questions with the count off, and needs no salt for them.
  *
  * A caller that asked for the count by name gets an error instead. Dropping

@@ -31,7 +31,7 @@ by unhandled promise rejections. Route changes, Web Vitals and custom events are
 
 ## A site opts into it
 
-The five default rollups work from access-log fields every deployment has. This one reads rows from
+The six default rollups work from access-log fields every deployment has. This one reads rows from
 optional browser error reporting. A site without those rows would pay for an empty Athena query on
 every window, so `javascriptErrors` stays outside the exported `rollups` list.
 

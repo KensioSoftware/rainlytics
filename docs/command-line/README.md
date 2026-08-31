@@ -62,9 +62,9 @@ authorized to perform: athena:StartQueryExecution on resource:
 arn:aws:athena:eu-west-1:000000000000:workgroup/rainlytics
 Running a query takes athena:StartQueryExecution and athena:StopQueryExecution on the rainlytics
 workgroup, and s3:PutObject and s3:AbortMultipartUpload on the bucket that workgroup writes results
-to. A named question (pageviews, referrers, status-codes, cache-hit-ratio or searches) answers from
-a precomputed summary on s3:GetObject alone. Name the bucket holding those with --summaries, or put
-it in RAINLYTICS_SUMMARY_BUCKET.
+to. A named question (pageviews, referrers, browsers, status-codes, cache-hit-ratio or searches)
+answers from a precomputed summary on s3:GetObject alone. Name the bucket holding those with
+--summaries, or put it in RAINLYTICS_SUMMARY_BUCKET.
 ```
 
 The [query workgroup](../query-workgroup/) page has the whole policy, including the reads a
@@ -223,9 +223,10 @@ rainlytics --output csv <command>     # refused, with that sentence
 
 ## What it can do today
 
-Answer the five default questions with [`rainlytics pageviews`, `referrers`, `status-codes`,
-`cache-hit-ratio` and `searches`](../rollups/). A deployment using the browser beacon can add the
-shipped [`javascript-errors`](../javascript-errors/) and [`web-vitals`](../web-vitals/) questions.
+Answer the six default questions with [`rainlytics pageviews`, `referrers`, `browsers`,
+`status-codes`, `cache-hit-ratio` and `searches`](../rollups/). A deployment using the browser
+beacon can add the shipped [`javascript-errors`](../javascript-errors/) and
+[`web-vitals`](../web-vitals/) questions.
 Run a question a site saved for itself with
 [`rainlytics saved-query`](#running-a-query-saved-in-the-workgroup), and run SQL for anything else
 with [`rainlytics query`](../query/).

@@ -93,9 +93,10 @@ describe("the SQL a rollup runs", () => {
     "counts automated traffic in %s when asked",
     (name) => {
       // Given a rollup told to include bots.
-      // Then nothing filters on the user agent at all.
+      // Then the shared bot condition is absent. A question about browsers
+      // still reads the user agent for its own answer.
       expect(sqlFor(name, { includeBots: true })).not.toContain(
-        "cs_user_agent",
+        `NOT regexp_like(lower(cs_user_agent), '${botUserAgentPattern}')`,
       );
     },
   );
@@ -109,6 +110,40 @@ describe("the SQL a rollup runs", () => {
     expect(sql).toContain("cs_method = 'GET'");
     expect(sql).toContain("sc_content_type LIKE 'text/html%'");
     expect(sql).toContain("sc_status IN ('200', '304')");
+  });
+
+  it("classifies browsers before their compatibility tokens", () => {
+    // Given the browser breakdown, whose Edge, Opera and Samsung agents also
+    // carry the Chrome and Safari tokens.
+    const sql = sqlFor("browsers");
+
+    // Then the specific families are tested first. A device uses a small
+    // fixed ladder of its own, and unmatched agents stay visible as Other.
+    expect([
+      sql.indexOf("edg(e|a|ios)?/") < sql.indexOf("(chrome|crios|chromium)/"),
+      sql.indexOf("samsungbrowser/") < sql.indexOf("(chrome|crios|chromium)/"),
+      sql.indexOf("(chrome|crios|chromium)/") < sql.indexOf("safari/"),
+    ]).toStrictEqual([true, true, true]);
+    expect(
+      [
+        "THEN 'Tablet'",
+        "THEN 'Mobile'",
+        "THEN 'Desktop'",
+        "ELSE 'Other'",
+      ].every((text) => sql.includes(text)),
+    ).toBe(true);
+    expect(sql).toContain("GROUP BY 1, 2");
+    expect(sql).toContain("ORDER BY 3 DESC, 1, 2");
+
+    // And the count covers pageviews. A stylesheet should not make the
+    // browser that loaded it look busier than one whose assets were cached.
+    expect(
+      [
+        "cs_method = 'GET'",
+        "sc_content_type LIKE 'text/html%'",
+        "sc_status IN ('200', '304')",
+      ].every((condition) => sql.includes(condition)),
+    ).toBe(true);
   });
 
   it.each(rollups.map((rollup) => rollup.name))(
@@ -248,7 +283,7 @@ describe("the SQL a rollup runs", () => {
   });
 
   it("leaves the other rollups' columns as they were delivered", () => {
-    // Given the three rollups that read no path.
+    // Given the rollups that read no encoded path or query parameter.
     // Then none of them decodes anything. The referrer is read for its host,
     // which is ASCII whatever the rest of the URL holds, and a status code
     // and a result type carry no encoding at all. The beacon's path that
@@ -256,6 +291,7 @@ describe("the SQL a rollup runs", () => {
     expect(sqlFor("referrers")).not.toContain("url_decode");
     expect(sqlFor("status-codes")).not.toContain("url_decode");
     expect(sqlFor("cache-hit-ratio")).not.toContain("url_decode");
+    expect(sqlFor("browsers")).not.toContain("url_decode");
   });
 
   it("leaves this site out of its own referrers", () => {
@@ -436,7 +472,7 @@ describe("a rollup a site wrote for itself", () => {
   };
 
   /**
-   * A question Rainlytics does not ship, built the way the four are built.
+   * A question Rainlytics does not ship, built the way the six are built.
    *
    * This is the shape the docs describe, and until the builder was exported
    * it was a shape nobody outside the package could write. The reference
@@ -463,7 +499,7 @@ describe("a rollup a site wrote for itself", () => {
     // Given a week in August, asked for by a rollup nobody here wrote.
     const sql = sqlFor();
 
-    // Then the partition predicate is the one the four carry. This is the
+    // Then the partition predicate is the one the six carry. This is the
     // part that decides what Athena bills for, and a site writing its own
     // copy of it is a site one edit away from reading a year of objects.
     expect(sql).toContain("year IN ('2026')");
@@ -597,7 +633,7 @@ describe("a rollup a site wrote to read a query string", () => {
 
 describe("what a rollup may be called", () => {
   it.each(rollups.map((rollup) => rollup.name))("takes %s", (name) => {
-    // Given a name one of the built-in four carries.
+    // Given a name one of the built-in six carries.
     // Then nothing objects. The rule has to admit the names already
     // deployed, or the first thing it refuses is Rainlytics itself.
     expect(() => {

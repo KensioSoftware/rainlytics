@@ -134,7 +134,7 @@ A run that meets no parameter fails and says so, naming the parameter and printi
 
 ## Which questions carry a count
 
-`pageviews` alone, and it is one of the five questions a deployment gets when it passes no `rollups`
+`pageviews` alone, and it is one of the six questions a deployment gets when it passes no `rollups`
 of its own. A default deployment therefore reads the salt parameter, and the secret has to be there
 before its first run. [Running without a visitor count](#running-without-a-visitor-count) has the
 deployment that reads no parameter at all.
@@ -156,8 +156,8 @@ carrying one would report a number about rows it never looked at, and the field 
 question that counts something else. Absent and `{ "distinct": 0 }` mean different things, and a
 reader can tell them apart.
 
-It costs one extra Athena query per window per run. The five default questions on both cadences,
-recomputing two windows, come to 250 queries a day and about 38 cents a month. The visitor count on
+It costs one extra Athena query per window per run. The six default questions on both cadences,
+recomputing two windows, come to 300 queries a day and about 45 cents a month. The visitor count on
 `pageviews` adds 50 of those, which is about 8 cents. The
 [summary schedule](../summary-schedule/#what-it-costs) page has the arithmetic.
 
@@ -177,7 +177,7 @@ new CloudFrontLogDelivery(this, "RainlyticsDelivery", {
 
 That is the only line a site changes. The [log table](../log-table/) describes what the delivery
 writes and the [summary schedule](../summary-schedule/) reads the table. Both follow. The schedule
-computes the same five questions with the count off, needs no salt parameter, and is granted no
+computes the same six questions with the count off, needs no salt parameter, and is granted no
 `ssm:GetParameter`. Summaries carry no `visitors` field, which a reader tells apart from a count of
 zero.
 

@@ -31,7 +31,7 @@ measurements behind each percentile.
 
 ## A site opts into it
 
-The five default rollups work from access-log fields every deployment has. This one reads rows from
+The six default rollups work from access-log fields every deployment has. This one reads rows from
 the optional browser beacon. A site without those rows would pay for an empty Athena query on every
 window, so `webVitals` stays outside the exported `rollups` list.
 

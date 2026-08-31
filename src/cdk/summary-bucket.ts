@@ -82,8 +82,8 @@ export interface SummaryBucketProps {
  * that outlives the records, so one lifecycle over both would delete the
  * cheap thing to save the expensive one.
  *
- * No expiry of its own. A year of five questions on both cadences is about
- * 45,000 objects of a few kilobytes each, which is cents of storage, and a
+ * No expiry of its own. A year of six questions on both cadences is about
+ * 55,000 objects of a few kilobytes each, which is cents of storage, and a
  * summary is the only remaining record of a window once the raw objects have
  * gone. A site that wants one adds a lifecycle rule to a bucket it passes in.
  *

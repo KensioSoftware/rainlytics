@@ -28,7 +28,7 @@ import type { CfnSchedule } from "aws-cdk-lib/aws-scheduler";
  * bills per invocation, Lambda per millisecond, Athena per byte scanned and
  * S3 per request and per byte. A site with no traffic still runs the queries
  * and pays Athena's ten million byte minimum for each, which is a few cents a
- * month for the five default questions on both cadences.
+ * month for the six default questions on both cadences.
  *
  * The SQL is built at synthesis by the builder the `rainlytics` command uses,
  * with the window left as a placeholder the job fills in when it runs. So the
@@ -99,7 +99,7 @@ export class RollupSummaries extends Construct {
    * ```
    *
    * One `s3:GetObject` on the bucket's objects, which is the whole of what
-   * `rainlytics pageviews --last 7d` and its four siblings send. A reader
+   * `rainlytics pageviews --last 7d` and its five siblings send. A reader
    * builds the key it wants out of the question and the window, so nothing
    * lists the bucket.
    *

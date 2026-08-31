@@ -1,4 +1,4 @@
-// How each of the five questions adds up across stored summaries.
+// How each of the six questions adds up across stored summaries.
 //
 // Apart from `rollup-questions.ts`, which writes the SQL. A question is
 // answered two ways and both are the question's own. Athena counts one window
@@ -14,6 +14,9 @@ export const pageviewTotals: RollupTotals = { added: ["views"] };
 
 /** Views by referring host, added by host. */
 export const referrerTotals: RollupTotals = { added: ["views"] };
+
+/** Views by browser family and device class, added by both. */
+export const browserTotals: RollupTotals = { added: ["views"] };
 
 /** Responses by status, added by status. */
 export const statusTotals: RollupTotals = { added: ["responses"] };

@@ -189,7 +189,7 @@ export interface RollupTotals {
 /**
  * One question, and the SQL that answers it.
  *
- * The five default questions are in `rollup-questions.ts`. The three opt-in
+ * The six default questions are in `rollup-questions.ts`. The three opt-in
  * questions over beacon rows sit in `beacon-rollup.ts`,
  * `javascript-errors-rollup.ts` and `web-vitals-rollup.ts`, and a site can
  * write its own. A rollup writes what it selects and groups by, and calls
@@ -289,9 +289,9 @@ export interface Rollup {
    * about rows it never looked at. `visitor-counts.ts` has what a visitor is
    * and `docs/visitors/` has what the number means.
    *
-   * It costs a second Athena query per window per run. The five shipped
-   * questions on both cadences, recomputing two windows, come to 250 queries
-   * a day and about 38 cents a month. Turning this on for one of them adds
+   * It costs a second Athena query per window per run. The six shipped
+   * questions on both cadences, recomputing two windows, come to 300 queries
+   * a day and about 45 cents a month. Turning this on for one of them adds
    * 50 queries, which is about 8 cents.
    */
   readonly countsVisitors?: boolean | undefined;

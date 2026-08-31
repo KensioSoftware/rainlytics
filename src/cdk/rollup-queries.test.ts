@@ -85,6 +85,7 @@ describe("the rollups saved in Athena", () => {
     expect(saved.map((query) => query.name)).toStrictEqual([
       "rainlytics-pageviews",
       "rainlytics-referrers",
+      "rainlytics-browsers",
       "rainlytics-status-codes",
       "rainlytics-cache-hit-ratio",
       "rainlytics-searches",
@@ -299,7 +300,7 @@ describe("the rollups saved in Athena", () => {
   };
 
   it("saves a rollup a site wrote for itself", async () => {
-    // Given that question, passed alongside the five.
+    // Given that question, passed alongside the six.
     // When the stack is deployed.
     const saved = await deployRollups({ rollups: [...rollups, countries] });
 
@@ -352,7 +353,7 @@ describe("the rollups saved in Athena", () => {
     });
 
     // Then `rainlytics-searches` is the site's own question, and there are
-    // still five. Replacing a built-in is the reason two rollups end up
+    // still six. Replacing a built-in is the reason two rollups end up
     // sharing a name, and leaving the built-in out is the way to do it.
     const search = saved.find((query) => query.name === "rainlytics-searches");
 
