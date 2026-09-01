@@ -80,6 +80,30 @@ export function reportPeriod(
     : { ...period, unit: request.unit };
 }
 
+/** The calendar period immediately before another report period. */
+export function previousReportPeriod(period: ReportPeriod): ReportPeriod {
+  const before = new Date(Date.parse(period.from) - 1);
+
+  return period.unit === "week"
+    ? reportPeriod(
+        {
+          unit: "week",
+          at: before,
+          timeZone: period.timeZone,
+          weekStartsOn: period.weekStartsOn,
+        },
+        new Date(period.from),
+      )
+    : reportPeriod(
+        {
+          unit: period.unit,
+          at: before,
+          timeZone: period.timeZone,
+        },
+        new Date(period.from),
+      );
+}
+
 /** Refuses a Date whose instant does not exist. */
 function assertDate(date: Date, subject: string): void {
   if (Number.isNaN(date.getTime())) {

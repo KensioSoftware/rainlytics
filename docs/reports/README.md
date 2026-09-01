@@ -232,6 +232,61 @@ The versioned document is written unchanged as JSON on standard output. The buck
 object age and one-GET cost go to standard error. A missing, incomplete or unsupported document
 leaves standard output empty and exits non-zero. The reader never runs Athena.
 
+## Comparing adjacent periods
+
+`reportComparison` compares a closed report with the immediately preceding period of the same
+calendar unit. It uses the time zone and first weekday recorded by the current report. Calendar
+arithmetic selects the earlier period, including weeks with a configured first day and periods
+around daylight-saving changes.
+
+```typescript
+import { previousReportPeriod, reportComparison } from "@kensio/rainlytics";
+
+const previousPeriod = previousReportPeriod(current.period);
+const comparison = reportComparison({ current, previous });
+```
+
+The comparison is a derived result with its own schema version. Stored report documents remain the
+source. The report writer can overwrite either document when late logs arrive. A stored comparison
+would then describe an older pair of values until another job refreshed it. Deriving the result
+from both documents keeps recomputation in one place and needs no Athena query.
+
+Pass `--compare` to ask the command line for the derived result:
+
+```bash
+rainlytics report month 2026-07 --compare
+```
+
+The command reads the selected report first. It then reads the preceding report with one additional
+S3 GET. Standard output remains one JSON document. Standard error names both keys, their ages and
+the cost of two GET requests.
+
+The comparison carries document metadata for both reports. Each available section also carries the
+two section sources, their calculation methods and a combined accuracy. The combined accuracy is
+`approximate` when either source section is approximate.
+
+Metric changes follow these rules:
+
+| Metric                                   | Change              | Unit and direction                                                                        |
+| ---------------------------------------- | ------------------- | ----------------------------------------------------------------------------------------- |
+| Counts, including pageviews and visitors | Relative percentage | The metric's count unit. Movement is unrated.                                             |
+| Cache hit ratio                          | Percentage points   | Percent. A higher value is better.                                                        |
+| Web Vitals p75                           | Relative percentage | Milliseconds for LCP, FCP and TTFB. CLS uses its unitless score. A lower value is better. |
+| Caller-defined durations                 | Relative percentage | Supplied by the metric definition. The definition also supplies the preferred direction.  |
+
+A zero baseline produces a `null` relative change with `reason` set to `zero-baseline`. The current
+value, previous value, numeric difference and trend remain available. JSON never contains infinity.
+
+Rows are matched on every non-metric column. A row present on one side only has an unavailable
+comparison. Ranked questions use `ranked-row-absent` as the reason because the row may sit below the
+other period's stored limit. Its missing value stays `null` and never becomes zero.
+
+Sections are withheld when a source is incomplete or unavailable, the question configuration
+changed, the columns changed, or either report lacks the section. Rainlytics supplies definitions
+for its shipped questions. A caller can pass `definitions` to `reportComparison` for a custom
+question. A custom definition names the numeric columns, their units, the change measure and the
+preferred direction.
+
 ## Cost
 
 The report path has no reserved or hourly capacity. Its AWS services charge for invocations,

@@ -3,6 +3,7 @@ import {
   assertInstanceOf,
   assertStringIncludes,
   assertThrowsError,
+  assertTrue,
 } from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
 import { describe, it } from "vitest";
@@ -53,6 +54,18 @@ describe("selecting a calendar report from the command line", () => {
     // Then each expands to the first date of the intended calendar period.
     assertIdentical(month.period.startsOn, "2026-07-01");
     assertIdentical(year.period.startsOn, "2025-01-01");
+  });
+
+  it("selects a comparison without changing the addressed period", () => {
+    // Given a closed month selected with the comparison flag.
+    const asked = context(["month", "2026-07"], { compare: true });
+
+    // When the report request is read.
+    const request = reportRequestFrom(asked);
+
+    // Then the selected month stays current and comparison is explicit.
+    assertIdentical(request.period.startsOn, "2026-07-01");
+    assertTrue(request.compare);
   });
 
   it("refuses an invalid date before reading S3", () => {

@@ -16,3 +16,24 @@ export function reportReadReport(read: ReportRead, at: Date): string {
     ` ${inDollars(getChargeInDollars(1))} at the us-east-1 rate.\n`
   );
 }
+
+/** The diagnostic for the two S3 objects behind a report comparison. */
+export function reportComparisonReadReport(
+  current: ReportRead,
+  previous: ReportRead,
+  at: Date,
+): string {
+  const currentModified = current.lastModified.toISOString();
+  const previousModified = previous.lastModified.toISOString();
+
+  return (
+    `Compared the ${current.document.period.unit} report starting` +
+    ` ${current.document.period.startsOn} with the one starting` +
+    ` ${previous.document.period.startsOn} in ${current.bucket}.\n` +
+    `Current object ${current.key}, last modified ${currentModified}` +
+    ` (${howLongBefore(currentModified, at)} ago).\n` +
+    `Previous object ${previous.key}, last modified ${previousModified}` +
+    ` (${howLongBefore(previousModified, at)} ago). 2 GETs, about` +
+    ` ${inDollars(getChargeInDollars(2))} at the us-east-1 rate.\n`
+  );
+}
