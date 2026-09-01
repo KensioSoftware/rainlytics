@@ -42,11 +42,20 @@ export const reportWeekStartsOnOption: CliOption = {
     ` report units ignore it.`,
 };
 
+export const reportCompareOption: CliOption = {
+  name: "compare",
+  type: "boolean",
+  description:
+    `Compare the selected report with the preceding calendar period.` +
+    ` This reads one additional report object and keeps JSON output.`,
+};
+
 export const reportOptions: readonly CliOption[] = [
   summariesOption,
   regionOption,
   reportTimeZoneOption,
   reportWeekStartsOnOption,
+  reportCompareOption,
 ];
 
 export const reportDescription = `\
@@ -60,16 +69,19 @@ and year also accepts YYYY.
 
   rainlytics report day 2026-08-30
   rainlytics report week 2026-08-24 --time-zone Europe/London
-  rainlytics report month 2026-07
+  rainlytics report month 2026-07 --compare
   rainlytics report year 2025
 
-The time zone and first weekday must match the RollupSummaries deployment.
-They are part of the stored report's address. The command derives that address
-from the date and options, so a reader does not have to calculate an S3 key.
+The time zone must match the RollupSummaries deployment. For a weekly report,
+the first weekday must also match. These options are part of the stored report's
+address. The command derives that address from the date and options, so a reader
+does not have to calculate an S3 key.
 
 Reports currently have JSON output only. Leave --output off or pass
---output json. The document goes to standard output. The bucket, object key,
-object age and S3 GET cost go to standard error, which keeps piped JSON clean.
+--output json. The document goes to standard output. Pass --compare to derive
+changes against the immediately preceding period. The comparison reads two
+stored report objects. The bucket, object keys, object ages and S3 GET cost go
+to standard error, which keeps piped JSON clean.
 
 Credentials and the region come from the AWS SDK's default chain. --summaries
 and --region override them in the same way they do for named questions.`;

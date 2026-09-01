@@ -106,11 +106,12 @@ The same construct precomputes one JSON report for each closed calendar day,
 week, month and year. The command reads one without running Athena again:
 
 ```bash
-rainlytics report month 2026-07 --summaries rainlytics-summaries-1a2b
+rainlytics report month 2026-07 --compare --summaries rainlytics-summaries-1a2b
 ```
 
-The whole versioned document goes to standard output. The [calendar
-reports](docs/reports/) page defines its periods, sections and S3 keys.
+The whole versioned document goes to standard output. `--compare` derives changes against the
+preceding month from two stored reports. The [calendar reports](docs/reports/) page defines its
+periods, sections, comparison rules and S3 keys.
 
 The optional beacon covers what the access log cannot see. A construct answers
 a collection path with a 204 at the CloudFront edge, and a module bundled into

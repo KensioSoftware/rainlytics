@@ -3,6 +3,7 @@ import {
   assertInstanceOf,
   assertObjectEquals,
   assertStringIncludes,
+  assertStringNotIncludes,
 } from "@kensio/smartass";
 import { S3Client } from "@aws-sdk/client-s3";
 import { faker } from "@faker-js/faker";
@@ -12,7 +13,8 @@ import { describe, it, vi } from "vitest";
 
 import { reportSchemaVersion } from "../report-document.js";
 import { reportKey } from "../report-key.js";
-import { reportPeriod } from "../report-periods.js";
+import { previousReportPeriod } from "../report-comparisons.js";
+import { reportPeriod, type ReportPeriod } from "../report-periods.js";
 import { rainlyticsCommands } from "./command.js";
 import { readReport } from "./report-lookup.js";
 import { runCli } from "./run.js";
@@ -27,15 +29,15 @@ describe("reading one calendar report object", () => {
     new Date("2026-08-24T00:00:00.000Z"),
   );
 
-  const completeDocument = () => ({
+  const completeDocument = (forPeriod: ReportPeriod = period) => ({
     schemaVersion: reportSchemaVersion,
-    period,
+    period: forPeriod,
     sourceCoverage: {
-      from: period.from,
-      until: period.until,
+      from: forPeriod.from,
+      until: forPeriod.until,
       complete: true,
     },
-    computedAt: "2026-08-24T00:30:00.000Z",
+    computedAt: new Date(Date.parse(forPeriod.until) + 1_800_000).toISOString(),
     sections: [],
   });
 
@@ -83,6 +85,88 @@ describe("reading one calendar report object", () => {
     // Then the document is unchanged and its S3 metadata is retained.
     assertObjectEquals(read.document, document);
     assertInstanceOf(read.lastModified, Date);
+  });
+
+  it("reads the preceding report and writes a structured comparison", async () => {
+    // Given adjacent report documents in a simulated summaries bucket.
+    const simAws = new SimAws();
+    const bucket = await bucketIn(simAws);
+    const previousPeriod = previousReportPeriod(period);
+    for (const forPeriod of [period, previousPeriod]) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await simAws
+        .region("us-east-1")
+        .s3()
+        .putObject({
+          input: {
+            Bucket: bucket,
+            Key: reportKey(forPeriod),
+            Body: JSON.stringify(completeDocument(forPeriod)),
+          },
+        });
+    }
+    using simSdk = new SimSdk({ simAws });
+    simSdk.intercept(S3Client);
+
+    // When the shipped command reads the selected report with --compare.
+    let stdout = "";
+    let stderr = "";
+    const code = await runCli({
+      argv: [
+        "report",
+        "day",
+        period.startsOn,
+        "--compare",
+        "--summaries",
+        bucket,
+        "--region",
+        "us-east-1",
+      ],
+      commands: rainlyticsCommands,
+      io: {
+        out: (value) => {
+          stdout += value;
+        },
+        error: (value) => {
+          stderr += value;
+        },
+        outIsTerminal: false,
+      },
+    });
+
+    // Then stdout remains one JSON document and the read costs two S3 GETs.
+    assertIdentical(code, 0);
+    assertObjectEquals(JSON.parse(stdout), {
+      kind: "calendar-report-comparison",
+      schemaVersion: 1,
+      reports: {
+        current: {
+          schemaVersion: reportSchemaVersion,
+          period,
+          sourceCoverage: {
+            from: period.from,
+            until: period.until,
+            complete: true,
+          },
+          computedAt: completeDocument().computedAt,
+        },
+        previous: {
+          schemaVersion: reportSchemaVersion,
+          period: previousPeriod,
+          sourceCoverage: {
+            from: previousPeriod.from,
+            until: previousPeriod.until,
+            complete: true,
+          },
+          computedAt: completeDocument(previousPeriod).computedAt,
+        },
+      },
+      sections: [],
+    });
+    assertStringIncludes(stderr, "2 GETs");
+    assertStringIncludes(stderr, reportKey(period));
+    assertStringIncludes(stderr, reportKey(previousPeriod));
+    assertStringNotIncludes(stderr, "Athena");
   });
 
   it("explains a report that has not been written", async () => {

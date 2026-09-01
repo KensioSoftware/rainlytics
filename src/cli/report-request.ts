@@ -18,6 +18,7 @@ export interface ReportRequest {
   readonly bucket: string;
   readonly region: string | undefined;
   readonly period: ReportPeriod;
+  readonly compare: boolean;
 }
 
 /** Reads and validates the report command's arguments and options. */
@@ -63,6 +64,7 @@ export function reportRequestFrom(context: CommandContext): ReportRequest {
     bucket,
     region: chosen(context.options["region"]),
     period: selectedReportPeriod(unit, selector, timeZone, weekStartsOn),
+    compare: context.options["compare"] === true,
   };
 }
 

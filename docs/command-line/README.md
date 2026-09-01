@@ -202,14 +202,14 @@ could mistake for a whole one.
 ```bash
 rainlytics report day 2026-08-30
 rainlytics report week 2026-08-24 --time-zone Europe/London
-rainlytics report month 2026-07
+rainlytics report month 2026-07 --compare
 rainlytics report year 2025
 ```
 
 The date selects the period. A weekly date can be any date inside the week. `--time-zone` defaults
-to UTC and `--week-starts-on` defaults to Monday. Both must match the values passed to
-`RollupSummaries`, since those values are part of a report's S3 address. The command derives the
-key from them.
+to UTC and must match the value passed to `RollupSummaries`. For a weekly report,
+`--week-starts-on` defaults to Monday and must also match. These values are part of the report's S3
+address, and the command derives the key from them.
 
 `--summaries` names the bucket, and `RAINLYTICS_SUMMARY_BUCKET` supplies the same default used by
 the named questions. `--region` uses the AWS SDK credential and region chain when left off.
@@ -218,6 +218,12 @@ The versioned report document is the whole of standard output. Standard error na
 object key, the object's last-modified age and the price of one S3 GET. A missing, incomplete or
 unsupported document exits non-zero with empty standard output. Reading a report never starts an
 Athena query.
+
+`--compare` derives changes against the immediately preceding calendar period. It reads the earlier
+stored report with one additional S3 GET and writes a versioned comparison document. Both report
+periods, computation times and source coverage values stay in the result. Standard error names both
+object keys and the price of two GETs. The [calendar reports](../reports/#comparing-adjacent-periods)
+page defines the metric and missing-data rules.
 
 ## Running a query saved in the workgroup
 
