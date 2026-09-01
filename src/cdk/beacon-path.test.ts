@@ -1,9 +1,11 @@
 import {
   assertIdentical,
   assertObjectEquals,
+  assertResponseStatus,
   assertStringIncludes,
   assertStringMatches,
   assertThrowsErrorAsync,
+  describeResponse,
 } from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
 import { SimAwsHttp } from "@kensio/yulin/serve";
@@ -106,7 +108,7 @@ describe("answering the beacon's collection path", () => {
     // Then CloudFront answers 204 with nothing in it. The event is the log
     // record the request produced, and a body would be bytes charged for on
     // every event for a browser that reads none of them.
-    assertIdentical(response.status, 204);
+    assertResponseStatus(response, 204, await describeResponse(response));
     assertIdentical(await response.text(), "");
   });
 
@@ -125,7 +127,7 @@ describe("answering the beacon's collection path", () => {
     // Then it is answered at the edge. A request that reached the bucket
     // would come back as an S3 refusal, and a flood of them would be
     // arriving at the site itself rather than stopping at CloudFront.
-    assertIdentical(response.status, 204);
+    assertResponseStatus(response, 204, await describeResponse(response));
   });
 
   it("tells a browser to keep no copy of the answer", async () => {
@@ -145,7 +147,7 @@ describe("answering the beacon's collection path", () => {
     // served out of the browser's own cache and that event would reach no
     // log.
     assertIdentical(first.headers.get("cache-control"), "no-store");
-    assertIdentical(second.status, 204);
+    assertResponseStatus(second, 204, await describeResponse(second));
   });
 
   it("leaves the rest of the site to the origin", async () => {
@@ -164,7 +166,7 @@ describe("answering the beacon's collection path", () => {
 
     // Then the origin serves it. The behaviour covers one path and the
     // distribution carries on doing what it did before the beacon arrived.
-    assertIdentical(response.status, 200);
+    assertResponseStatus(response, 200, await describeResponse(response));
     assertStringIncludes(await response.text(), "Liju");
   });
 
@@ -179,7 +181,7 @@ describe("answering the beacon's collection path", () => {
     const response = await get(
       `${path}?${beaconQueryString({ event: "route", page: "/" })}`,
     );
-    assertIdentical(response.status, 204);
+    assertResponseStatus(response, 204, await describeResponse(response));
   });
 
   it("refuses a path CloudFront would never match", async () => {

@@ -209,6 +209,7 @@ describe("the named questions, answered from stored summaries", () => {
   /** Runs the schedules that have fired by a quarter past nine. */
   const untilTheScheduleFires = async (deployed: Deployed): Promise<void> => {
     await deployed.simAws.clock().advanceBy({ minutes: 16 });
+    await deployed.simAws.backgroundTasksComplete();
     vi.useFakeTimers({ toFake: ["Date"], now: afterTheRun });
   };
 

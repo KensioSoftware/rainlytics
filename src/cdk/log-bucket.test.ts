@@ -1,6 +1,5 @@
 import {
   assertArrayIncludes,
-  assertArrayEmpty,
   assertIdentical,
   assertObjectMatches,
   assertStringIncludes,
@@ -89,18 +88,13 @@ describe("the raw log bucket", () => {
   /*
    * Two kinds of case below, and the split is not arbitrary.
    *
-   * Simulated S3 acts on four AWS::S3::Bucket properties: BucketName,
-   * NotificationConfiguration, PublicAccessBlockConfiguration and
-   * WebsiteConfiguration. It records LifecycleConfiguration and
-   * OwnershipControls as properties it cannot model, along with the reason,
-   * and creates the Bucket without them.
+   * Simulated S3 applies the bucket's public access, lifecycle and versioning
+   * settings. Those cases read the deployed state back. OwnershipControls is
+   * still recorded as a property the simulation cannot model.
    *
-   * So the cases that can read the simulation back do, and the ones about
-   * lifecycle and ownership read the synthesised template instead, which is a
-   * weaker claim. It says CloudFormation was asked for the right thing rather
-   * than that the right thing happened. That is the strongest evidence
-   * available for those properties today, and the last case here proves the
-   * limitation is real rather than assumed.
+   * The deployment cases read the simulation back. Ownership reads the
+   * synthesised template instead, a weaker claim that says what CloudFormation
+   * was asked to apply. The last deployment case records that limitation.
    */
 
   describe("read back from a deployment", () => {
@@ -154,6 +148,27 @@ describe("the raw log bucket", () => {
       });
     });
 
+    it("enables object versioning", async () => {
+      // Given a deployed log bucket.
+      const bucketName = aBucketName();
+      const { simAws } = await deployStacks((app: App, account: string) => {
+        const stack = new Stack(app, "LogStack", {
+          env: { account, region: "eu-west-2" },
+        });
+        new LogBucket(stack, "RainlyticsLogs", { bucketName });
+      });
+
+      // When S3 is asked how the bucket handles object versions.
+      const versioning = await simAws
+        .region("eu-west-2")
+        .s3()
+        .getBucketVersioning({ input: { Bucket: bucketName } });
+
+      // Then versioning is on. A deleted log can be recovered, and AWS Backup
+      // accepts the bucket.
+      assertIdentical(versioning.Status, "Enabled");
+    });
+
     it("retains raw logs long enough to recompute a leap year", async () => {
       // Given a deployed log bucket taking the default retention.
       const bucketName = aBucketName();
@@ -183,7 +198,7 @@ describe("the raw log bucket", () => {
       assertIdentical(expiry.Expiration?.Days, 370);
     });
 
-    it("actually deletes an object once its retention is up", async () => {
+    it("keeps an expired object recoverable during the recovery window", async () => {
       // Given a deployed log bucket with a log object in it.
       const bucketName = aBucketName();
       const key = `distributionid=E1EXAMPLE/year=2026/${faker.string.uuid()}`;
@@ -202,13 +217,21 @@ describe("the raw log bucket", () => {
       // When the 370-day retention and another day pass.
       await simAws.clock().advanceBy({ days: 371 });
 
-      // Then the object is gone. This is the case the retention rule exists
-      // for, and until yulin 1.20.6 nothing here could tell the difference
-      // between a rule that works and a rule that was merely written down.
-      const remaining = await s3.listObjectsV2({
-        input: { Bucket: bucketName },
+      // Then the current object is a delete marker, with the old version kept
+      // under it. A plain read sees no object, while its contents stay
+      // recoverable for another thirty days.
+      const remaining = await s3.listObjectVersions({
+        input: { Bucket: bucketName, Prefix: key },
       });
-      assertArrayEmpty(remaining.Contents ?? []);
+      assertArrayIncludes(
+        remaining.Versions?.map((version) => version.Key),
+        key,
+      );
+      assertTrue(
+        remaining.DeleteMarkers?.some(
+          (marker) => marker.Key === key && marker.IsLatest,
+        ),
+      );
     });
 
     it("keeps an object that is still inside its retention", async () => {
@@ -268,8 +291,9 @@ describe("the raw log bucket", () => {
     });
 
     it("clears superseded versions after the recovery window", async () => {
-      // Given a deployed log bucket taking the default recovery window.
+      // Given two versions of one object in a deployed log bucket.
       const bucketName = aBucketName();
+      const key = `distributionid=E1EXAMPLE/year=2026/${faker.string.uuid()}`;
       const { simAws } = await deployStacks((app: App, account: string) => {
         const stack = new Stack(app, "LogStack", {
           env: { account, region: "eu-west-2" },
@@ -277,27 +301,23 @@ describe("the raw log bucket", () => {
         new LogBucket(stack, "RainlyticsLogs", { bucketName });
       });
 
-      // When S3 is asked what lifecycle rules the bucket carries.
-      const lifecycle = await simAws
-        .region("eu-west-2")
-        .s3()
-        .getBucketLifecycleConfiguration({ input: { Bucket: bucketName } });
+      const s3 = simAws.region("eu-west-2").s3();
+      await s3.putObject({
+        input: { Bucket: bucketName, Key: key, Body: "first version" },
+      });
+      await s3.putObject({
+        input: { Bucket: bucketName, Key: key, Body: "second version" },
+      });
 
-      // Then a superseded version goes for good after thirty days, and the
-      // delete marker over it goes once it is the only thing left. This is
-      // the rule that makes versioning affordable. Without it the expiry
-      // above stops deleting anything the day versioning goes on, and the
-      // bucket grows by a year of logs a year and never shrinks.
-      //
-      // Thirty is written out. Reading it from `defaultRecoveryWindow` would
-      // take the expected value from the thing under test.
-      const superseded = ruleNamed(lifecycle, "expire-superseded-logs");
-      assertIdentical(superseded.Status, "Enabled");
-      assertIdentical(
-        superseded.NoncurrentVersionExpiration?.NoncurrentDays,
-        30,
-      );
-      assertTrue(superseded.Expiration?.ExpiredObjectDeleteMarker);
+      // When the thirty-day recovery window and another day pass.
+      await simAws.clock().advanceBy({ days: 31 });
+
+      // Then the current version remains and the superseded one is gone. This
+      // rule bounds what versioning stores after an overwrite or deletion.
+      const remaining = await s3.listObjectVersions({
+        input: { Bucket: bucketName, Prefix: key },
+      });
+      assertIdentical(remaining.Versions?.length, 1);
     });
 
     it("holds superseded versions for as long as it is told to", async () => {
@@ -379,7 +399,7 @@ describe("the raw log bucket", () => {
       );
     });
 
-    it("records the properties the simulation could not model", async () => {
+    it("records the property the simulation cannot model", async () => {
       // Given a deployed log bucket.
       const { stacks } = await deployStacks((app: App, account: string) => {
         const stack = new Stack(app, "LogStack", {
@@ -388,40 +408,18 @@ describe("the raw log bucket", () => {
         new LogBucket(stack, "RainlyticsLogs", { bucketName: aBucketName() });
       });
 
-      // Then ownership and versioning are reported as unmodelled rather than
-      // quietly applied, which is what keeps the template assertions below
-      // honest. Lifecycle used to be on this list and was simulated in yulin
-      // 1.20.6, so those cases read the deployment now.
-      //
-      // Versioning matters more here than ownership does, and the expiry
-      // cases above are why. Simulated S3 deletes an expired object outright.
-      // Real S3 on a versioned bucket writes a delete marker and keeps the
-      // version under it until `expire-superseded-logs` takes it a month
-      // later. So "actually deletes an object once its year is up" makes a
-      // weaker claim than it reads as, and this case is what says so.
+      // Then ownership is reported as unmodelled. Lifecycle and versioning
+      // used to appear here, and the deployment cases above now exercise
+      // both.
       const ignored = stacks.get("LogStack")?.ignoredProperties ?? [];
       const unmodelled = ignored.map((property) => property.path).join(" ");
       assertStringIncludes(unmodelled, "OwnershipControls");
-      assertStringIncludes(unmodelled, "VersioningConfiguration");
+      assertStringNotIncludes(unmodelled, "VersioningConfiguration");
       assertStringNotIncludes(unmodelled, "LifecycleConfiguration");
     });
   });
 
   describe("read off the synthesised template", () => {
-    it("keeps every version of every object", () => {
-      // Given a log bucket.
-      // When the stack is synthesised.
-      const { template } = synthesiseLogBucket();
-
-      // Then versioning is on. A log object is written once by a service and
-      // never updated, so this adds no second version to anything. What it
-      // adds is that a deleted object can be got back, and that AWS Backup
-      // will take the bucket, which it refuses to do without this.
-      template.hasResourceProperties("AWS::S3::Bucket", {
-        VersioningConfiguration: { Status: "Enabled" },
-      });
-    });
-
     it("takes ownership of what the delivery service writes", () => {
       // Given a log bucket.
       // When the stack is synthesised.

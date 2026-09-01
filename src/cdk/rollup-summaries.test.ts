@@ -251,6 +251,7 @@ describe("computing rollup summaries on a schedule", () => {
 
     // When the clock reaches the first firing of the hourly schedule.
     await deployed.simAws.clock().advanceBy({ minutes: 16 });
+    await deployed.simAws.backgroundTasksComplete();
 
     // Then the hour is in the bucket, under the key the schema builds, with
     // the rows the question answered.
@@ -277,6 +278,7 @@ describe("computing rollup summaries on a schedule", () => {
 
     // When the schedule fires.
     await deployed.simAws.clock().advanceBy({ minutes: 16 });
+    await deployed.simAws.backgroundTasksComplete();
 
     // Then the document says what it counted, so a reader asking a wider
     // question can see that this answer is a narrower one.
@@ -303,6 +305,7 @@ describe("computing rollup summaries on a schedule", () => {
 
     // When the schedule fires.
     await deployed.simAws.clock().advanceBy({ minutes: 16 });
+    await deployed.simAws.backgroundTasksComplete();
 
     // Then both hours have a summary, and the quiet one holds no rows. A
     // window nobody computed is no object at all, and a reader has to be able
@@ -325,6 +328,7 @@ describe("computing rollup summaries on a schedule", () => {
       aRecord(theClosedHour),
     ]);
     await deployed.simAws.clock().advanceBy({ minutes: 16 });
+    await deployed.simAws.backgroundTasksComplete();
     assertObjectEquals(await rowsIn(deployed, closedHourKey), [
       { path: "/", views: "2" },
     ]);
@@ -335,6 +339,7 @@ describe("computing rollup summaries on a schedule", () => {
       aRecord(theClosedHour),
     ]);
     await deployed.simAws.clock().advanceBy({ hours: 1 });
+    await deployed.simAws.backgroundTasksComplete();
 
     // Then the hour is recomputed and counts it. A run that only ever wrote
     // the window that had just closed would have left this record out for as
@@ -356,6 +361,7 @@ describe("computing rollup summaries on a schedule", () => {
 
     // When the clock reaches the first firing after midnight UTC.
     await deployed.simAws.clock().advanceBy({ hours: 15, minutes: 16 });
+    await deployed.simAws.backgroundTasksComplete();
 
     // Then the day is in the bucket, counted from raw rather than added up
     // out of its hours.
@@ -388,6 +394,7 @@ describe("computing rollup summaries on a schedule", () => {
 
     // When the clock reaches five minutes past the hour.
     await deployed.simAws.clock().advanceBy({ minutes: 6 });
+    await deployed.simAws.backgroundTasksComplete();
 
     // Then the hour that closed is there and the one before it was left
     // alone. No object at all is a window nobody computed, and it reads
@@ -413,6 +420,7 @@ describe("computing rollup summaries on a schedule", () => {
 
     // When the schedule fires.
     await deployed.simAws.clock().advanceBy({ minutes: 16 });
+    await deployed.simAws.backgroundTasksComplete();
 
     // Then the summary lands in that bucket, under the same key.
     const found = await deployed.simAws
@@ -444,6 +452,7 @@ describe("computing rollup summaries on a schedule", () => {
 
     // When the schedule fires.
     await deployed.simAws.clock().advanceBy({ minutes: 16 });
+    await deployed.simAws.backgroundTasksComplete();
 
     // Then the summary carries three views and two visitors. The gap between
     // the two numbers is the address that came back, counted once.
@@ -463,14 +472,25 @@ describe("computing rollup summaries on a schedule", () => {
 
     // When the schedule fires.
     await deployed.simAws.clock().advanceBy({ minutes: 16 });
+    await deployed.simAws.backgroundTasksComplete();
 
-    // Then the run failed naming the parameter, having asked Athena nothing.
-    // A run that queried first would have paid for a window it then refused
-    // to write. Scheduler keeps a failed invocation to itself, and the
-    // simulation's record of it stands in for the log group.
-    const [failure] = account.scheduler().deliveryFailures;
+    // Then the function logs the missing parameter, having asked Athena
+    // nothing. Scheduler reports no delivery failure after Lambda accepts the
+    // asynchronous invocation.
+    const logs = account.logs();
+    const groups = await logs.describeLogGroups({ input: {} });
+    const events = await Promise.all(
+      (groups.logGroups ?? []).map(async ({ logGroupName }) =>
+        logs.filterLogEvents({ input: { logGroupName } }),
+      ),
+    );
+    const messages = events
+      .flatMap((found) => found.events ?? [])
+      .map((event) => event.message)
+      .join("\n");
 
-    assertStringIncludes(failure?.message, parameter);
+    assertStringIncludes(messages, parameter);
+    assertObjectEquals(account.scheduler().deliveryFailures, []);
     assertObjectEquals(account.athena().queryExecutions(), []);
     assertUndefined(await summaryAt(deployed, closedHourKey));
   });
@@ -488,6 +508,7 @@ describe("computing rollup summaries on a schedule", () => {
 
     // When the schedule fires.
     await deployed.simAws.clock().advanceBy({ minutes: 16 });
+    await deployed.simAws.backgroundTasksComplete();
 
     // Then the hour is summarised as usual and carries no visitor count. A
     // reader sees the field absent rather than a zero, and the run needed no

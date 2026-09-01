@@ -177,6 +177,7 @@ describe("precomputing calendar report documents", () => {
 
     // When the daily summary and report schedules have both fired.
     await deployed.simAws.clock().advanceBy({ hours: 15, minutes: 31 });
+    await deployed.simAws.backgroundTasksComplete();
 
     // Then the day has exact rows from its daily summary and an exact
     // period-wide visitor query.
@@ -225,6 +226,7 @@ describe("precomputing calendar report documents", () => {
       aRecord(new Date("2026-08-23T18:00:00.000Z"), returning),
     ]);
     await deployed.simAws.clock().advanceBy({ hours: 24 });
+    await deployed.simAws.backgroundTasksComplete();
 
     // Then the same key holds the replacement document with the late view.
     const replaced = await reportAt(deployed, dayKey);
