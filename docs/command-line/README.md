@@ -105,6 +105,11 @@ rainlytics pageviews --last 7d --summaries rainlytics-summaries-1a2b
 variable `RollupSummaries` sets on its own job. With neither, the command says where to put it and
 stops.
 
+The [summary schedule](../summary-schedule/#give-the-command-line-the-generated-bucket-name) page
+shows how to publish a generated bucket name through a CloudFormation output and have `cdk deploy`
+write it to a local JSON file. Shell setup can read `RAINLYTICS_SUMMARY_BUCKET` from that file. The
+command still needs only `s3:GetObject` and avoids a CloudFormation lookup on every run.
+
 `--query` runs the question through Athena:
 
 ```bash

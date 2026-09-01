@@ -9,3 +9,5 @@ reviews:
     # Do not review again on every push after that. Ask for another review with
     # an `@coderabbitai review` comment on the pull request.
     auto_incremental_review: false
+    ignore_title_keywords:
+      - "docs:"

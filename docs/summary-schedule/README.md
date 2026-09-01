@@ -204,6 +204,46 @@ kilobytes, and a summary is the only remaining record of a window once the raw o
 Pass `summariesBucket` to write into one of your own. That is worth doing where something outside
 this stack reads the answers, such as a static site given read access to one prefix.
 
+### Give the command line the generated bucket name
+
+Code outside the stack needs the physical bucket name. Keep CloudFormation's generated name and
+publish the bucket token as an output from the application stack:
+
+```typescript
+import { CfnOutput } from "aws-cdk-lib";
+
+const summaries = new RollupSummaries(this, "RainlyticsSummaries", {
+  table,
+  workgroup,
+});
+
+new CfnOutput(this, "RainlyticsSummaryBucketName", {
+  value: summaries.bucket.bucketName,
+});
+```
+
+`cdk deploy` prints that value after a successful deployment. Its `--outputs-file` option writes
+the stack outputs as JSON as well:
+
+```bash
+cdk deploy AnalyticsStack --outputs-file cdk-outputs.json
+
+export RAINLYTICS_SUMMARY_BUCKET="$(
+  jq -r '.AnalyticsStack.RainlyticsSummaryBucketName' cdk-outputs.json
+)"
+```
+
+Put `outputsFile` in the application's `cdk.json` to refresh the file on every deploy without
+repeating the option. CDK groups a multi-stack deployment by stack name, and the `jq` path above
+selects one deployment explicitly. The Rainlytics command then keeps its existing permissions. It
+reads summary objects from S3 and makes no CloudFormation lookup.
+
+`summariesBucketName` gives a new deployment a fixed physical name where that tradeoff is useful.
+Changing it later replaces the bucket. The old bucket is retained by default and keeps the stored
+history. A fixed name can also block a redeploy after a retained bucket survives rollback. The
+[log bucket](../log-bucket/#when-a-deploy-rolls-back) has the same retention and naming tradeoff in
+more detail.
+
 ## Props
 
 | Prop                   | Default                    | What it decides                                    |
@@ -216,6 +256,7 @@ this stack reads the answers, such as a static site given read access to one pre
 | `lag`                  | 15 minutes                 | How long after a window closes a run fires.        |
 | `recomputedWindows`    | 2                          | How many closed windows a run computes.            |
 | `summariesBucket`      | one is created             | Where the answers land.                            |
+| `summariesBucketName`  | CloudFormation-generated   | The created bucket's physical name.                |
 | `visitorSaltParameter` | `/rainlytics/visitor-salt` | The SSM parameter holding the visitor salt secret. |
 | `timeout`              | 5 minutes                  | How long one run may take.                         |
 | `logRetention`         | a month                    | How long the function's logs are kept.             |
