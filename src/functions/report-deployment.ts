@@ -1,6 +1,8 @@
 // Where one deployment of the calendar report job reads and writes.
 
 import { summaryEnvironment } from "./summary-deployment.js";
+import type { ReportPeriodUnit } from "../report-periods.js";
+import { reportWriterNotificationDeploymentFrom } from "./report-notification-deployment.js";
 
 /** The resources shared by every report run in one deployment. */
 export interface ReportDeployment {
@@ -8,12 +10,15 @@ export interface ReportDeployment {
   readonly workgroup: string;
   readonly bucket: string;
   readonly visitorSaltParameter: string;
+  readonly notificationPeriods?: readonly ReportPeriodUnit[] | undefined;
 }
 
 /** Reads the report deployment out of its Lambda environment. */
 export function reportDeploymentFrom(
   environment: Readonly<Record<string, string | undefined>>,
 ): ReportDeployment {
+  const notifications = reportWriterNotificationDeploymentFrom(environment);
+
   return {
     database: required(environment, summaryEnvironment.database),
     workgroup: required(environment, summaryEnvironment.workgroup),
@@ -22,6 +27,9 @@ export function reportDeploymentFrom(
       environment,
       summaryEnvironment.visitorSaltParameter,
     ),
+    ...(notifications === undefined
+      ? {}
+      : { notificationPeriods: notifications.periods }),
   };
 }
 

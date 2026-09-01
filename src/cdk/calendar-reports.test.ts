@@ -1,4 +1,5 @@
 import {
+  assertArrayLength,
   assertFalse,
   assertIdentical,
   assertObjectEquals,
@@ -16,6 +17,7 @@ import { faker } from "@faker-js/faker";
 import { SimSdk } from "@kensio/yulin/sdk";
 import { Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
+import { Topic } from "aws-cdk-lib/aws-sns";
 import { type App, CfnOutput, RemovalPolicy, Stack } from "aws-cdk-lib/core";
 import { describe, it } from "vitest";
 
@@ -38,6 +40,7 @@ describe("precomputing calendar report documents", () => {
   const deployAnalytics = async () => {
     const logBucketName = `rainlytics-logs-${faker.string.uuid()}`;
     const summariesBucketName = `rainlytics-summaries-${faker.string.uuid()}`;
+    const notificationNumber = `+1555${faker.string.numeric(7)}`;
     const { simAws, stacks } = await deployStacks(
       (app: App, account: string) => {
         const stack = new Stack(app, "ReportStack", {
@@ -60,6 +63,7 @@ describe("precomputing calendar report documents", () => {
           resultsBucketName: `rainlytics-results-${faker.string.uuid()}`,
         });
 
+        const notificationTopic = new Topic(stack, "ReportNotifications");
         new RollupSummaries(stack, "Summaries", {
           table,
           workgroup,
@@ -67,10 +71,18 @@ describe("precomputing calendar report documents", () => {
           granularities: ["daily"],
           summariesBucketName,
           removalPolicy: RemovalPolicy.DESTROY,
+          reportNotifications: {
+            topic: notificationTopic,
+            periods: ["day", "week"],
+            subjectPrefix: "Example analytics",
+          },
         });
 
         new CfnOutput(stack, "DistributionId", {
           value: distribution.distributionId,
+        });
+        new CfnOutput(stack, "NotificationTopicArn", {
+          value: notificationTopic.topicArn,
         });
       },
     );
@@ -93,11 +105,26 @@ describe("precomputing calendar report documents", () => {
       throw new Error("The calendar report stack was not deployed.");
     }
 
+    const notificationTopicArn = stack.output("NotificationTopicArn");
+    await simAws
+      .region("us-east-1")
+      .account()
+      .sns()
+      .subscribe({
+        input: {
+          TopicArn: notificationTopicArn,
+          Protocol: "sms",
+          Endpoint: notificationNumber,
+        },
+      });
+
     return {
       simAws,
       logBucketName,
       summariesBucketName,
       distributionId: stack.output("DistributionId"),
+      notificationTopicArn,
+      notificationNumber,
     };
   };
 
@@ -207,6 +234,23 @@ describe("precomputing calendar report documents", () => {
       },
     });
 
+    // And one digest covers both report periods that closed on this local
+    // day. SMS is a simulated subscriber used to inspect the plain SNS body.
+    const firstNotifications = deployed.simAws
+      .region("us-east-1")
+      .account()
+      .sns()
+      .sentSmsMessages();
+    assertArrayLength(firstNotifications, 1);
+    const firstNotification = firstNotifications[0];
+    assertIdentical(firstNotification.phoneNumber, deployed.notificationNumber);
+    assertStringIncludes(firstNotification.message, "Day 2026-08-23");
+    assertStringIncludes(
+      firstNotification.message,
+      "Week 2026-08-17 to 2026-08-23",
+    );
+    assertStringIncludes(firstNotification.message, "views 3 pageviews");
+
     // And the Monday-first week that closed on the same boundary exists but
     // exposes its missing earlier daily summaries.
     const week = await reportAt(
@@ -238,6 +282,15 @@ describe("precomputing calendar report documents", () => {
     });
     assertObjectEquals(replaced.period, first.period);
     assertIdentical(replaced.computedAt, "2026-08-25T00:30:00.000Z");
+
+    // And the next local day produces one new digest, despite recomputing the
+    // prior day report at the same deterministic report key.
+    const secondNotifications = deployed.simAws
+      .region("us-east-1")
+      .account()
+      .sns()
+      .sentSmsMessages();
+    assertArrayLength(secondNotifications, 2);
 
     // When the command reads the report through the SDK as a caller would.
     using simSdk = new SimSdk({ simAws: deployed.simAws });

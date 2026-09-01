@@ -82,6 +82,7 @@
   "devDependencies": {
     "@aws-sdk/client-ssm": "^3.1119.0",
     "@faker-js/faker": "^10.6.0",
+    "@kensio/part-factory": "^1.10.1",
     "@kensio/smartass": "^1.37.5",
     "@kensio/yulin": "^1.21.0",
     "@semantic-release/exec": "7.1.0",
@@ -117,6 +118,7 @@
   "type": "module",
   "dependencies": {
     "@aws-sdk/client-athena": "^3.1118.0",
-    "@aws-sdk/client-s3": "^3.1119.0"
+    "@aws-sdk/client-s3": "^3.1119.0",
+    "@aws-sdk/client-sns": "^3.1121.0"
   }
 }

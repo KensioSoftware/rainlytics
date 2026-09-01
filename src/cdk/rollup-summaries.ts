@@ -14,6 +14,11 @@ import { summaryRuns } from "./summary-questions.js";
 import { SummarySchedules } from "./summary-schedules.js";
 import type { IFunction } from "aws-cdk-lib/aws-lambda";
 import type { CfnSchedule } from "aws-cdk-lib/aws-scheduler";
+import { configuredReportNotifications } from "./report-notification-setup.js";
+import {
+  createReportNotifications,
+  type ReportNotifications,
+} from "./report-notifications.js";
 
 /**
  * The named questions, computed on a schedule and written to S3 as summaries.
@@ -66,10 +71,23 @@ export class RollupSummaries extends Construct {
   /** The daily schedule that writes closed calendar reports. */
   readonly reportSchedule: CfnSchedule;
 
+  /** The topic, publisher function and dead-letter queue, when configured. */
+  readonly reportNotifications?: ReportNotifications | undefined;
+
   constructor(scope: Construct, id: string, props: RollupSummariesProps) {
     super(scope, id);
 
     const settled = summaryConfiguration(props);
+    const configuredReportQuestions = reportQuestions({
+      rollups: settled.rollups,
+      granularities: settled.granularities,
+      dataset: props.table.dataset,
+      ...(props.requests === undefined ? {} : { requests: props.requests }),
+    });
+    const notificationConfiguration = configuredReportNotifications(
+      props.reportNotifications,
+      configuredReportQuestions.map(({ question }) => question.name),
+    );
 
     this.bucket = summariesBucket(this, props);
     this.lambda = new SummaryFunction(this, "Job", {
@@ -92,6 +110,9 @@ export class RollupSummaries extends Construct {
       workgroup: props.workgroup,
       bucket: this.bucket,
       countsVisitors: settled.countsVisitors,
+      ...(notificationConfiguration === undefined
+        ? {}
+        : { notificationPeriods: notificationConfiguration.periods }),
       ...(props.visitorSaltParameter === undefined
         ? {}
         : { visitorSaltParameter: props.visitorSaltParameter }),
@@ -126,14 +147,16 @@ export class RollupSummaries extends Construct {
         weekStartsOn: settled.reportWeekStartsOn,
         recomputedDays: settled.recomputedReportDays,
         granularities: settled.granularities,
-        questions: reportQuestions({
-          rollups: settled.rollups,
-          granularities: settled.granularities,
-          dataset: props.table.dataset,
-          ...(props.requests === undefined ? {} : { requests: props.requests }),
-        }),
+        questions: configuredReportQuestions,
       },
     }).schedule;
+
+    this.reportNotifications = createReportNotifications(
+      this,
+      this.bucket,
+      notificationConfiguration,
+      props.logRetention,
+    );
   }
 
   /**

@@ -76,6 +76,7 @@ expected=(
   # consumer's own CDK app, long after this published.
   package/dist/lambda/functions/rollup-summary.js
   package/dist/lambda/functions/calendar-report.js
+  package/dist/lambda/functions/report-notification.js
   # The beacon's CloudFront Function source, which `pnpm build` copies into
   # `dist/cdk/` beside the compiled construct. `BeaconPath` reads it by path
   # at synthesis and nothing in `exports` reaches it, so this is the fifth

@@ -9,12 +9,13 @@ import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
 import { Duration, RemovalPolicy } from "aws-cdk-lib/core";
 import { Construct } from "constructs";
 
-import { summaryEnvironment } from "../functions/summary-deployment.js";
+import type { ReportPeriodUnit } from "../report-periods.js";
 import { defaultVisitorSaltParameter } from "../visitor-identity.js";
 import type { LogTable } from "./log-table.js";
 import type { QueryWorkgroup } from "./query-workgroup.js";
 import type { SummariesBucket } from "./summary-bucket.js";
 import { reportHandlerName, summaryCodePath } from "./summary-code.js";
+import { reportFunctionEnvironment } from "./report-function-environment.js";
 import {
   summaryJobStatements,
   summaryReadStatements,
@@ -26,6 +27,7 @@ export interface ReportFunctionProps {
   readonly workgroup: QueryWorkgroup;
   readonly bucket: SummariesBucket;
   readonly countsVisitors: boolean;
+  readonly notificationPeriods?: readonly ReportPeriodUnit[] | undefined;
   readonly visitorSaltParameter?: string | undefined;
   readonly timeout?: Duration | undefined;
   readonly logRetention?: RetentionDays | undefined;
@@ -51,12 +53,13 @@ export class ReportFunction extends Construct {
         retention: props.logRetention ?? RetentionDays.ONE_MONTH,
         removalPolicy: RemovalPolicy.DESTROY,
       }),
-      environment: {
-        [summaryEnvironment.database]: props.table.dataset.databaseName,
-        [summaryEnvironment.workgroup]: props.workgroup.workgroupName,
-        [summaryEnvironment.bucket]: props.bucket.bucketName,
-        [summaryEnvironment.visitorSaltParameter]: saltParameter,
-      },
+      environment: reportFunctionEnvironment({
+        table: props.table,
+        workgroup: props.workgroup,
+        bucket: props.bucket,
+        saltParameter,
+        notificationPeriods: props.notificationPeriods,
+      }),
     });
 
     for (const statement of [

@@ -24,6 +24,7 @@ import {
 import { assertRequestedNames } from "./saved-query-names.js";
 import type { SavedRollupRequest } from "./rollup-queries.js";
 import type { SummaryBucketProps } from "./summary-bucket.js";
+import type { ReportNotificationsProps } from "./report-notification-configuration.js";
 import { defaultSummaryLag } from "./summary-lag.js";
 import {
   assertOneSummaryEach,
@@ -38,6 +39,12 @@ export interface RollupSummariesProps
 
   /** The workgroup they run in, which carries the cutoff. */
   readonly workgroup: QueryWorkgroup;
+
+  /**
+   * Plain-text notifications published through SNS after selected calendar
+   * reports have been written.
+   */
+  readonly reportNotifications?: ReportNotificationsProps | undefined;
 
   /**
    * The questions to compute, which default to the ones Rainlytics ships.
