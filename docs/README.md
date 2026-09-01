@@ -1,42 +1,36 @@
 # Rainlytics documentation
 
-Rainlytics is experimental and pre-1.0. The construct API moves without a major version behind it,
-because the only consumer so far is the maintainer's own sites.
+Start with [Getting started](getting-started/) to deploy Rainlytics and read your first pageview
+report. [What Rainlytics is](https://rainlytics.com/guides/what-rainlytics-is/) explains the design
+and cost model.
 
-Pages here are copied to [rainlytics.com](https://rainlytics.com) by that site's scaffold. Each one
-needs an H1 and a trailing `<!-- card -->` block. `scripts/sh/docs-check.sh` holds the contract and
-runs on every `pnpm check`.
+## Set up the pipeline
 
-## Constructs
+- [Getting started](getting-started/) covers installation, deployment and the first command.
+- [Log bucket](log-bucket/) describes raw log storage and retention.
+- [Log delivery](log-delivery/) connects a CloudFront distribution to the bucket.
+- [Log table](log-table/) creates the projected Glue table that Athena reads.
+- [Query workgroup](query-workgroup/) limits each Athena query and stores its results.
+- [Summary schedule](summary-schedule/) precomputes common questions and calendar reports.
 
-- [Beacon path](beacon-path/), which answers the beacon's collection path with a 204 at the edge.
-- [Log bucket](log-bucket/), where CloudFront delivers raw access logs.
-- [Log delivery](log-delivery/), which points a distribution at that bucket.
-- [Log table](log-table/), the Glue table Athena reads what landed there.
-- [Query workgroup](query-workgroup/), which bounds what one query can scan and cost.
-- [Rollup queries](rollups/#the-same-sql-saved-in-the-console), the same SQL saved in Athena.
-- [Summary schedule](summary-schedule/), which computes the questions on a timer and stores the
-  answers.
+## Read analytics
 
-## In the browser
+- [Command line](command-line/) covers credentials, regions, output formats and exit codes.
+- [Rollups](rollups/) defines the named analytics questions.
+- [Searches](searches/) counts terms submitted to search pages.
+- [Query](query/) runs ad-hoc SQL through Athena.
+- [Rollup summaries](summaries/) documents the stored summary format.
+- [Calendar reports](reports/) documents reports for closed calendar periods.
+- [Counting visitors](visitors/) explains visitor identity and the required salt.
 
-- [Browser beacon](beacon/), which reports the route changes and custom events a server log cannot
-  see.
+## Add browser measurements
 
-## Reading the data back
+- [Beacon path](beacon-path/) adds the first-party collection route to CloudFront.
+- [Browser beacon](beacon/) reports SPA routes and custom events.
+- [Beacon events](beacon-events/) counts custom events and limits repeated identical events.
+- [Web Vitals](web-vitals/) reports p75 performance measurements.
+- [JavaScript errors](javascript-errors/) groups errors by page and message.
+- [Collection-path abuse](abuse/) explains the cost and filtering limits of an open endpoint.
 
-- [Command line](command-line/), the `rainlytics` command and what it writes.
-- [Rollups](rollups/), the named questions, what each counts, and how to write one of your own.
-- [Beacon events](beacon-events/), what the beacon reported, with a flood of it bounded.
-- [JavaScript errors](javascript-errors/), uncaught exceptions and rejections by page and message.
-- [Web Vitals](web-vitals/), p75 for each vital reported through the beacon.
-- [Searches](searches/), what readers typed into a search box.
-- [Query](query/), running SQL against the log table with `rainlytics query`.
-- [Rollup summaries](summaries/), the schema for the precomputed answers the commands read.
-- [Calendar reports](reports/), the versioned document for several questions over one closed period.
-- [Counting visitors](visitors/), what a visitor count means and over what window.
-
-## Cost
-
-- [Abusing the collection path](abuse/), what an open collection path exposes, and the prices for
-  containing it.
+Every topic page lives in its own directory as `README.md`. The website copies these pages into its
+Starlight content tree.
