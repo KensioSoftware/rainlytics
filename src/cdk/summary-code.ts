@@ -41,3 +41,7 @@ export const summaryHandlerName = "functions/rollup-summary.handler";
 
 /** The calendar report handler within the shared Lambda asset. */
 export const reportHandlerName = "functions/calendar-report.handler";
+
+/** The report notification handler within the shared Lambda asset. */
+export const reportNotificationHandlerName =
+  "functions/report-notification.handler";

@@ -8,6 +8,7 @@ import { reportRunFrom } from "./report-run.js";
 import { sectionsForReport } from "./report-sections.js";
 import { openReportStore } from "./report-store.js";
 import { visitorSecret } from "./visitor-salt.js";
+import { writeReportNotificationIfReady } from "./report-notification-ready.js";
 
 /** One daily firing of the calendar report schedule. */
 export async function handler(event: unknown): Promise<void> {
@@ -68,6 +69,14 @@ export async function handler(event: unknown): Promise<void> {
           ),
         );
       }
+    }
+
+    if (failures.length === 0) {
+      await writeReportNotificationIfReady(
+        periods,
+        deployment.notificationPeriods,
+        store,
+      );
     }
   } finally {
     store.close();

@@ -21,6 +21,7 @@ and cost model.
 - [Query](query/) runs ad-hoc SQL through Athena.
 - [Rollup summaries](summaries/) documents the stored summary format.
 - [Calendar reports](reports/) documents reports for closed calendar periods.
+- [Report notifications](report-notifications/) sends selected closed reports through SNS.
 - [Counting visitors](visitors/) explains visitor identity and the required salt.
 
 ## Add browser measurements

@@ -136,6 +136,9 @@ relative change with a `zero-baseline` reason rather than infinity.
 Ranked rows are matched by their non-metric columns. A row present on one side only is unavailable
 because it may have fallen below the other report's stored limit.
 
+[`RollupSummaries` report notifications](../report-notifications/) use the same comparison result in
+their plain-text SNS digest. The email publisher reads both stored reports and never runs Athena.
+
 ## Cost
 
 The report path uses Scheduler, Lambda, Athena and S3 on demand. It reserves no capacity.

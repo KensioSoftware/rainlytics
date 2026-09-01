@@ -3,8 +3,10 @@
 import type * as S3 from "@aws-sdk/client-s3";
 
 import type { ReportDocument } from "../report-document.js";
+import type { ReportNotificationManifest } from "../report-notification-manifest.js";
 import type { SummaryLookup } from "../rollup-summaries.js";
 import { neverComputed } from "../rollup-summaries.js";
+import { writeReportNotificationManifest } from "./report-notification-store.js";
 
 const readBatchSize = 50;
 
@@ -12,6 +14,10 @@ const readBatchSize = 50;
 export interface ReportStore {
   readonly read: (keys: readonly string[]) => Promise<readonly SummaryLookup[]>;
   readonly write: (key: string, document: ReportDocument) => Promise<void>;
+  readonly writeNotification: (
+    key: string,
+    manifest: ReportNotificationManifest,
+  ) => Promise<"written" | "already-exists">;
   readonly close: () => void;
 }
 
@@ -32,6 +38,8 @@ export async function openReportStore(bucket: string): Promise<ReportStore> {
         }),
       );
     },
+    writeNotification: async (key, manifest) =>
+      writeReportNotificationManifest(client, s3, bucket, key, manifest),
     close: () => {
       client.destroy();
     },

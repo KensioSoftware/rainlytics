@@ -60,6 +60,23 @@ The same deployment also writes reports for closed days, weeks, months and years
 rainlytics report month 2026-08 --compare
 ```
 
+`RollupSummaries` can publish selected closed reports as one plain-text SNS digest. The report Lambda
+writes a completion object after the selected reports succeed. Its S3 event starts the publisher.
+
+```typescript
+new RollupSummaries(this, "RainlyticsSummaries", {
+  table,
+  workgroup,
+  reportNotifications: {
+    emails: ["analytics@example.com"],
+    periods: ["day", "week", "month"],
+  },
+});
+```
+
+See [Report notifications](docs/report-notifications/) for subscriptions, filtering, delivery and
+costs.
+
 The browser module can add route changes and custom events. Separate imports collect Core Web
 Vitals and uncaught JavaScript errors, so sites only download the features they use.
 

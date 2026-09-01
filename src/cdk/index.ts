@@ -31,6 +31,8 @@ export {
 } from "./rollup-queries.js";
 export { RollupSummaries } from "./rollup-summaries.js";
 export type { RollupSummariesProps } from "./summary-configuration.js";
+export type { ReportNotificationsProps } from "./report-notification-configuration.js";
+export type { ReportNotifications } from "./report-notifications.js";
 export {
   type SummariesBucket,
   type SummaryBucketProps,

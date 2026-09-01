@@ -38,6 +38,16 @@ export {
 } from "./report-document.js";
 export { reportKey } from "./report-key.js";
 export {
+  type ReportDayPeriod,
+  type ReportNotificationManifest,
+  type ReportNotificationManifestEntry,
+  type ReportNotificationManifestInput,
+  reportNotificationManifest,
+  reportNotificationManifestKey,
+  reportNotificationManifestPrefix,
+  reportNotificationManifestSchemaVersion,
+} from "./report-notification-manifest.js";
+export {
   type ApproximateReportSection,
   type AvailableReportSectionInput,
   type ExactReportSection,
