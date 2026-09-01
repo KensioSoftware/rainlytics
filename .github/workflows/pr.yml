@@ -47,7 +47,7 @@ jobs:
   # Which of the jobs below have anything to read in this change.
   #
   # A pull request that only edits `.idea/` gives all three of them nothing,
-  # and one that only edits documentation gives the test matrix nothing. Both
+  # and one that only edits documentation gives the test jobs nothing. Both
   # still spend four runners. This job reads the diff once and turns off the
   # jobs that would have no opinion about it.
   #
@@ -70,7 +70,7 @@ jobs:
       # Listing the pull request's files, below.
       pull-requests: read
     outputs:
-      # Whether the test matrix runs.
+      # Whether the test jobs run.
       code: ${{ steps.classify.outputs.code }}
       # Whether Lint and Build run. Implied by `code`.
       checks: ${{ steps.classify.outputs.checks }}
@@ -147,7 +147,7 @@ jobs:
           if [[ "$code" == true ]]; then
             echo "Code changed. Lint, Test and Build all run."
           elif [[ "$checks" == true ]]; then
-            echo "Documentation only. Lint and Build run, and the test matrix skips."
+            echo "Documentation only. Lint and Build run, and the test jobs skip."
           else
             echo "Every file here is on the inert list. Lint, Test and Build all skip."
           fi
@@ -179,8 +179,8 @@ jobs:
       - run: pnpm docs:check
 
   # Two runtimes: the floor `engines` claims, and the version .nvmrc develops
-  # against. A floor nothing ever runs is a claim, and the older half of this
-  # matrix is what turns it into a fact.
+  # against. A floor nothing ever runs is a claim, and the Node 22 job turns it
+  # into a fact.
   #
   # The floor is Node 22 because that is what this package gets installed
   # into. A consumer's CDK app runs on whatever Node they have, and the Lambda
@@ -189,20 +189,16 @@ jobs:
   # same reason, so a Node 26 API is a type error rather than a surprise at
   # someone else's deploy time.
   #
-  # These report as "Test (Node 22.x)" and "Test (Node 26.x)". Both belong in
-  # main's ruleset. See item 5 in release.yml's setup notes.
-  test:
-    name: Test (Node ${{ matrix.node }})
+  # These are separate jobs because GitHub evaluates a job's `if` before it
+  # expands the matrix. If they shared a conditional matrix, a documentation
+  # change would report one skipped check called literally
+  # "Test (Node ${{ matrix.node }})". The two versioned checks in main's
+  # ruleset would never arrive. See item 5 in release.yml's setup notes.
+  test-node-22:
+    name: Test (Node 22.x)
     runs-on: ubuntu-latest
     needs: changed
     if: needs.changed.outputs.code == 'true'
-    strategy:
-      # One runtime failing says something specific about that runtime, and
-      # cancelling the other throws away the half of the answer that says
-      # which.
-      fail-fast: false
-      matrix:
-        node: ["22.x", "26.x"]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -210,7 +206,24 @@ jobs:
       - uses: pnpm/action-setup@v6.0.10
       - uses: actions/setup-node@v7.0.0
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:coverage
+
+  test-node-26:
+    name: Test (Node 26.x)
+    runs-on: ubuntu-latest
+    needs: changed
+    if: needs.changed.outputs.code == 'true'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6.0.10
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 26.x
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:coverage
