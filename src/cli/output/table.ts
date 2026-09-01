@@ -1,5 +1,6 @@
 // The result as an aligned table, which is what a person at a terminal reads.
 
+import { displayWidth, padToWidth } from "../display-width.js";
 import { cellText, type CommandResult } from "./result.js";
 
 /** The gap between one column and the next. */
@@ -12,12 +13,15 @@ export function toTable(result: CommandResult): string {
   );
 
   const widths = result.columns.map((column, index) =>
-    Math.max(column.length, ...rows.map((cells) => cells[index]?.length ?? 0)),
+    Math.max(
+      displayWidth(column),
+      ...rows.map((cells) => displayWidth(cells[index] ?? "")),
+    ),
   );
 
   const line = (cells: readonly string[]): string =>
     cells
-      .map((cell, index) => cell.padEnd(widths[index] ?? 0))
+      .map((cell, index) => padToWidth(cell, widths[index] ?? 0))
       .join(gap)
       .trimEnd();
 

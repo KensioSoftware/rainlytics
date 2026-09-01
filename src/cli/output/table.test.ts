@@ -4,6 +4,7 @@ import {
   assertStringNotIncludes,
 } from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
+import stringWidth from "string-width";
 import { describe, it } from "vitest";
 
 import { toTable } from "./table.js";
@@ -21,7 +22,7 @@ describe("table output", () => {
    */
   const lastColumnStart = (line: string): number => {
     const cells = line.split(/\s{2,}/u);
-    return line.length - (cells.at(-1) ?? "").length;
+    return stringWidth(line) - stringWidth(cells.at(-1) ?? "");
   };
 
   it("lines the columns up under their headings", () => {
@@ -110,5 +111,73 @@ describe("table output", () => {
 
     // Then the column is as wide as the heading, and the rule says so.
     assertIdentical(rule, "-----");
+  });
+
+  it("lines numeric values up after Chinese paths", () => {
+    // Given paths whose code-unit lengths disagree with their terminal widths.
+    const rows = [
+      { path: "/cidian/慣例", views: 1 },
+      { path: "/cidian/无线", views: 22 },
+      { path: "/cidian/司空見慣", views: 333 },
+      { path: "/cidian/蓸", views: 4444 },
+    ];
+
+    // When the paths and their counts are written as a table.
+    const table = toTable({ columns: ["path", "views"], rows });
+
+    // Then every count starts in the same terminal column.
+    const starts = linesOf(table).map((line) => lastColumnStart(line));
+    assertSetSize(new Set(starts), 1);
+  });
+
+  it("pads combining graphemes by their displayed width", () => {
+    // Given one name containing a decomposed accent and one ASCII name.
+    const accented = "e\u0301";
+
+    // When both names are put before a numeric column.
+    const table = toTable({
+      columns: ["name", "views"],
+      rows: [
+        { name: accented, views: 1 },
+        { name: "ab", views: 2 },
+      ],
+    });
+
+    // Then the accent occupies no column of its own and the numbers align.
+    const starts = linesOf(table).map((line) => lastColumnStart(line));
+    assertSetSize(new Set(starts), 1);
+  });
+
+  it("pads a wide emoji grapheme as one displayed character", () => {
+    // Given a family emoji made from several joined code points.
+    const family = "👨‍👩‍👧‍👦";
+
+    // When it appears before a numeric column.
+    const table = toTable({
+      columns: ["name", "views"],
+      rows: [
+        { name: family, views: 1 },
+        { name: "abcd", views: 2 },
+      ],
+    });
+
+    // Then the emoji occupies two columns and the numbers align.
+    const starts = linesOf(table).map((line) => lastColumnStart(line));
+    assertSetSize(new Set(starts), 1);
+  });
+
+  it("rules a Chinese heading by its displayed width", () => {
+    // Given a Chinese heading that occupies four terminal columns.
+    const column = "路徑";
+
+    // When a shorter value is written under it.
+    const [heading, rule, row] = linesOf(
+      toTable({ columns: [column], rows: [{ [column]: "/" }] }),
+    );
+
+    // Then the heading is preserved and its rule occupies four columns.
+    assertIdentical(heading, column);
+    assertIdentical(rule, "----");
+    assertIdentical(row, "/");
   });
 });
