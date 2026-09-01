@@ -5,6 +5,8 @@
 // file was wrapped to, and every edit afterwards would mean rewrapping the
 // paragraph by hand.
 
+import { displayWidth, padToWidth } from "./display-width.js";
+
 /** The column help is wrapped at, being a terminal nobody has widened. */
 export const helpWidth = 78;
 
@@ -19,7 +21,7 @@ export function wrapLines(text: string, width: number): readonly string[] {
   for (const word of text.split(/\s+/u).filter((part) => part !== "")) {
     const candidate = line === "" ? word : `${line} ${word}`;
 
-    if (candidate.length > width && line !== "") {
+    if (displayWidth(candidate) > width && line !== "") {
       lines.push(line);
       line = word;
     } else {
@@ -77,17 +79,16 @@ export interface LabelledEntry {
 
 /** A two-column list, as the command and option lists both are. */
 export function twoColumn(entries: readonly LabelledEntry[]): string {
-  const width = Math.max(...entries.map((entry) => entry.label.length));
+  const width = Math.max(...entries.map((entry) => displayWidth(entry.label)));
 
   return entries
     .flatMap((entry) => {
-      const gutter = `${indent}${entry.label.padEnd(width)}${indent}`;
-      const body = wrapLines(entry.description, helpWidth - gutter.length);
+      const gutter = `${indent}${padToWidth(entry.label, width)}${indent}`;
+      const gutterWidth = displayWidth(gutter);
+      const body = wrapLines(entry.description, helpWidth - gutterWidth);
 
       return body.map((line, index) =>
-        index === 0
-          ? `${gutter}${line}`
-          : `${" ".repeat(gutter.length)}${line}`,
+        index === 0 ? `${gutter}${line}` : `${" ".repeat(gutterWidth)}${line}`,
       );
     })
     .join("\n");
@@ -95,7 +96,7 @@ export function twoColumn(entries: readonly LabelledEntry[]): string {
 
 /** `text` wrapped and indented, as a list body with no label beside it. */
 export function indented(text: string): string {
-  return wrapLines(text, helpWidth - indent.length)
+  return wrapLines(text, helpWidth - displayWidth(indent))
     .map((line) => `${indent}${line}`)
     .join("\n");
 }
