@@ -52,7 +52,7 @@
 #      subject it takes is the pull request title.
 #
 #   5. A ruleset on main requiring the checks pr.yml posts: Lint, Build, and
-#      both halves of the test matrix, "Test (Node 22.x)" and
+#      both test jobs, "Test (Node 22.x)" and
 #      "Test (Node 26.x)". Several comments below explain themselves in terms
 #      of it, in particular why the version job opens a pull request rather
 #      than pushing. Add pull requests, and refuse deletion and
