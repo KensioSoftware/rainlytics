@@ -1,268 +1,111 @@
 # Query workgroup
 
-The Athena workgroup Rainlytics queries run in. It bounds what one query may scan and holds the
-bucket results are written to.
+`QueryWorkgroup` creates the Athena workgroup used by Rainlytics and a bucket for Athena results.
 
 ```typescript
 import { QueryWorkgroup } from "@kensio/rainlytics/cdk";
 
-const queries = new QueryWorkgroup(this, "RainlyticsQueries");
+const workgroup = new QueryWorkgroup(this, "Workgroup");
 ```
 
-That is a workgroup called `rainlytics` with a ten gibibyte cutoff per query, and a results bucket
-whose objects expire after a week. A query has to name the workgroup to run in it.
+The default workgroup is named `rainlytics`. Each query can scan at most 10 GiB, and result objects
+expire after 7 days.
 
-## What the cutoff is for
+## Limit query cost
 
-Athena charges $5.00 per terabyte scanned, with a minimum of ten million bytes billed for every
-query whatever it reads (both figures read from the AWS Pricing API for us-east-1 on 2026-08-27).
-Nothing about the charge is visible at the time. A query that names no partition reads the whole
-dataset, succeeds, and shows up as a line on next month's bill without saying which query it was.
+Athena charges by bytes scanned. A query without partition predicates can read the full log bucket
+and still succeed. The workgroup stops a query when its scan passes the configured limit.
 
-`BytesScannedCutoffPerQuery` turns that into a failure at the moment the query runs:
-
-```text
-Bytes scanned limit was exceeded. The query scanned 10000001 bytes, and
-workgroup rainlytics allows 10000000 per query.
-```
-
-## Where ten gibibytes comes from
-
-The default is sized from the widest query the pipeline has a reason to run, not from what a mistake
-costs.
-
-[#9](https://github.com/KensioSoftware/rainlytics/issues/9) measured a site serving 156,000 requests
-a day at 4.42MB of gzipped logs a day, so its raw store levels off near 1.6GB under the 370-day
-expiry. A rollup reading that whole year scans well under a fifth of the cutoff. What is left is
-headroom for six years of that site, or for one year of a site six times busier.
-
-At $5 per terabyte, ten gibibytes caps a single query at about five cents.
-
-Read it as a ceiling on one mistake rather than as a correctness check. A full scan of a small
-dataset stays under it and costs a fraction of a cent. That is the right answer for a person asking
-an ad-hoc question.
+At the standard Athena rate of $5 per TB, the 10 GiB default caps one query near five cents. Change
+the limit for your dataset:
 
 ```typescript
-import { Size } from "aws-cdk-lib/core";
+import { Size } from "aws-cdk-lib";
 
-new QueryWorkgroup(this, "RainlyticsQueries", {
-  bytesScannedCutoff: Size.gibibytes(100),
+const workgroup = new QueryWorkgroup(this, "Workgroup", {
+  bytesScannedCutoff: Size.gibibytes(50),
 });
 ```
 
-Raise it on a busy site whose legitimate rollups approach the limit. Lower it on a quiet one.
-Where the whole dataset is a few hundred megabytes, a cutoff near that size catches an unpartitioned
-query as well as an expensive one. That is a stronger guarantee than the default gives.
+Use a limit above the largest legitimate report. A lower limit is more useful on a small site
+because it can catch an accidental full scan.
 
-Athena refuses a cutoff below ten million bytes, since that is what every query bills anyway. The
-construct refuses one at synthesis, before the deploy gets that far.
+Athena has a minimum billed scan. Rainlytics rejects a cutoff below that minimum during synthesis.
 
-## The configuration is enforced
+## Result storage
 
-`EnforceWorkGroupConfiguration` is on. The workgroup's `ResultConfiguration` then wins over
-anything a caller asks for, and a client passing its own output location or encryption option writes
-to the results bucket under S3-managed keys regardless.
-
-The cutoff stands apart from this. `BytesScannedCutoffPerQuery` is a workgroup property and
-`StartQueryExecution` has no parameter for it. No client can raise it either way. What
-enforcement adds is that results cannot be sent somewhere outside the expiry, the encryption and the
-blocked public access on the bucket below, and that every query's output stays somewhere the account
-owner has already reasoned about.
-
-## Queries run in `primary` unless they say otherwise
-
-Athena gives every account a `primary` workgroup with no cutoff at all, and that is where a query
-naming no workgroup lands. So the guardrail depends on the workgroup name reaching whatever runs the
-query:
+The workgroup enforces its result configuration. Queries write below `queries/` in a private,
+TLS-only bucket with S3-managed encryption.
 
 ```typescript
-import { defaultWorkgroupName } from "@kensio/rainlytics";
-```
+import { Duration } from "aws-cdk-lib";
 
-The construct and the `rainlytics` command read that same export, which is what keeps the two from
-drifting. Pass `workgroupName` to change it, and pass the same name to whatever queries.
-
-## The results bucket
-
-Athena writes one result object per query under `queries/` in a bucket of its own, with a metadata file beside it. A `SELECT` answers with a CSV and the other statement types vary.
-Public access is blocked, TLS is required, and objects are encrypted with S3-managed keys. The
-workgroup asks for `SSE_S3` as well. The encryption is then a property of the query and not only
-of the bucket it happens to write to.
-
-Objects expire after seven days:
-
-```typescript
-import { Duration } from "aws-cdk-lib/core";
-
-new QueryWorkgroup(this, "RainlyticsQueries", {
-  resultsRetention: Duration.days(90),
+const workgroup = new QueryWorkgroup(this, "Workgroup", {
+  resultsRetention: Duration.days(30),
+  resultsPrefix: "athena-results",
 });
 ```
 
-A week covers a person going back to something they ran earlier in the week. Nothing in the pipeline
-needs longer. The command line reads a result once as the query finishes, and M3's rollups write
-their summaries elsewhere. Left to accumulate, this is a bucket nobody looks at that grows by one
-object per query for ever.
+Query results are derived data, so the bucket is unversioned. CloudWatch query metrics are disabled
+because those custom metrics have a monthly charge even when no query runs. The CLI reads scan and
+duration data from Athena after each query.
 
-The bucket is unversioned, unlike the [log bucket](../log-bucket/). A result is derived data, and
-the query that produced it can produce it again. There is nothing here worth being able to
-undelete.
+## Grant query access
 
-## No CloudWatch metrics
+The identity running `rainlytics query`, `saved-query` or a named command with `--query` needs
+Athena, Glue and S3 permissions. Grant the complete set from CDK:
 
-`PublishCloudWatchMetricsEnabled` is off, and that is a cost decision.
+```typescript
+workgroup.grantQuerying(role, table);
+```
 
-CloudWatch bills a workgroup's query metrics as custom metrics, at $0.30 per metric per month for
-the first 10,000 (read from the AWS Pricing API for us-east-1 on 2026-08-27). The charge is for the
-metric existing, so it stays on the bill for a site nobody queries. Everything else in this pipeline
-is priced by use, and a standing monthly charge to count queries would be the largest line on a
-quiet site's bill.
+The grant covers:
 
-`GetQueryExecution` reports what a query scanned and how long it took at no charge, and that is
-what the command line reads.
+- starting, stopping and reading queries in this workgroup
+- reading saved queries
+- reading the Glue database, table and partitions
+- reading raw objects from the log bucket
+- reading and writing the workgroup's results bucket
+- decrypting either bucket when it uses a customer-managed key
+
+The scheduled summary functions receive the same scoped permissions from `RollupSummaries`.
+
+A role that only reads stored summaries needs `s3:GetObject` on the summaries bucket. Athena access
+is unnecessary for that path.
+
+## Name additional deployments
+
+Workgroup names are unique in an account and region. Give a second deployment its own name:
+
+```typescript
+const workgroup = new QueryWorkgroup(this, "DocsWorkgroup", {
+  workgroupName: "rainlytics-docs",
+});
+```
+
+Pass the same name to the CLI with `--workgroup` or configure it in your shell command. Queries that
+omit a workgroup run in Athena's `primary` workgroup and bypass this scan limit.
 
 ## Removal
 
-The workgroup goes when the stack does, taking any named queries with it (`RecursiveDeleteOption` is
-on, and a workgroup holding named queries otherwise refuses to be deleted). The rollups in M3
-register their named queries here, and the next deploy puts them back.
+The workgroup is deleted with the stack, including its saved queries. The results bucket is retained
+by default and empties through its lifecycle rule.
 
-The results bucket is retained, for the reason the [log bucket](../log-bucket/) is. A bucket that
-still holds objects refuses to be deleted. A `DESTROY` policy on its own therefore turns
-`cdk destroy` into a CloudFormation failure. The retained bucket empties itself within `resultsRetention` and can then
-be deleted by hand.
+To delete the bucket with the stack:
 
 ```typescript
-import { RemovalPolicy } from "aws-cdk-lib/core";
+import { RemovalPolicy } from "aws-cdk-lib";
 
-new QueryWorkgroup(this, "RainlyticsQueries", {
+const workgroup = new QueryWorkgroup(this, "Workgroup", {
   removalPolicy: RemovalPolicy.DESTROY,
   autoDeleteObjects: true,
 });
 ```
 
-That pair tears the bucket down with the stack. Query results are reproducible, and the same pair
-over raw logs would destroy the record every derived dataset is rebuilt from.
-
-## Permissions for a scoped deploy role
-
-Skippable on an account whose CloudFormation execution role holds `AdministratorAccess`.
-
-```typescript
-import { PolicyStatement } from "aws-cdk-lib/aws-iam";
-
-new PolicyStatement({
-  sid: "TheRainlyticsWorkgroup",
-  actions: [
-    "athena:CreateWorkGroup",
-    "athena:GetWorkGroup",
-    "athena:UpdateWorkGroup",
-    "athena:DeleteWorkGroup",
-  ],
-  resources: [`arn:aws:athena:${region}:${account}:workgroup/${workgroupName}`],
-});
-```
-
-`workgroupName` is whatever was passed to the construct, and `rainlytics` by default. A policy
-quoting the default against a workgroup that was renamed matches no workgroup, and the deploy fails
-on a resource the statement looks like it covers.
-
-The results bucket needs the S3 permissions on the [log bucket](../log-bucket/) page, against its
-own ARN. Treat both as inferred from what the construct creates. Nothing here has been deployed with
-a role narrower than `AdministratorAccess`.
-
-## Permissions for running a query
-
-The deploy role has no part in this one. Whoever runs the query carries it. Athena plans the query,
-reads the log objects and writes the answer as that caller, and the catalog and both buckets
-therefore belong here alongside the workgroup.
-
-### The four actions `ReadOnlyAccess` denies
-
-A caller already holding the AWS managed `ReadOnlyAccess` policy is four actions short of running a
-query.
-
-- `athena:StartQueryExecution` on the workgroup
-- `athena:StopQueryExecution` on the workgroup
-- `s3:PutObject` on the results bucket
-- `s3:AbortMultipartUpload` on the results bucket
-
-Measured on 2026-08-28 with `aws iam simulate-principal-policy`, against an `AWSReservedSSO_ReadOnly`
-role carrying `ReadOnlyAccess`. Every other action on this page came back `allowed`, including
-`athena:GetWorkGroup`, `athena:ListNamedQueries`, `athena:BatchGetNamedQuery`, the three Glue reads
-and the S3 reads on both buckets.
-
-Those four cannot be dropped. A query is a job somebody starts, and its answer is an object Athena
-writes under the caller's own identity. Both of those are writes, and Athena SQL has no read-only
-path. Reading a [precomputed summary](../summaries/) does, which is the read path the named commands
-use.
-
-### Granting it from CDK
-
-```typescript
-const queries = new QueryWorkgroup(this, "RainlyticsQueries");
-const table = new LogTable(this, "RainlyticsTable", { deliveries: [delivery] });
-
-queries.grantQuerying(role, table);
-```
-
-One line per identity. It attaches the Athena actions on this workgroup, the Glue reads on the
-catalog, the database and the table, the reads on the log bucket, and the reads and writes on the
-results bucket. Every ARN it names belongs to this deployment, and a bucket encrypted with a
-customer key hands out its own `kms:Decrypt` through the same call.
-
-The table is passed because a workgroup is not tied to one. Two tables queried in the same workgroup
-are two calls, and an identity that should reach only one of them gets one.
-
-Reading the summaries is a second call, covered on the [summaries](../summaries/) page:
-
-```typescript
-summaries.grantReadingSummaries(role);
-```
-
-### The same policy written out
-
-For an identity built outside CDK. This is the list `grantQuerying` attaches.
-
-```typescript
-new PolicyStatement({
-  sid: "RunningRainlyticsQueries",
-  actions: [
-    "athena:StartQueryExecution",
-    "athena:StopQueryExecution",
-    "athena:GetQueryExecution",
-    "athena:GetQueryResults",
-    "athena:GetWorkGroup",
-    "athena:ListNamedQueries",
-    "athena:BatchGetNamedQuery",
-  ],
-  resources: [`arn:aws:athena:${region}:${account}:workgroup/${workgroupName}`],
-});
-```
-
-With `glue:GetDatabase`, `glue:GetTable` and `glue:GetPartitions` on the
-[log table](../log-table/) and the catalog holding it, `s3:GetObject`, `s3:ListBucket` and
-`s3:GetBucketLocation` on the log bucket, and on the results bucket `s3:PutObject`, `s3:GetObject`,
-`s3:ListBucket`, `s3:GetBucketLocation`, `s3:ListBucketMultipartUploads`,
-`s3:ListMultipartUploadParts` and `s3:AbortMultipartUpload`.
-
-Athena reads the workgroup's own configuration on the way to running a query in it, and refuses the
-query without `athena:GetWorkGroup`. The two named-query actions are what `rainlytics saved-query`
-runs on. Athena answers `ListNamedQueries` with ids alone, and a name is found by reading them.
-
-The multipart actions earn their place. Athena uploads a large result in parts, and this is the list
-AWS documents for a query results bucket. `s3:GetObject` on results is what reads the answer back,
-and `GetQueryResults` does that on the caller's behalf.
-
-The four in the delta above were measured. The rest of the list comes from AWS's documentation and
-from what the `rainlytics` command sends. Nobody has yet run a Rainlytics query under a policy
-narrower than the one their SSO role already carries.
+Both options are required for a non-empty bucket.
 
 <!-- card
 ```typescript
-new QueryWorkgroup(this, "RainlyticsQueries", {
-  bytesScannedCutoff: Size.gibibytes(10),
-  resultsRetention: Duration.days(7),
-});
+const workgroup = new QueryWorkgroup(this, "Workgroup");
 ```
 -->
