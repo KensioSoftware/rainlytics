@@ -207,9 +207,9 @@ rainlytics report year 2025
 ```
 
 The date selects the period. A weekly date can be any date inside the week. `--time-zone` defaults
-to UTC and `--week-starts-on` defaults to Monday. Both must match the values passed to
-`RollupSummaries`, since those values are part of a report's S3 address. The command derives the
-key from them.
+to UTC and must match the value passed to `RollupSummaries`. For a weekly report,
+`--week-starts-on` defaults to Monday and must also match. These values are part of the report's S3
+address, and the command derives the key from them.
 
 `--summaries` names the bucket, and `RAINLYTICS_SUMMARY_BUCKET` supplies the same default used by
 the named questions. `--region` uses the AWS SDK credential and region chain when left off.

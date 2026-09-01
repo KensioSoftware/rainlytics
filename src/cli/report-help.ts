@@ -72,9 +72,10 @@ and year also accepts YYYY.
   rainlytics report month 2026-07 --compare
   rainlytics report year 2025
 
-The time zone and first weekday must match the RollupSummaries deployment.
-They are part of the stored report's address. The command derives that address
-from the date and options, so a reader does not have to calculate an S3 key.
+The time zone must match the RollupSummaries deployment. For a weekly report,
+the first weekday must also match. These options are part of the stored report's
+address. The command derives that address from the date and options, so a reader
+does not have to calculate an S3 key.
 
 Reports currently have JSON output only. Leave --output off or pass
 --output json. The document goes to standard output. Pass --compare to derive

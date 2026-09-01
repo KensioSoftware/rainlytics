@@ -224,9 +224,10 @@ rainlytics report month 2026-07
 rainlytics report year 2025
 ```
 
-`--time-zone` and `--week-starts-on` must match the `RollupSummaries` deployment. The defaults are
-UTC and Monday. The bucket comes from `--summaries` or `RAINLYTICS_SUMMARY_BUCKET`, and the region
-comes from `--region` or the AWS SDK's default chain.
+`--time-zone` must match the `RollupSummaries` deployment. For a weekly report,
+`--week-starts-on` must also match. The defaults are UTC and Monday. The bucket comes from
+`--summaries` or `RAINLYTICS_SUMMARY_BUCKET`, and the region comes from `--region` or the AWS SDK's
+default chain.
 
 The versioned document is written unchanged as JSON on standard output. The bucket, object key,
 object age and one-GET cost go to standard error. A missing, incomplete or unsupported document
@@ -235,14 +236,15 @@ leaves standard output empty and exits non-zero. The reader never runs Athena.
 ## Comparing adjacent periods
 
 `reportComparison` compares a closed report with the immediately preceding period of the same
-calendar unit. It uses the time zone and first weekday recorded by the current report. Calendar
-arithmetic selects the earlier period, including weeks with a configured first day and periods
-around daylight-saving changes.
+calendar unit. It uses the time zone recorded by the current report and the first weekday recorded
+for a weekly report. Calendar arithmetic selects the earlier period, including weeks with a
+configured first day and periods around daylight-saving changes.
 
 ```typescript
 import { previousReportPeriod, reportComparison } from "@kensio/rainlytics";
 
 const previousPeriod = previousReportPeriod(current.period);
+const previous = await loadReport(previousPeriod);
 const comparison = reportComparison({ current, previous });
 ```
 

@@ -10,6 +10,7 @@ import {
 } from "./report-comparison-types.js";
 import { sameReportValue } from "./report-comparison-json.js";
 import type { ReportDocument } from "./report-document.js";
+import { reportPeriodDifference } from "./report-period-differences.js";
 import { previousReportPeriod, type ReportPeriod } from "./report-periods.js";
 
 /** Compares two adjacent stored reports without querying raw data. */
@@ -53,8 +54,8 @@ function assertPreviousPeriod(
 
   if (!sameReportValue(expected, previous)) {
     throw new RangeError(
-      `The previous ${current.unit} report must start ${expected.startsOn}` +
-        ` in ${current.timeZone}. Got ${previous.startsOn}.`,
+      `The previous ${current.unit} report has mismatched calendar fields.` +
+        ` ${reportPeriodDifference(expected, previous)}.`,
     );
   }
 }

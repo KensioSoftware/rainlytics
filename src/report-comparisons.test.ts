@@ -610,11 +610,53 @@ describe("calendar report comparisons", () => {
     const current = document(currentPeriod, []);
     const previous = document(previousPeriod, []);
 
-    // When the documents are compared, then their gap is rejected.
-    const error = assertThrowsError(() =>
-      reportComparison({ current, previous }),
+    // When the documents are compared.
+    const comparing = () => reportComparison({ current, previous });
+
+    // Then the differing dates and UTC boundaries explain their gap.
+    const error = assertThrowsError(comparing);
+    assertStringMatches(
+      error.message,
+      /startsOn expected "2026-08-23" but got "2026-08-22"/u,
     );
-    assertStringMatches(error.message, /must start 2026-08-23/u);
+    assertStringMatches(
+      error.message,
+      /from expected "2026-08-23T00:00:00.000Z" but got "2026-08-22T00:00:00.000Z"/u,
+    );
+    assertStringMatches(
+      error.message,
+      /until expected "2026-08-24T00:00:00.000Z" but got "2026-08-23T00:00:00.000Z"/u,
+    );
+  });
+
+  it("names a mismatched report calendar", () => {
+    // Given a preceding weekly report with a different calendar configuration.
+    const currentPeriod = period("week", "2026-08-26T12:00:00Z");
+    const expectedPrevious = previousReportPeriod(currentPeriod);
+    if (expectedPrevious.unit !== "week") {
+      throw new Error("Expected a weekly report period.");
+    }
+    const previousPeriod: ReportPeriod = {
+      ...expectedPrevious,
+      timeZone: "Europe/London",
+      weekStartsOn: "sunday",
+    };
+    const current = document(currentPeriod, []);
+    const previous = document(previousPeriod, []);
+
+    // When the documents are compared.
+    const comparing = () => reportComparison({ current, previous });
+
+    // Then the time zone and first weekday values identify the mismatch.
+    const error = assertThrowsError(comparing);
+    assertStringMatches(
+      error.message,
+      /timeZone expected "UTC" but got "Europe\/London"/u,
+    );
+    assertStringMatches(
+      error.message,
+      /weekStartsOn expected "monday" but got "sunday"/u,
+    );
   });
 
   it("refuses a visitor definition without a metric", () => {
