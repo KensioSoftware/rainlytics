@@ -30,11 +30,15 @@ function loggedError(thrown: unknown): Readonly<{
   message: string;
   stack?: string;
 }> {
-  if (thrown instanceof Error) {
+  if (typeof thrown === "object" && thrown !== null) {
+    const { name, message, stack } = thrown as Readonly<
+      Record<string, unknown>
+    >;
+
     return {
-      name: thrown.name,
-      message: thrown.message,
-      ...(thrown.stack === undefined ? {} : { stack: thrown.stack }),
+      name: typeof name === "string" ? name : typeof thrown,
+      message: typeof message === "string" ? message : messageOf(thrown),
+      ...(typeof stack === "string" ? { stack } : {}),
     };
   }
 

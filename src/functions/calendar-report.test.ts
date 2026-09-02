@@ -413,4 +413,37 @@ describe("one direct run of the calendar report job", () => {
     assertInstanceOf(error, AggregateError);
     assertStringMatches(error.message, /2 calendar report/u);
   });
+
+  it("retains diagnostics from an object-shaped dependency failure", async () => {
+    // Given an SDK rejection that is error-shaped but not an Error instance.
+    const deployed = await deployAnalytics();
+    const question = deployed.run.questions[0];
+    if (question === undefined) {
+      throw new Error("The report run has no pageviews question.");
+    }
+    const run: ReportRun = {
+      ...deployed.run,
+      questions: [{ ...question, visitorSql: undefined }],
+    };
+    await atReportTime(deployed);
+    const rejection = {
+      name: "AccessDenied",
+      message: "Access denied to the summaries bucket",
+      stack:
+        "AccessDenied: Access denied to the summaries bucket\n" +
+        "    at S3Client.send (calendar-report.test.ts:1:1)",
+    };
+    vi.spyOn(S3Client.prototype, "send").mockRejectedValue(rejection);
+    const errorLog = vi.spyOn(console, "error").mockReturnValue(undefined);
+
+    // When the scheduled handler receives the rejection.
+    await assertThrowsErrorAsync(() => handler(run));
+
+    // Then the log retains every diagnostic supplied by the dependency.
+    assertArrayLength(errorLog.mock.calls, 1);
+    const [entry] = errorLog.mock.calls[0];
+    assertObjectMatches(JSON.parse(String(entry)), {
+      cause: rejection,
+    });
+  });
 });
