@@ -1,4 +1,5 @@
 import {
+  assertArrayLength,
   assertIdentical,
   assertInstanceOf,
   assertObjectMatches,
@@ -348,23 +349,68 @@ describe("one direct run of the calendar report job", () => {
     }
   });
 
-  it("closes the store and reports a failed period", async () => {
-    // Given a direct-query question whose SQL has no guarded period marker.
+  it("logs each failed period and its original cause", async () => {
+    // Given two report periods whose summary reads receive an AWS error.
     const deployed = await deployAnalytics();
-    const question = deployed.run.questions[1];
+    const question = deployed.run.questions[0];
     if (question === undefined) {
-      throw new Error("The report run has no cache question.");
+      throw new Error("The report run has no pageviews question.");
     }
     const run: ReportRun = {
       ...deployed.run,
-      questions: [{ ...question, sql: "SELECT 1" }],
+      recomputedDays: 2,
+      questions: [{ ...question, visitorSql: undefined }],
     };
     await atReportTime(deployed);
+    vi.spyOn(S3Client.prototype, "send").mockRejectedValue(
+      Object.assign(new Error("Access denied to the summaries bucket"), {
+        name: "AccessDenied",
+      }),
+    );
+    const errorLog = vi.spyOn(console, "error").mockReturnValue(undefined);
 
-    // Then the invocation fails as a report failure, not as a successful
-    // document produced from an unbounded query.
+    // When the scheduled handler attempts every period.
     const error = await assertThrowsErrorAsync(() => handler(run));
+
+    // Then each period has an operator-visible diagnostic and the invocation
+    // fails with the aggregate count after both attempts.
+    const entries = errorLog.mock.calls.map(
+      ([entry]) =>
+        JSON.parse(String(entry)) as {
+          readonly event: string;
+          readonly unit: string;
+          readonly startsOn: string;
+          readonly cause: {
+            readonly name: string;
+            readonly message: string;
+            readonly stack: string;
+          };
+        },
+    );
+    assertArrayLength(entries, 2);
+    assertObjectMatches(entries[0], {
+      event: "calendar-report-failed",
+      unit: "day",
+      startsOn: "2026-08-23",
+      cause: {
+        name: "AccessDenied",
+        message: "Access denied to the summaries bucket",
+      },
+    });
+    assertObjectMatches(entries[1], {
+      event: "calendar-report-failed",
+      unit: "day",
+      startsOn: "2026-08-22",
+      cause: {
+        name: "AccessDenied",
+        message: "Access denied to the summaries bucket",
+      },
+    });
+    assertStringMatches(
+      entries[0].cause.stack,
+      /AccessDenied: Access denied to the summaries bucket/u,
+    );
     assertInstanceOf(error, AggregateError);
-    assertStringMatches(error.message, /1 calendar report/u);
+    assertStringMatches(error.message, /2 calendar report/u);
   });
 });

@@ -2,6 +2,7 @@
 
 import { reportDocument } from "../report-document.js";
 import { reportKey } from "../report-key.js";
+import { calendarReportFailure } from "./calendar-report-failure.js";
 import { closingReportPeriods } from "./report-periods.js";
 import { reportDeploymentFrom } from "./report-deployment.js";
 import { reportRunFrom } from "./report-run.js";
@@ -62,12 +63,7 @@ export async function handler(event: unknown): Promise<void> {
           }),
         );
       } catch (error) {
-        failures.push(
-          new Error(
-            `The ${period.unit} report starting ${period.startsOn} failed.`,
-            { cause: error },
-          ),
-        );
+        failures.push(calendarReportFailure(period, error));
       }
     }
 
