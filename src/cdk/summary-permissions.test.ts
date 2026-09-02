@@ -11,6 +11,7 @@ import { defaultLogDataset } from "../dataset.js";
 import {
   athenaStatements,
   catalogStatements,
+  reportSourceReadStatements,
   resultsStatements,
   savedQueryStatements,
   summaryReadStatements,
@@ -226,6 +227,28 @@ describe("what the job is allowed to reach", () => {
     // listing would only be a slower way to the same key.
     assertObjectEquals(actionsOf(statements), ["s3:GetObject"]);
     assertObjectEquals(resourcesOf(statements), [`arn:s3:::${bucketName}/*`]);
+  });
+
+  it("distinguishes a missing report source from a denied read", () => {
+    // Given the bucket holding the summaries that supply calendar reports.
+    const stack = inRegion();
+    const bucketName = `rainlytics-summaries-${faker.string.uuid()}`;
+    const bucket = Bucket.fromBucketName(stack, "Summaries", bucketName);
+
+    // When the calendar report read statements are written.
+    const statements = reportSourceReadStatements(bucket, aReader(stack));
+
+    // Then the function can fetch a deterministic key and make S3 return 404
+    // when it is missing. Without ListBucket, GetObject returns 403 and the
+    // report cannot recognise the missing key as an incomplete source.
+    assertObjectEquals(actionsOf(statements), [
+      "s3:GetObject",
+      "s3:ListBucket",
+    ]);
+    assertObjectEquals(resourcesOf(statements), [
+      `arn:s3:::${bucketName}/*`,
+      `arn:s3:::${bucketName}`,
+    ]);
   });
 
   it("decrypts a summaries bucket a site keeps under its own key", () => {

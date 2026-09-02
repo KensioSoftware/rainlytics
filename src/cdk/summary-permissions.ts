@@ -252,6 +252,31 @@ export function summaryReadStatements(
 }
 
 /**
+ * Reading the summaries that supply a calendar report.
+ *
+ * The report store recognises a missing key as an incomplete source. Amazon
+ * S3 answers `GetObject` for a missing key with 403 when the caller lacks
+ * `ListBucket`, and with 404 when it holds that permission:
+ * https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html
+ *
+ * The report builds every key itself and sends no list request. `ListBucket`
+ * only lets S3 distinguish a missing object from a denied read.
+ */
+export function reportSourceReadStatements(
+  bucket: SummariesBucket,
+  grantee: IGrantable,
+): readonly PolicyStatement[] {
+  return [
+    ...summaryReadStatements(bucket, grantee),
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ["s3:ListBucket"],
+      resources: [bucket.bucketArn],
+    }),
+  ];
+}
+
+/**
  * Everything the scheduled job's role is granted, in one list.
  *
  * Here rather than in `SummaryFunction` so that what the job may do is read

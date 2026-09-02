@@ -17,8 +17,8 @@ import type { SummariesBucket } from "./summary-bucket.js";
 import { reportHandlerName, summaryCodePath } from "./summary-code.js";
 import { reportFunctionEnvironment } from "./report-function-environment.js";
 import {
+  reportSourceReadStatements,
   summaryJobStatements,
-  summaryReadStatements,
 } from "./summary-permissions.js";
 
 /** What the report function needs telling. */
@@ -70,7 +70,7 @@ export class ReportFunction extends Construct {
         saltParameter,
         countsVisitors: props.countsVisitors,
       }),
-      ...summaryReadStatements(props.bucket, this.lambda),
+      ...reportSourceReadStatements(props.bucket, this.lambda),
     ]) {
       this.lambda.addToRolePolicy(statement);
     }
