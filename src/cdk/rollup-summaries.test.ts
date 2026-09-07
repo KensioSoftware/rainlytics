@@ -2,6 +2,7 @@ import {
   assertArrayIncludes,
   assertArrayNotIncludes,
   assertIdentical,
+  assertNumberBetween,
   assertObjectEquals,
   assertObjectMatches,
   assertStringIncludes,
@@ -293,7 +294,12 @@ describe("computing rollup summaries on a schedule", () => {
       param: "q",
       redirectStatuses: defaultRedirectStatuses,
     });
-    assertIdentical(summary.computedAt, "2026-08-23T09:15:00.000Z");
+    // Query polling can advance simulated time after the schedule fires.
+    assertNumberBetween(
+      Date.parse(summary.computedAt),
+      Date.parse("2026-08-23T09:15:00.000Z"),
+      Date.parse("2026-08-23T09:16:00.000Z"),
+    );
   });
 
   it("writes an empty answer for a window that saw no traffic", async () => {

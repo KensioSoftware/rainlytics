@@ -1,6 +1,6 @@
 import {
-  assertFalse,
   assertIdentical,
+  assertNotEqual,
   assertInstanceOf,
   assertObjectEquals,
   assertSetSize,
@@ -241,7 +241,7 @@ describe("what Athena is told about the partitions", () => {
       // query, since a projected table has no other way to know.
       assertIdentical(projection["projection.enabled"], "true");
       for (const name of partitionKeyNames(granularity)) {
-        assertFalse(projection[`projection.${name}.type`] === undefined);
+        assertNotEqual(projection[`projection.${name}.type`], undefined);
       }
 
       // And nothing is projected that the writer never writes. A projected

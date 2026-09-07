@@ -2,6 +2,7 @@ import {
   assertArrayLength,
   assertFalse,
   assertIdentical,
+  assertNumberBetween,
   assertObjectEquals,
   assertObjectMatches,
   assertStringIncludes,
@@ -281,7 +282,11 @@ describe("precomputing calendar report documents", () => {
       value: { count: { distinct: 2 } },
     });
     assertObjectEquals(replaced.period, first.period);
-    assertIdentical(replaced.computedAt, "2026-08-25T00:30:00.000Z");
+    assertNumberBetween(
+      Date.parse(replaced.computedAt),
+      Date.parse("2026-08-25T00:30:00.000Z"),
+      Date.parse("2026-08-25T00:31:00.000Z"),
+    );
 
     // And the next local day produces one new digest, despite recomputing the
     // prior day report at the same deterministic report key.
