@@ -18,7 +18,7 @@ import {
   reportNotificationHandlerName,
   summaryCodePath,
 } from "./summary-code.js";
-import { summaryReadStatements } from "./summary-permissions.js";
+import { reportSourceReadStatements } from "./summary-permissions.js";
 import type { SummariesBucket } from "./summary-bucket.js";
 
 /** What the report notification function needs telling. */
@@ -65,7 +65,12 @@ export class ReportNotificationFunction extends Construct {
       ),
     });
 
-    for (const statement of summaryReadStatements(props.bucket, this.lambda)) {
+    // Missing previous reports need a 404 so the first digest can be sent.
+    // https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html
+    for (const statement of reportSourceReadStatements(
+      props.bucket,
+      this.lambda,
+    )) {
       this.lambda.addToRolePolicy(statement);
     }
     props.topic.grantPublish(this.lambda);

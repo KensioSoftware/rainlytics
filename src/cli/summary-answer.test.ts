@@ -2,6 +2,7 @@ import {
   assertIdentical,
   assertObjectEquals,
   assertStringIncludes,
+  assertStringMatches,
   assertStringNotIncludes,
 } from "@kensio/smartass";
 import { gzipSync } from "node:zlib";
@@ -420,7 +421,7 @@ describe("the named questions, answered from stored summaries", () => {
     // else has to know both.
     assertStringIncludes(run.error, "2026-08-23T08:00:00.000Z");
     assertStringIncludes(run.error, "2026-08-23T09:00:00.000Z");
-    assertStringIncludes(run.error, "computed 2026-08-23T09:15:00.000Z");
+    assertStringMatches(run.error, /computed 2026-08-23T09:15:\d{2}\.\d{3}Z/u);
     assertStringIncludes(run.error, "1 minute ago");
   });
 

@@ -1,9 +1,9 @@
 import {
   assertArrayLength,
   assertIdentical,
+  assertNotEqual,
   assertStringIncludes,
   assertThrowsError,
-  assertTrue,
   assertUndefined,
 } from "@kensio/smartass";
 
@@ -70,7 +70,7 @@ describe("calendar report notification infrastructure", () => {
       Endpoint: email,
     });
     template.resourceCountIs("AWS::SNS::Topic", 1);
-    assertTrue(summaries.reportNotifications?.topic !== undefined);
+    assertNotEqual(summaries.reportNotifications?.topic, undefined);
   });
 
   it("installs an S3 Object-created filter for completion manifests", () => {
