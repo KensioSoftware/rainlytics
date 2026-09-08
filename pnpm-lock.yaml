@@ -10,17 +10,17 @@ importers:
     dependencies:
       '@aws-sdk/client-athena':
         specifier: ^3.1118.0
-        version: 3.1121.0
+        version: 3.1123.0
       '@aws-sdk/client-s3':
         specifier: ^3.1119.0
-        version: 3.1121.0
+        version: 3.1123.0
       '@aws-sdk/client-sns':
         specifier: ^3.1121.0
-        version: 3.1121.0
+        version: 3.1123.0
     devDependencies:
       '@aws-sdk/client-ssm':
         specifier: ^3.1119.0
-        version: 3.1121.0
+        version: 3.1123.0
       '@faker-js/faker':
         specifier: ^10.6.0
         version: 10.6.0
@@ -29,16 +29,16 @@ importers:
         version: 1.10.1
       '@kensio/smartass':
         specifier: ^1.37.5
-        version: 1.38.0
+        version: 1.40.0
       '@kensio/yulin':
         specifier: ^1.21.0
-        version: 1.21.12(node-sql-parser@5.4.0)
+        version: 1.21.18(node-sql-parser@5.4.0)
       '@semantic-release/exec':
         specifier: 7.1.0
         version: 7.1.0(semantic-release@25.0.9(@typescript/typescript6@6.0.2)(supports-color@7.2.0))(supports-color@7.2.0)
       '@types/node':
         specifier: ^26.1.1
-        version: 26.4.0
+        version: 26.4.1
       '@typescript/native':
         specifier: npm:typescript@^7.0.2
         version: typescript@7.0.2
@@ -62,7 +62,7 @@ importers:
         version: 3.0.1
       happy-dom:
         specifier: ^20.11.15
-        version: 20.12.0
+        version: 20.12.2
       node-sql-parser:
         specifier: ^5.4.0
         version: 5.4.0
@@ -86,7 +86,7 @@ importers:
         version: '@typescript/typescript6@6.0.2'
       vitest:
         specifier: ^4.1.10
-        version: 4.1.11(@types/node@26.4.0)(@vitest/coverage-v8@4.1.11)(happy-dom@20.12.0)(vite@8.2.2(@types/node@26.4.0)(esbuild@0.28.2)(yaml@2.9.0))
+        version: 4.1.11(@types/node@26.4.1)(@vitest/coverage-v8@4.1.11)(happy-dom@20.12.2)(vite@8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(yaml@2.9.0))
 
 packages:
 
@@ -119,20 +119,20 @@ packages:
     resolution: {integrity: sha512-Dtu0gr4dnATZAPwEYbpCsG+MpLM7OAliy2gTepEFQwl1vZ6DL3QMH2FveMa3HLvPsOdhJsPRB3KtxVhph9T75A==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/client-athena@3.1121.0':
-    resolution: {integrity: sha512-a3Yik3EIW6+Rj1koFFc3fZK5akLcPrTvdzC1aNrOGjqjysN1Poyel2Ww40c4eUIpL599WtV1xJe4aHi7TwHgjg==}
+  '@aws-sdk/client-athena@3.1123.0':
+    resolution: {integrity: sha512-lE/ixvyDAFKGp0ulKLqx58MspYHWZpEavPx/n2nGVGKxvrRtFhlx6tpPjaS7TukQOSLwoP0HIez0qG7hLVeNgg==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/client-s3@3.1121.0':
-    resolution: {integrity: sha512-hBnoqaVBeWdkgXcJElMXA2yUZWkBCBntu2qmN+tfqmzC+j4LzJC3ox8qIgS2WdMS1cb8UwyBogUVrkRXybNm0A==}
+  '@aws-sdk/client-s3@3.1123.0':
+    resolution: {integrity: sha512-InD/KXgF4clIFtqo8yzQQG755/BBoLstsC5WITLrMckKUUaACQgbpbZcdsySAXU3Uukp/3RV0Aiv5H3eDNGXcw==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/client-sns@3.1121.0':
-    resolution: {integrity: sha512-/MMC9YNR9YMvCw+l3rvFxFcxIAl7+AbyQa5PNmZsSsyDNJoLVsVdR54D0Fx1ZxVb3QVz/M92WT1iK3NFmuRZ7g==}
+  '@aws-sdk/client-sns@3.1123.0':
+    resolution: {integrity: sha512-EJc4ifEbCgLe6Z5Q+wkxp8QFX9pK1Cp5/VGE2iqaQVtwUbLU0MHrUlRqFV4ui7M/K9gsmTfhUJj1xVDaPzIP/g==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/client-ssm@3.1121.0':
-    resolution: {integrity: sha512-NZejFZ6NIdHqz1v27W9WLUY1vSgJq7u3FfJeEfK0Us1J2QHQIBn79jenEUGu1RcITKs8RH716vEhoi3IGTaT2Q==}
+  '@aws-sdk/client-ssm@3.1123.0':
+    resolution: {integrity: sha512-A9JThoyuWayFqKiI0Q3XlOJbbMCA4g0MBFQuH/6XDs0kNWTJo1+ekbDa+Rr1N1VX/0+c4gd6dtkYTUlBOifLMA==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/core@3.977.9':
@@ -153,10 +153,6 @@ packages:
 
   '@aws-sdk/credential-provider-login@3.972.77':
     resolution: {integrity: sha512-Jb59xfEISoN5mmbnA+HYqdtrSX3CgCtJoof+V5D8/TgUI56W63GEEd5Y58WijU3Ou6+WEgaLD1feVzaRXV5IDQ==}
-    engines: {node: '>=20.0.0'}
-
-  '@aws-sdk/credential-provider-node@3.972.81':
-    resolution: {integrity: sha512-Rml+WitoFvXmv6JZ18U/xGdGDGGvB/mOin0ya0lTnTrdC0Z1lrVxTYh7iNklZBcvcRMrs4DoEf6xy1KWyrLQQw==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/credential-provider-node@3.972.82':
@@ -406,12 +402,12 @@ packages:
     resolution: {integrity: sha512-P/qUVhAaMF98uZ4NsSfiEp5WhfCRSN44nGQDgGY8MA6w9CkCVs4IdxguPGfK7+qNBCViK/xXN/gpj099YiSf1A==}
     engines: {node: '>=22.0.0'}
 
-  '@kensio/smartass@1.38.0':
-    resolution: {integrity: sha512-iaDHZ71Aqy33Kc8llyBLI/+Uh/UxNe6BUXKwsmZvBHVOS+Zouo+78rNIvu3ekjW1PFtta8K+zinXXph7eQ81Og==}
+  '@kensio/smartass@1.40.0':
+    resolution: {integrity: sha512-GdqrDJBlUpHywDXwXcwazYCbwiR6MBGRVW5ZyGcWChbPqE27iDufPNNQNzC/DOp8d1mJmhW6OY4Ou56cTiLRqg==}
     engines: {node: '>=24.0.0'}
 
-  '@kensio/yulin@1.21.12':
-    resolution: {integrity: sha512-GRPIKk9y/RVxT4DWhlL/a19bd8PfbtnouifFVFAdPeXhGBONsHZEb+LdeB3krMxVluHTCnEh8d8GWJutCw5mqg==}
+  '@kensio/yulin@1.21.18':
+    resolution: {integrity: sha512-fwWa1l0eLMb7tCHLceVEG9AxVFpoxc+txHmSGJzdzAfK4jvs2NkVEtfzuVVAIGAjES14gWOnkTcfFOx8gfCeZg==}
     engines: {node: '>=24.0.0'}
     hasBin: true
     peerDependencies:
@@ -928,16 +924,8 @@ packages:
     resolution: {integrity: sha512-A9uSdn72ozbRUSit0eib0TW7nXuNPlaeM0zcGkJ+nE6tFcSDbnmtwoxbTCFBukVQcszDAyvsd7+rTduPTXpygg==}
     engines: {node: '>=18.0.0'}
 
-  '@smithy/fetch-http-handler@5.7.2':
-    resolution: {integrity: sha512-nZyWTmSpJEXl6VtWVMBJve/7x12DZu6sIX1z1a+ZMaHlQQRs9Zpu6NbTe/gmxYXVRpkjxyDYpZ5gx2IM6f/Wkw==}
-    engines: {node: '>=18.0.0'}
-
   '@smithy/fetch-http-handler@5.8.0':
     resolution: {integrity: sha512-ycSJu3tFAQ4v04CBB0agqFMVsSQ1iG3yw+SpgxRqKfaURpQD4CZ8Wn0zPMmSnOuTpTh65Vz+EA0rMrw089wvkA==}
-    engines: {node: '>=18.0.0'}
-
-  '@smithy/node-http-handler@4.11.3':
-    resolution: {integrity: sha512-2jY1tSpERfPfWqyBV2pH+iGFaghVsIJszJNsT7hxtQYhVJpWDyc0LqOWI+nXOxOAHaEfZ4PXXtp1wW1TGpHhkA==}
     engines: {node: '>=18.0.0'}
 
   '@smithy/node-http-handler@4.12.1':
@@ -946,10 +934,6 @@ packages:
 
   '@smithy/signature-v4@5.7.3':
     resolution: {integrity: sha512-7ImGm+FkHRLcBaRttIAMZ6bzJZWb2cJGoYjq46F2UjycujWzrL9GEN9h4w7eQyXJYnltrUhxbbieBAIRrdqpow==}
-    engines: {node: '>=18.0.0'}
-
-  '@smithy/types@4.17.2':
-    resolution: {integrity: sha512-FOKpVZob9MPTn2znRzGrnsMHv7BOsKVw3XiP/cOyYLDVZ9qKp4nifIiSCuUU/fIj5Vu0UOAxCFr+qRAtG0NUkA==}
     engines: {node: '>=18.0.0'}
 
   '@smithy/types@4.18.0':
@@ -967,9 +951,6 @@ packages:
 
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
-
-  '@types/node@26.4.0':
-    resolution: {integrity: sha512-faiGnoIrLH/V8cibOMEAZ8pMw6oXqSukl29ra4mN8GdaB2ZewzeaLj+INpV5N+Z1eKWzY+IzaIZH2EIR6YZRNQ==}
 
   '@types/node@26.4.1':
     resolution: {integrity: sha512-k97ENvZWtvA6yqz5/FS6a7duDgOPEeOQOc2iKS/nY6mX6qJUKtLnWzQS+Xj6tXweyj6ZcTAK2Qecetnvi9nCLA==}
@@ -1541,8 +1522,8 @@ packages:
     engines: {node: '>=0.4.7'}
     hasBin: true
 
-  happy-dom@20.12.0:
-    resolution: {integrity: sha512-7uMYJu2SEwwL8vVcKp0C0lnt6d2LSGGe+T+oY79PiCJNNSgFpbxW8n5KuzpDQvrU4mt+fYiK1+Jy7Z2v39YR6g==}
+  happy-dom@20.12.2:
+    resolution: {integrity: sha512-vCIoyoKQ7vxLb9zRiTc7uKryHDG3YY6tXK96D6MuugFnV9xTbmiPGM/GYFn1q+fWoIBv53q4rBEgydDkQwnDZw==}
     engines: {node: '>=20.0.0'}
 
   has-flag@3.0.0:
@@ -2639,7 +2620,7 @@ snapshots:
       '@smithy/types': 4.18.0
       tslib: 2.8.1
 
-  '@aws-sdk/client-athena@3.1121.0':
+  '@aws-sdk/client-athena@3.1123.0':
     dependencies:
       '@aws-sdk/core': 3.977.9
       '@aws-sdk/credential-provider-node': 3.972.82
@@ -2650,7 +2631,7 @@ snapshots:
       '@smithy/types': 4.18.0
       tslib: 2.8.1
 
-  '@aws-sdk/client-s3@3.1121.0':
+  '@aws-sdk/client-s3@3.1123.0':
     dependencies:
       '@aws-sdk/checksums': 3.1000.29
       '@aws-sdk/core': 3.977.9
@@ -2664,18 +2645,18 @@ snapshots:
       '@smithy/types': 4.18.0
       tslib: 2.8.1
 
-  '@aws-sdk/client-sns@3.1121.0':
+  '@aws-sdk/client-sns@3.1123.0':
     dependencies:
       '@aws-sdk/core': 3.977.9
-      '@aws-sdk/credential-provider-node': 3.972.81
+      '@aws-sdk/credential-provider-node': 3.972.82
       '@aws-sdk/types': 3.974.5
       '@smithy/core': 3.33.3
-      '@smithy/fetch-http-handler': 5.7.2
-      '@smithy/node-http-handler': 4.11.3
-      '@smithy/types': 4.17.2
+      '@smithy/fetch-http-handler': 5.8.0
+      '@smithy/node-http-handler': 4.12.1
+      '@smithy/types': 4.18.0
       tslib: 2.8.1
 
-  '@aws-sdk/client-ssm@3.1121.0':
+  '@aws-sdk/client-ssm@3.1123.0':
     dependencies:
       '@aws-sdk/core': 3.977.9
       '@aws-sdk/credential-provider-node': 3.972.82
@@ -2737,20 +2718,6 @@ snapshots:
       '@aws-sdk/nested-clients': 3.997.44
       '@aws-sdk/types': 3.974.5
       '@smithy/core': 3.33.3
-      '@smithy/types': 4.18.0
-      tslib: 2.8.1
-
-  '@aws-sdk/credential-provider-node@3.972.81':
-    dependencies:
-      '@aws-sdk/credential-provider-env': 3.972.70
-      '@aws-sdk/credential-provider-http': 3.972.72
-      '@aws-sdk/credential-provider-ini': 3.973.15
-      '@aws-sdk/credential-provider-process': 3.972.70
-      '@aws-sdk/credential-provider-sso': 3.973.14
-      '@aws-sdk/credential-provider-web-identity': 3.972.76
-      '@aws-sdk/types': 3.974.5
-      '@smithy/core': 3.33.3
-      '@smithy/credential-provider-imds': 4.5.2
       '@smithy/types': 4.18.0
       tslib: 2.8.1
 
@@ -2958,9 +2925,9 @@ snapshots:
 
   '@kensio/part-factory@1.10.1': {}
 
-  '@kensio/smartass@1.38.0': {}
+  '@kensio/smartass@1.40.0': {}
 
-  '@kensio/yulin@1.21.12(node-sql-parser@5.4.0)':
+  '@kensio/yulin@1.21.18(node-sql-parser@5.4.0)':
     dependencies:
       '@faker-js/faker': 10.6.0
       '@kensio/part-factory': 1.10.1
@@ -3332,19 +3299,7 @@ snapshots:
       '@smithy/types': 4.18.0
       tslib: 2.8.1
 
-  '@smithy/fetch-http-handler@5.7.2':
-    dependencies:
-      '@smithy/core': 3.33.3
-      '@smithy/types': 4.18.0
-      tslib: 2.8.1
-
   '@smithy/fetch-http-handler@5.8.0':
-    dependencies:
-      '@smithy/core': 3.33.3
-      '@smithy/types': 4.18.0
-      tslib: 2.8.1
-
-  '@smithy/node-http-handler@4.11.3':
     dependencies:
       '@smithy/core': 3.33.3
       '@smithy/types': 4.18.0
@@ -3362,10 +3317,6 @@ snapshots:
       '@smithy/types': 4.18.0
       tslib: 2.8.1
 
-  '@smithy/types@4.17.2':
-    dependencies:
-      tslib: 2.8.1
-
   '@smithy/types@4.18.0':
     dependencies:
       tslib: 2.8.1
@@ -3380,10 +3331,6 @@ snapshots:
   '@types/deep-eql@4.0.2': {}
 
   '@types/estree@1.0.9': {}
-
-  '@types/node@26.4.0':
-    dependencies:
-      undici-types: 8.3.0
 
   '@types/node@26.4.1':
     dependencies:
@@ -3475,7 +3422,7 @@ snapshots:
       obug: 2.1.4
       std-env: 4.2.0
       tinyrainbow: 3.1.1
-      vitest: 4.1.11(@types/node@26.4.0)(@vitest/coverage-v8@4.1.11)(happy-dom@20.12.0)(vite@8.2.2(@types/node@26.4.0)(esbuild@0.28.2)(yaml@2.9.0))
+      vitest: 4.1.11(@types/node@26.4.1)(@vitest/coverage-v8@4.1.11)(happy-dom@20.12.2)(vite@8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(yaml@2.9.0))
 
   '@vitest/expect@4.1.11':
     dependencies:
@@ -3486,13 +3433,13 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.1.1
 
-  '@vitest/mocker@4.1.11(vite@8.2.2(@types/node@26.4.0)(esbuild@0.28.2)(yaml@2.9.0))':
+  '@vitest/mocker@4.1.11(vite@8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(yaml@2.9.0))':
     dependencies:
       '@vitest/spy': 4.1.11
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 8.2.2(@types/node@26.4.0)(esbuild@0.28.2)(yaml@2.9.0)
+      vite: 8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(yaml@2.9.0)
 
   '@vitest/pretty-format@4.1.11':
     dependencies:
@@ -3901,7 +3848,7 @@ snapshots:
     optionalDependencies:
       uglify-js: 3.19.3
 
-  happy-dom@20.12.0:
+  happy-dom@20.12.2:
     dependencies:
       '@types/node': 26.4.1
       '@types/whatwg-mimetype': 3.0.2
@@ -4726,7 +4673,7 @@ snapshots:
       spdx-correct: 3.2.0
       spdx-expression-parse: 3.0.1
 
-  vite@8.2.2(@types/node@26.4.0)(esbuild@0.28.2)(yaml@2.9.0):
+  vite@8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(yaml@2.9.0):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.5
@@ -4734,15 +4681,15 @@ snapshots:
       rolldown: 1.2.5
       tinyglobby: 0.2.17
     optionalDependencies:
-      '@types/node': 26.4.0
+      '@types/node': 26.4.1
       esbuild: 0.28.2
       fsevents: 2.3.3
       yaml: 2.9.0
 
-  vitest@4.1.11(@types/node@26.4.0)(@vitest/coverage-v8@4.1.11)(happy-dom@20.12.0)(vite@8.2.2(@types/node@26.4.0)(esbuild@0.28.2)(yaml@2.9.0)):
+  vitest@4.1.11(@types/node@26.4.1)(@vitest/coverage-v8@4.1.11)(happy-dom@20.12.2)(vite@8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(yaml@2.9.0)):
     dependencies:
       '@vitest/expect': 4.1.11
-      '@vitest/mocker': 4.1.11(vite@8.2.2(@types/node@26.4.0)(esbuild@0.28.2)(yaml@2.9.0))
+      '@vitest/mocker': 4.1.11(vite@8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(yaml@2.9.0))
       '@vitest/pretty-format': 4.1.11
       '@vitest/runner': 4.1.11
       '@vitest/snapshot': 4.1.11
@@ -4759,12 +4706,12 @@ snapshots:
       tinyexec: 1.3.0
       tinyglobby: 0.2.17
       tinyrainbow: 3.1.1
-      vite: 8.2.2(@types/node@26.4.0)(esbuild@0.28.2)(yaml@2.9.0)
+      vite: 8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(yaml@2.9.0)
       why-is-node-running: 2.3.0
     optionalDependencies:
-      '@types/node': 26.4.0
+      '@types/node': 26.4.1
       '@vitest/coverage-v8': 4.1.11(vitest@4.1.11)
-      happy-dom: 20.12.0
+      happy-dom: 20.12.2
     transitivePeerDependencies:
       - msw
 
