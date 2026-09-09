@@ -1,4 +1,4 @@
-import { assertStringIncludes, assertTrue } from "@kensio/smartass";
+import { assertLessThanOrEqual, assertStringIncludes } from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
 import { describe, it } from "vitest";
 
@@ -74,7 +74,7 @@ describe("the help text", () => {
       // Then no line runs past 80 columns, which is what a terminal that has
       // not been widened gives.
       for (const line of help.split("\n")) {
-        assertTrue(line.length <= 80);
+        assertLessThanOrEqual(line.length, 80);
       }
     });
   });
@@ -200,7 +200,7 @@ describe("the help text", () => {
 
       // Then nothing wraps past 80 columns.
       for (const line of commandHelp(command).split("\n")) {
-        assertTrue(line.length <= 80);
+        assertLessThanOrEqual(line.length, 80);
       }
     });
   });

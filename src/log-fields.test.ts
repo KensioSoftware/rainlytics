@@ -2,6 +2,7 @@ import {
   assertArrayIncludes,
   assertArrayNotIncludes,
   assertFalse,
+  assertGreaterThanOrEqual,
   assertIdentical,
   assertObjectEquals,
   assertSetSize,
@@ -143,8 +144,9 @@ describe("what justifies a delivered field", () => {
     // while it is still free to leave out.
     for (const field of deliveredLogFields) {
       const words = field.readBy.trim().split(/\s+/u);
-      assertTrue(
-        words.length >= 4,
+      assertGreaterThanOrEqual(
+        words.length,
+        4,
         `${field.name} needs a reader named, not "${field.readBy}"`,
       );
       assertStringMatches(field.readBy.trim(), /\.$/u);
