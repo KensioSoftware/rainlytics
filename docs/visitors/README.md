@@ -71,6 +71,26 @@ Adding either pair double-counts returning visitors.
 The summary marks this rule with `additive: false`. The CLI refuses to add visitor values across
 stored windows. Use a calendar report or `--query` for one identity set over a larger period.
 
+## What the daily salt means for a longer span
+
+The salt changes at midnight UTC, so the same person is a different identifier tomorrow. That is
+deliberate. A digest that stood for months would be a stable identifier for one visitor. Avoiding
+that is the whole point of the scheme, and it is why a rotating salt is easier to reason about than
+a cookie.
+
+The cost is that a visitor count is only ever a count of one day's identities. Over a week it
+answers "how many distinct people-days", which is a larger number than the people. Somebody who
+visited on five days counts five times, and no arithmetic over the stored counts can tell that from
+five people who each visited once.
+
+So read a visitor count at a day or shorter. A calendar report derives one salt for the whole period
+it covers and counts a week under it, which is the answer to "how many people this week". `--query`
+over a longer span does the same thing for an arbitrary range.
+
+A question that joins rows by visitor inside one window, such as
+[a conversion rate](../rollups/), carries the same limit for the same reason. It is honest at a day,
+and an hour splits a visit that crosses the boundary.
+
 ## Questions that count visitors
 
 The default `pageviews` rollup counts visitors. A custom rollup opts in with

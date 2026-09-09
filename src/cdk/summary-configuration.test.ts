@@ -236,13 +236,13 @@ describe("what a deployment of the summaries computes", () => {
         logFieldNamesWithoutAddress,
       );
 
-    // Then it is refused at synthesis. The question bounds a flood by capping
-    // what one visitor sent, and a delivery with no address has no column to
-    // key that on. Computing it without the cap would count a flood of a
-    // million as a million.
+    // Then it is refused at synthesis. The question tells one viewer from
+    // another to cap what one of them sent, and a delivery with no address
+    // has no column to key that on. Computing it without the cap would count
+    // a flood of a million as a million.
     {
       const error = assertThrowsError(building);
-      assertStringMatches(error.message, /bounds a flood/u);
+      assertStringMatches(error.message, /tells one viewer from another/u);
     }
     {
       const error = assertThrowsError(building);
