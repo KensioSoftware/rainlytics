@@ -26,10 +26,10 @@
 // takes without argument.
 //
 // **The envelope is versioned and the payload is not.** Every event carries
-// the same three parameters, and #112 added two more that an event writes
-// only where it has them. `version` is what lets a later shape arrive without
-// reinterpreting rows already written, and it has not had to move yet,
-// because a reader takes the three back off a new row exactly as it did.
+// the same three parameters, and #112 and #159 added three more that an event
+// writes only where it has them. `version` is what lets a later shape arrive
+// without reinterpreting rows already written, and it has not had to move
+// yet, because a reader takes the three back off a new row exactly as it did.
 //
 // This module is the browser's half of that definition, and it imports
 // nothing. Every page of a measured site downloads it, so the SQL reading
@@ -82,6 +82,21 @@ export const beaconParameters = {
   /** A number the event measured, such as a web vital's value. */
   value: "n",
 
+  /**
+   * What the event is about, such as the SKU an amount was paid for.
+   *
+   * KensioSoftware/rainlytics#159 added it. `m` is spoken for by what an
+   * error said, so an event carrying a number had nowhere to say what the
+   * number counted. A shop encoding a purchase used two event names and two
+   * rollups to work around that, and a question reading both doubled the
+   * money.
+   *
+   * Additive, and {@link beaconSchemaVersion} stays at 1 for the reason `n`
+   * and `m` left it there. A reader takes the first three off a new row
+   * exactly as it did.
+   */
+  subject: "s",
+
   /** Text the event carries, such as what an error said. */
   message: "m",
 } as const;
@@ -118,6 +133,23 @@ export interface BeaconEvent {
   readonly value?: number | undefined;
 
   /**
+   * What the event is about, where it is about something nameable.
+   *
+   * A SKU, an order reference or a plan name, sitting beside the number in
+   * {@link value}. An amount with nothing saying what it was paid for is a
+   * total and nothing else.
+   *
+   * Chosen by the site rather than written by its code, which is what
+   * separates this from {@link message}. A SKU is an identifier a site
+   * already publishes. An error message is whatever the browser or the
+   * site's own code produced, and can hold anything.
+   *
+   * Left off an event that names nothing, so the parameter is absent from
+   * the query string rather than present and empty.
+   */
+  readonly subject?: string | undefined;
+
+  /**
    * Text the event carries, where it carries any.
    *
    * What an error said is the case this exists for. Whatever goes in here is
@@ -137,14 +169,20 @@ export interface BeaconEvent {
  *
  * No leading `?`. The caller joins it to the path it is sending to.
  *
- * Only the three parts of the envelope are always there. `value` and
- * `message` are written where the event carries them and left out entirely
- * where it does not, so an event measuring nothing is the length it always
- * was. Neither addition changed how a reader takes the first three back off,
- * which is why {@link beaconSchemaVersion} is still 1.
+ * Only the three parts of the envelope are always there. `value`, `subject`
+ * and `message` are written where the event carries them and left out
+ * entirely where it does not, so an event measuring nothing is the length it
+ * always was. None of the three changed how a reader takes the first three
+ * back off, which is why {@link beaconSchemaVersion} is still 1.
  *
  * ```typescript
  * beaconQueryString({ event: "lcp", page: "/", value: 2400 });
+ * beaconQueryString({
+ *   event: "purchase",
+ *   page: "/checkout/",
+ *   value: 2499,
+ *   subject: "SKU-1234",
+ * });
  * ```
  */
 export function beaconQueryString(event: BeaconEvent): string {
@@ -156,6 +194,10 @@ export function beaconQueryString(event: BeaconEvent): string {
 
   if (event.value !== undefined) {
     carried.push([beaconParameters.value, String(event.value)]);
+  }
+
+  if (event.subject !== undefined) {
+    carried.push([beaconParameters.subject, event.subject]);
   }
 
   if (event.message !== undefined) {

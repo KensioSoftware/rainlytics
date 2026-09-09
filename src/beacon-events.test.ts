@@ -30,6 +30,7 @@ import {
   aBeaconEvent,
   beaconEventColumn,
   beaconMessageColumn,
+  beaconSubjectColumn,
   beaconValueColumn,
 } from "./beacon-rows.js";
 import { qualifiedTableName } from "./dataset.js";
@@ -267,7 +268,7 @@ describe("a window holding beacon events", () => {
    * What the beacon columns read off the rows in the hour.
    *
    * A plain select rather than a rollup, because no shipped question reads
-   * these two yet. #112 left a rollup over the vitals to its own issue, and
+   * all three yet. #112 left a rollup over the vitals to its own issue, and
    * this is the round trip that has to hold before one can be written.
    */
   const beaconRows = async (): Promise<
@@ -277,6 +278,7 @@ describe("a window holding beacon events", () => {
       sql:
         `SELECT ${beaconEventColumn} AS event,\n` +
         `    ${beaconValueColumn} AS value,\n` +
+        `    ${beaconSubjectColumn} AS subject,\n` +
         `    ${beaconMessageColumn} AS message\n` +
         `  FROM ${qualifiedTableName()}\n` +
         `  WHERE ${partitionPredicate(theHour)}\n` +
@@ -347,7 +349,9 @@ describe("a window holding beacon events", () => {
     // Then the number is the one the browser sent. It went through the
     // browser's encoding, CloudFront's own on the way into the record, and
     // both decodes on the way out.
-    assertObjectEquals(rows, [{ event: "lcp", value: "2400", message: "" }]);
+    assertObjectEquals(rows, [
+      { event: "lcp", value: "2400", subject: "", message: "" },
+    ]);
   });
 
   it("carries what an error said back off the row", async () => {
@@ -367,21 +371,48 @@ describe("a window holding beacon events", () => {
     // Then the message is the one the browser sent, rather than three more
     // parameters. This is the round trip a rollup counting errors by message
     // would be built on.
-    assertObjectEquals(rows, [{ event: "error", value: "", message: said }]);
+    assertObjectEquals(rows, [
+      { event: "error", value: "", subject: "", message: said },
+    ]);
   });
 
-  it("leaves both columns empty for an event that measured nothing", async () => {
-    // Given a route change, which carries neither.
+  it("carries a SKU back off the row beside the amount it was paid for", async () => {
+    // Given a purchase, which is the case an amount alone cannot report. A
+    // shop sending only the number can total its takings and can say nothing
+    // about what sold.
+    const deployed = await deployAnalytics();
+    await putBeaconPayload(deployed, {
+      event: "purchase",
+      page: "/checkout/",
+      value: 2499,
+      subject: "SKU-1234",
+    });
+
+    // When the beacon columns are read back.
+    const rows = await beaconRows();
+
+    // Then one row carries both, so one event name answers what sold and
+    // what it took. Before #159 that needed two event names, two rollups and
+    // a rule saying which read which.
+    assertObjectEquals(rows, [
+      { event: "purchase", value: "2499", subject: "SKU-1234", message: "" },
+    ]);
+  });
+
+  it("leaves the optional columns empty for an event that measured nothing", async () => {
+    // Given a route change, which carries none of the three.
     const deployed = await deployAnalytics();
     await putBeaconEvent(deployed, "/");
 
     // When the beacon columns are read back.
     const rows = await beaconRows();
 
-    // Then both read empty rather than failing the query. A question over
-    // one event name reads rows that all carry the same shape, and a
+    // Then all three read empty rather than failing the query. A question
+    // over one event name reads rows that all carry the same shape, and a
     // question over the lot still runs.
-    assertObjectEquals(rows, [{ event: "route", value: "", message: "" }]);
+    assertObjectEquals(rows, [
+      { event: "route", value: "", subject: "", message: "" },
+    ]);
   });
 
   it("counts the site's own responses under status-codes", async () => {

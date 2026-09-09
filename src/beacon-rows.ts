@@ -37,6 +37,19 @@ export const beaconPageColumn = decodedParameter(beaconParameters.page);
 export const beaconValueColumn = decodedParameter(beaconParameters.value);
 
 /**
+ * What an event was about, as SQL.
+ *
+ * A SKU, an order reference or a plan name, whichever the site sent. Text,
+ * and empty for an event that named nothing.
+ *
+ * Apart from {@link beaconMessageColumn} because the two carry different
+ * risks. This holds an identifier the site already publishes. That one holds
+ * whatever the site's own code wrote, which is the column a deployment
+ * keeping no personal data has to think about.
+ */
+export const beaconSubjectColumn = decodedParameter(beaconParameters.subject);
+
+/**
  * The text an event carries, as SQL.
  *
  * The only column here that can hold anything a site's own code wrote. A

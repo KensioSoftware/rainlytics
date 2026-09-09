@@ -29,15 +29,60 @@ beacon.report({
 });
 
 beacon.report({
-  event: "purchase-value",
+  event: "purchase",
   page: location.pathname,
-  value: 49.95,
+  value: 4995,
+  subject: "SKU-1234",
 });
 ```
 
-Each request contains an envelope version, event name and page. Events can also carry one number or
-one text value. Keep personal data out of event names, pages and messages. These values remain in
-the raw log until its lifecycle expires them.
+Each request contains an envelope version, event name and page. An event can also carry a number, a
+subject naming what the number is about, and a text message. Keep personal data out of event names,
+pages, subjects and messages. These values remain in the raw log until its lifecycle expires them.
+
+## Send numbers as integer minor units
+
+`value` is a number and Rainlytics never asks what it means. Send money as an integer count of the
+smallest unit: 4995 for £49.95, and 4995 again for $49.95.
+
+Two reasons. A total is a sum over thousands of rows, and floats drift over a sum where integers do
+not. And the alternative is a unit on every row, which would be bytes paid on every Web Vital as
+well, for something a site already knows about its own events.
+
+The unit is a site's own convention and nothing checks it. A deployment that sent pounds for a
+month and pence after it has a total that means neither, so pick one before the first event goes
+out. `docs/rollups/` has the question that adds these up.
+
+## Report something with more parts than the envelope holds
+
+The envelope carries one number, one subject and one message. An order with three lines has more
+parts than that, and there is no JSON payload to reach for.
+
+Send one event per part, under an event name of its own:
+
+```typescript
+beacon.report({
+  event: "purchase",
+  page: location.pathname,
+  value: order.totalInPence,
+  subject: order.reference,
+});
+
+for (const line of order.lines) {
+  beacon.report({
+    event: "purchase-line",
+    page: location.pathname,
+    value: line.totalInPence,
+    subject: line.sku,
+  });
+}
+```
+
+Two event names, because a question totalling both would count the money twice. Each name is a
+question of its own: `purchase` answers what the shop took, and `purchase-line` answers what sold.
+
+Keep the number of events per action small. Each one is a request the browser makes and a row the
+log stores, and an order with fifty lines is fifty of both.
 
 The browser sends no cookies. Requests use `fetch` with `credentials: "omit"` and `keepalive: true`.
 The beacon creates no browser identifier.

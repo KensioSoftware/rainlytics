@@ -96,6 +96,40 @@ describe("reporting Core Web Vitals", () => {
     await endpoint.close();
   });
 
+  it("reports all four from a bundle that ran after every one of them", async () => {
+    // Given a page where the navigation, the paint, the largest paint and
+    // the layout shift have all already happened. That is what a bundle
+    // loaded `async defer` at the end of the body arrives to, which is where
+    // a site puts the rest of its JavaScript.
+    const endpoint = await collectionEndpoint();
+    const timeline = performanceTimeline();
+    timeline.emit("navigation", [{ responseStart: 128.4 }]);
+    timeline.emit("paint", [
+      { name: "first-contentful-paint", startTime: 210.7 },
+    ]);
+    timeline.emit("largest-contentful-paint", [{ startTime: 980.2 }]);
+    timeline.emit("layout-shift", [{ startTime: 300, value: 0.05 }]);
+
+    // When the vitals start watching afterwards, and the reader leaves.
+    const { stop } = watching();
+    timeline.hide();
+
+    // Then every one of the four is reported. `buffered` on the observers
+    // hands over the entries recorded before they existed, and the
+    // navigation entry stays for the life of the document. So the docs can
+    // say to start the beacon wherever the bundle runs, rather than asking
+    // for a blocking script on every page.
+    assertObjectEquals(reported(await endpoint.received(4)), {
+      [vitalEventNames.timeToFirstByte]: "128",
+      [vitalEventNames.firstContentfulPaint]: "211",
+      [vitalEventNames.largestContentfulPaint]: "980",
+      [vitalEventNames.cumulativeLayoutShift]: "0.05",
+    });
+
+    stop();
+    await endpoint.close();
+  });
+
   it("reports the largest paint once the page is going away", async () => {
     // Given a page whose largest element painted twice over, each larger
     // than the last.

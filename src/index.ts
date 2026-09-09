@@ -158,6 +158,7 @@ export {
   beaconEventColumn,
   beaconMessageColumn,
   beaconPageColumn,
+  beaconSubjectColumn,
   beaconValueColumn,
   beaconVersionColumn,
   outsideTheBeaconPath,
