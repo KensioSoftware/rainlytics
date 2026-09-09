@@ -4,6 +4,7 @@ import type { CliIo } from "./io.js";
 import type { OptionValues } from "./command-line.js";
 import type { CliOption } from "./option.js";
 import type { CommandOutput } from "./output/result.js";
+import { beaconTotals } from "../beacon-totals-rollup.js";
 import { javascriptErrors } from "../javascript-errors-rollup.js";
 import { rollups } from "../rollup-questions.js";
 import { webVitals } from "../web-vitals-rollup.js";
@@ -73,6 +74,7 @@ export const rainlyticsCommands: readonly Command[] = [
   ...rollups.map((rollup) => rollupCommand(rollup)),
   rollupCommand(javascriptErrors),
   rollupCommand(webVitals),
+  rollupCommand(beaconTotals),
   reportCommand,
   savedQueryCommand,
   queryCommand,

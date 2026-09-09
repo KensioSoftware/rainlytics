@@ -20,9 +20,61 @@ rainlytics pageviews --last 7d
 
 The exported `rollups` array contains these six questions.
 
-`javascript-errors` and `web-vitals` are optional questions for sites using the browser module.
-`beacon-events` is another optional rollup and runs through `saved-query`. Optional questions are
-excluded from the defaults because a site without those browser events would pay for empty queries.
+`javascript-errors`, `web-vitals` and `beacon-totals` are optional questions for sites using the
+browser module. `beacon-events` is another optional rollup and runs through `saved-query`. Optional
+questions are excluded from the defaults because a site without those browser events would pay for
+empty queries.
+
+## Total what beacon events measured
+
+`beacon-totals` adds up the number each beacon event carried, grouped by event name:
+
+```typescript
+import { beaconTotals, rollups } from "@kensio/rainlytics";
+
+new RollupSummaries(this, "Summaries", {
+  table,
+  workgroup,
+  rollups: [...rollups, beaconTotals],
+});
+```
+
+```bash
+rainlytics beacon-totals --last 7d
+```
+
+```text
+event          events  total
+-------------  ------  ------
+purchase           38  94820
+add-to-basket     211  38400
+```
+
+Only events carrying a number are read. Web Vitals and JavaScript errors are left out by name, and
+a route change is left out because it carries no number. A row whose number cannot be read counts in
+`events` and leaves `total` where it was, so a site can see that something sent a value the question
+could not use.
+
+Negative values are kept, so a refund reported as a negative amount nets off against the purchases
+beside it.
+
+Send money as integer minor units. [The beacon page](../beacon/) has why.
+
+Both columns add across stored windows, so 24 hourly summaries make the day.
+
+### What one visitor can contribute
+
+One visitor contributes no more than 60 events of one name an hour, the way `beacon-events` bounds a
+count. The rollup therefore names the viewer's address, and `RollupSummaries` refuses a deployment
+whose delivery leaves that field out.
+
+The cap bounds rows and not the value a row carries. A client sending an enormous number a million
+times still contributes sixty of them, which is sixty times a number nobody spent. Capping the value
+itself would clip a genuinely large purchase, and no number separates the two cases.
+
+So a total over an open collection path is a weaker figure than a count over one. What bounds it
+properly is the raw store. Every row is still there, and a site that finds a flood can work out what
+it really took over rows the cap threw away. [Abuse](../abuse/) has the rest.
 
 ## Filter a question
 
@@ -166,6 +218,25 @@ the name is part of its saved query and S3 key.
 
 Use `decodedColumn` for a whole logged field and `decodedParameter` for one query-string value.
 `matchedPath` returns the path prefix matched by a request when a question covers several sections.
+
+`quoted` writes one value into SQL with every quote in it doubled, and `oneOf` writes a column
+holding any of a list. Reach for those rather than building a string literal by hand. That is the
+one part of writing SQL worth getting right once.
+
+A question over beacon rows also wants `onBeaconPath`, which fills the collection path in where the
+request named none:
+
+```typescript
+import { aBeaconEvent, onBeaconPath, oneOf, rowsFor } from "@kensio/rainlytics";
+
+rowsFor(onBeaconPath(request), [
+  ...aBeaconEvent,
+  oneOf(beaconEventColumn, ["signup", "trial"]),
+]);
+```
+
+Without it the question counts every request on the site carrying a `v` parameter, and `?v=3` on a
+stylesheet is an ordinary thing for a site to serve.
 
 These helpers keep custom questions consistent with the built-in URL decoding and path matching.
 
