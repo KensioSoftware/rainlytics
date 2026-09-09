@@ -21,9 +21,9 @@ rainlytics pageviews --last 7d
 The exported `rollups` array contains these six questions.
 
 `javascript-errors`, `web-vitals` and `beacon-totals` are optional questions for sites using the
-browser module. `beacon-events` is another optional rollup and runs through `saved-query`. Optional
-questions are excluded from the defaults because a site without those browser events would pay for
-empty queries.
+browser module. `beacon-events` and the `conversions-<event>` questions `conversionsOf` builds are
+optional too, and both run through `saved-query`. Optional questions are excluded from the defaults
+because a site without those browser events would pay for empty queries.
 
 ## Total what beacon events measured
 
@@ -52,10 +52,10 @@ add-to-basket     211  38400
 
 Only events carrying a number are read. Web Vitals and JavaScript errors are left out by name, and
 a route change is left out because it carries no number. A row whose number cannot be read counts in
-`events` and leaves `total` where it was, so a site can see that something sent a value the question
-could not use.
+`events` and leaves `total` where it was. A site can then see that something sent a value the
+question could not use.
 
-Negative values are kept, so a refund reported as a negative amount nets off against the purchases
+Negative values are kept. A refund reported as a negative amount nets off against the purchases
 beside it.
 
 Send money as integer minor units. [The beacon page](../beacon/) has why.
@@ -75,6 +75,59 @@ itself would clip a genuinely large purchase, and no number separates the two ca
 So a total over an open collection path is a weaker figure than a count over one. What bounds it
 properly is the raw store. Every row is still there, and a site that finds a flood can work out what
 it really took over rows the cap threw away. [Abuse](../abuse/) has the rest.
+
+## Measure a conversion rate
+
+`conversionsOf` builds a question asking how many of a window's visitors raised one beacon event:
+
+```typescript
+import { conversionsOf, rollups } from "@kensio/rainlytics";
+
+new RollupSummaries(this, "Summaries", {
+  table,
+  workgroup,
+  rollups: [...rollups, conversionsOf("purchase")],
+});
+```
+
+```bash
+rainlytics saved-query conversions-purchase
+```
+
+```text
+converted  visitors  converted_percent
+---------  --------  -----------------
+       17       842                2.0
+```
+
+A factory rather than a rollup, because a site converting on `purchase` and on `signup` is asking
+two questions. Each takes a name of its own, so each gets its own saved query, schedule and summary
+key.
+
+`visitors` counts everybody who looked at a page, over the same rows the visitor count beside
+`pageviews` is taken over. `converted` counts the ones who also raised the event. Somebody who
+raised it without looking at a page in the same window counts in neither, which holds the proportion
+at or below one.
+
+A visitor here is the viewer's address and their user agent, the pair a visitor count is hashed
+from. Neither value leaves the query. The question sets `identifiesViewers`, and `RollupSummaries`
+refuses a deployment whose delivery omits the address. A question that cannot tell two visitors
+apart would answer every one of them as one.
+
+`--path` names the beacon's collection path, the way it does for the other questions over beacon
+rows. The visitors counted stay site-wide either way, because the denominator is everybody the
+window saw.
+
+### Read it at a day
+
+A reader who looks at 09:59 and buys at 10:01 is split across two hourly windows, each holding one
+half of the visit. Read this at a day, where almost every visit fits inside one window.
+
+The question declares no totals. A distinct count belongs to the window it was taken over, the way a
+percentile does. Two hours of ten visitors each describe somewhere between ten and twenty people,
+and the stored counts leave that open. A command asked about a longer span reports the windows it
+found and offers `--query` over the whole of it.
+[Counting visitors](../visitors/) has what the daily salt means for a longer span.
 
 ## Filter a question
 

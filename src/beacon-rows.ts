@@ -105,6 +105,25 @@ export function onBeaconPath(request: RollupRequest): RollupRequest {
 }
 
 /**
+ * The rows on the beacon's path, as a condition.
+ *
+ * The positive twin of {@link outsideTheBeaconPath}, and it takes the path
+ * rather than assuming the default, so a site that moved its beacon says so.
+ *
+ * Different from {@link onBeaconPath}, which narrows a whole request to the
+ * beacon and is what almost every question over beacon rows wants. This is
+ * for the one reading beacon rows and page requests in a single pass, where
+ * one path filter on the request cannot serve both halves.
+ *
+ * A prefix, the way every path match in Rainlytics is one, and matched
+ * against the column as CloudFront delivered it for the reason
+ * {@link outsideTheBeaconPath} gives.
+ */
+export function onTheBeaconPath(path: string = defaultBeaconPath): string {
+  return `strpos(cs_uri_stem, ${quoted(path)}) = 1`;
+}
+
+/**
  * The rows outside the beacon's path, as a condition for `rowsFor`.
  *
  * The other direction from {@link aBeaconEvent}, and it names the path that
