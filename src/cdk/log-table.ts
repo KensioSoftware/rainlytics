@@ -14,8 +14,8 @@ import {
   partitionLocationTemplate,
   partitionProjection,
 } from "../partitions.js";
-import type { LogDeliveryBucket } from "./delivery-bucket.js";
-import type { CloudFrontLogDelivery } from "./log-delivery.js";
+import { assertOneBucket, type LogDeliveryBucket } from "./delivery-bucket.js";
+import type { DeliveredLogs } from "./log-table-deliveries.js";
 import { agreedDelivery } from "./log-table-deliveries.js";
 import { logTableFormat } from "./log-table-format.js";
 
@@ -33,8 +33,16 @@ export interface LogTableProps {
    * sites' logs is the case that makes `distributionid` the first partition
    * key. They have to agree about the bucket, the prefix, the output format,
    * the granularity and the field set, since one table describes one dataset.
+   *
+   * A `CloudFrontLogDelivery` is the usual thing to pass. Where the delivery
+   * is declared somewhere this stack cannot reach it, a {@link DeliveredLogs}
+   * describing the same six values does instead. Delivery is configured from
+   * us-east-1 and the bucket and query layer can live anywhere, so a
+   * deployment with a data-residency answer to give ends up with the table in
+   * one stack and the delivery in another. `docs/log-table/` has that
+   * arrangement and what it gives up.
    */
-  readonly deliveries: readonly CloudFrontLogDelivery[];
+  readonly deliveries: readonly DeliveredLogs[];
 
   /**
    * The Glue database the table goes in.
@@ -127,6 +135,16 @@ export class LogTable extends Construct {
 
   constructor(scope: Construct, id: string, props: LogTableProps) {
     super(scope, id);
+
+    // Every delivery and not only the one they agree on. They are checked
+    // against each other on the bucket's name, so a second description whose
+    // ARN names a different bucket agrees with the first and still writes
+    // somewhere this table never reads. A described delivery is the pair of
+    // literals `assertOneBucket` was written for, and a construct's tokens
+    // resolve out of one bucket and cannot disagree.
+    for (const described of props.deliveries) {
+      assertOneBucket(described.logBucket);
+    }
 
     const delivery = agreedDelivery(props.deliveries);
     const catalogId = Stack.of(this).account;

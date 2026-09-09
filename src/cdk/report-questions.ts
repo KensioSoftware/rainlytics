@@ -8,7 +8,7 @@ import {
   type ReportQuestionRun,
 } from "../functions/report-run.js";
 import type { LogDataset } from "../dataset.js";
-import type { SavedRollupRequest } from "./rollup-queries.js";
+import type { SavedRollupRequest } from "./saved-query-configuration.js";
 import { summaryRuns } from "./summary-questions.js";
 
 /** What the report questions of one deployment are built from. */

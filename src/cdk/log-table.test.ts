@@ -7,6 +7,7 @@ import {
   assertStringMatches,
   assertStringNotIncludes,
   assertThrowsError,
+  assertThrowsErrorAsync,
   assertTrue,
   assertUndefined,
 } from "@kensio/smartass";
@@ -30,6 +31,7 @@ import {
 } from "../beacon-rows.js";
 import {
   deliveredLogColumnNames,
+  deliveredLogFieldNames,
   logFieldNamesWithoutAddress,
 } from "../log-fields.js";
 import {
@@ -755,6 +757,186 @@ describe("the Glue table over delivered logs", () => {
       answeredBy: execution.answeredBy,
     };
   };
+
+  it("describes a delivery it holds no construct for", async () => {
+    // Given a site whose data has to stay in eu-west-1, holding its log
+    // bucket and its query layer there, and configuring delivery from
+    // us-east-1 because that is the only region the CloudWatch Logs API takes
+    // the call in.
+    const logBucketName = `rainlytics-logs-${faker.string.uuid()}`;
+    const prefix = faker.string.alpha(8);
+
+    const { simAws } = await deployStacks((app: App, account: string) => {
+      const storing = new Stack(app, "DataStack", {
+        env: { account, region: "eu-west-1" },
+      });
+      const logs = new LogBucket(storing, "RainlyticsLogs", {
+        bucketName: logBucketName,
+      });
+
+      const delivering = new Stack(app, "DeliveryStack", {
+        env: { account, region: "us-east-1" },
+      });
+      const distribution = new Distribution(delivering, "Site", {
+        defaultBehavior: { origin: new HttpOrigin("origin.example.com") },
+      });
+
+      new CloudFrontLogDelivery(delivering, "Delivery", {
+        distributionId: distribution.distributionId,
+        logBucket: Bucket.fromBucketName(delivering, "Logs", logBucketName),
+        prefix,
+      });
+
+      // The table holds no construct from either stack above it. A
+      // cross-region reference to one would need CDK's custom resources, and
+      // the six values a table is built from are values.
+      new LogTable(storing, "RainlyticsTable", {
+        deliveries: [
+          {
+            distributionId: "E1EXAMPLE1234",
+            logBucket: logs.bucket,
+            prefix,
+            outputFormat: "json",
+            granularity: "hourly",
+            fields: deliveredLogFieldNames,
+          },
+        ],
+      });
+    });
+
+    // Then eu-west-1 holds both the bucket and a table over it, with the
+    // columns the delivery writes, and us-east-1 holds nothing but the
+    // delivery. A deployment with a data-residency answer to give can keep
+    // the two apart.
+    const table = simAws
+      .region("eu-west-1")
+      .account()
+      .glue()
+      .findTable(defaultLogDataset.databaseName, defaultLogDataset.tableName);
+
+    assertIdentical(
+      table?.storageDescriptor?.Location,
+      `s3://${logBucketName}/${prefix}/`,
+    );
+    assertObjectEquals(
+      table.storageDescriptor.Columns?.map((column) => column.Name),
+      [...deliveredLogColumnNames],
+    );
+  });
+
+  it("refuses two described deliveries that disagree", async () => {
+    // Given two descriptions of what lands in one bucket, under prefixes
+    // that are not the same prefix.
+    const logBucketName = `rainlytics-logs-${faker.string.uuid()}`;
+    const fields = deliveredLogFieldNames;
+
+    // Then synthesis fails and says what they disagree about. A description
+    // is checked the way a construct is, since a table built from the first
+    // of two that differ describes the other one wrongly and answers queries
+    // about it without complaining.
+    const error = await assertThrowsErrorAsync(() =>
+      deployStacks((app: App, account: string) => {
+        const stack = new Stack(app, "QueryStack", {
+          env: { account, region: "eu-west-1" },
+        });
+        const logBucket = Bucket.fromBucketName(stack, "Logs", logBucketName);
+        const described = {
+          logBucket,
+          outputFormat: "json",
+          granularity: "hourly",
+          fields,
+        } as const;
+
+        new LogTable(stack, "RainlyticsTable", {
+          deliveries: [
+            { ...described, distributionId: "E1EXAMPLE1234", prefix: "one" },
+            { ...described, distributionId: "E2EXAMPLE5678", prefix: "two" },
+          ],
+        });
+      }),
+    );
+
+    assertStringMatches(error.message, /disagree about the prefix/u);
+  });
+
+  it("refuses a second delivery whose ARN names a different bucket", async () => {
+    // Given two descriptions agreeing on the bucket's name, where the second
+    // one's ARN names another bucket. They agree on everything the deliveries
+    // are checked against each other on, so nothing there catches it.
+    const logBucketName = `rainlytics-logs-${faker.string.uuid()}`;
+    const error = await assertThrowsErrorAsync(() =>
+      deployStacks((app: App, account: string) => {
+        const stack = new Stack(app, "QueryStack", {
+          env: { account, region: "eu-west-1" },
+        });
+        const described = {
+          bucketName: logBucketName,
+          prefix: "rainlytics",
+          outputFormat: "json",
+          granularity: "hourly",
+          fields: deliveredLogFieldNames,
+        } as const;
+
+        new LogTable(stack, "RainlyticsTable", {
+          deliveries: [
+            {
+              ...described,
+              distributionId: "E1EXAMPLE1234",
+              logBucket: {
+                bucketName: logBucketName,
+                bucketArn: `arn:aws:s3:::${logBucketName}`,
+              },
+            },
+            {
+              ...described,
+              distributionId: "E2EXAMPLE5678",
+              logBucket: {
+                bucketName: logBucketName,
+                bucketArn: "arn:aws:s3:::somewhere-else",
+              },
+            },
+          ],
+        });
+      }),
+    );
+
+    // Then synthesis fails. The table would otherwise be built from the first
+    // description while the second delivery filled a bucket nothing queries.
+    assertStringMatches(error.message, /does not match its ARN/u);
+  });
+
+  it("refuses a described bucket whose name and ARN are different buckets", async () => {
+    // Given a description assembled out of two literals that name two
+    // buckets. A construct carries tokens resolved out of one bucket and has
+    // nothing that can disagree, and this is the shape that has.
+    const error = await assertThrowsErrorAsync(() =>
+      deployStacks((app: App, account: string) => {
+        const stack = new Stack(app, "QueryStack", {
+          env: { account, region: "eu-west-1" },
+        });
+
+        new LogTable(stack, "RainlyticsTable", {
+          deliveries: [
+            {
+              distributionId: "E1EXAMPLE1234",
+              logBucket: {
+                bucketName: "queried-bucket",
+                bucketArn: "arn:aws:s3:::delivered-bucket",
+              },
+              prefix: "rainlytics",
+              outputFormat: "json",
+              granularity: "hourly",
+              fields: deliveredLogFieldNames,
+            },
+          ],
+        });
+      }),
+    );
+
+    // Then synthesis fails. CloudFront would fill one bucket and Athena
+    // would read the other, and both halves would report success.
+    assertStringMatches(error.message, /does not match its ARN/u);
+  });
 
   /**
    * How many bytes one query scanned.

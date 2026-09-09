@@ -1,24 +1,19 @@
 import type { IGrantable } from "aws-cdk-lib/aws-iam";
 import { Construct } from "constructs";
 
+import type { Rollup } from "../rollups.js";
+import type { LogTable } from "./log-table.js";
+import type { QueryWorkgroup } from "./query-workgroup.js";
+import type { SavedRollupRequest } from "./saved-query-configuration.js";
 import type { RollupSummariesProps } from "./summary-configuration.js";
 import { summaryConfiguration } from "./summary-configuration.js";
 import type { SummariesBucket } from "./summary-bucket.js";
 import { summariesBucket } from "./summary-bucket.js";
-import { SummaryFunction } from "./summary-function.js";
-import { ReportFunction } from "./report-function.js";
-import { reportQuestions } from "./report-questions.js";
-import { ReportSchedule } from "./report-schedule.js";
 import { summaryReadStatements } from "./summary-permissions.js";
-import { summaryRuns } from "./summary-questions.js";
-import { SummarySchedules } from "./summary-schedules.js";
+import type { ReportNotifications } from "./report-notifications.js";
+import { summaryJobs } from "./summary-jobs.js";
 import type { IFunction } from "aws-cdk-lib/aws-lambda";
 import type { CfnSchedule } from "aws-cdk-lib/aws-scheduler";
-import { configuredReportNotifications } from "./report-notification-setup.js";
-import {
-  createReportNotifications,
-  type ReportNotifications,
-} from "./report-notifications.js";
 
 /**
  * The named questions, computed on a schedule and written to S3 as summaries.
@@ -56,6 +51,26 @@ import {
  * site to add if it wants one. `docs/summary-schedule/` has what to look at.
  */
 export class RollupSummaries extends Construct {
+  /** The table the questions read. */
+  readonly table: LogTable;
+
+  /** The workgroup they run in. */
+  readonly workgroup: QueryWorkgroup;
+
+  /**
+   * The questions this deployment computes, as it settled them.
+   *
+   * What the deployment was told, or the six shipped questions where it was
+   * told nothing, with the visitor count taken off where the table carries no
+   * viewer address. `RollupQueries` reads this so that the console holds the
+   * queries the schedules run, rather than a second list that agreed with
+   * this one on the day it was written.
+   */
+  readonly rollups: readonly Rollup[];
+
+  /** What each question covers, as the deployment was told. */
+  readonly requests?: Readonly<Record<string, SavedRollupRequest>> | undefined;
+
   /** Where the summaries are written. */
   readonly bucket: SummariesBucket;
 
@@ -78,85 +93,20 @@ export class RollupSummaries extends Construct {
     super(scope, id);
 
     const settled = summaryConfiguration(props);
-    const configuredReportQuestions = reportQuestions({
-      rollups: settled.rollups,
-      granularities: settled.granularities,
-      dataset: props.table.dataset,
-      ...(props.requests === undefined ? {} : { requests: props.requests }),
-    });
-    const notificationConfiguration = configuredReportNotifications(
-      props.reportNotifications,
-      configuredReportQuestions.map(({ question }) => question.name),
-    );
 
+    this.table = props.table;
+    this.workgroup = props.workgroup;
+    this.rollups = settled.rollups;
+    this.requests = props.requests;
     this.bucket = summariesBucket(this, props);
-    this.lambda = new SummaryFunction(this, "Job", {
-      table: props.table,
-      workgroup: props.workgroup,
-      bucket: this.bucket,
-      windows: settled.windows,
-      countsVisitors: settled.countsVisitors,
-      ...(props.visitorSaltParameter === undefined
-        ? {}
-        : { visitorSaltParameter: props.visitorSaltParameter }),
-      ...(props.timeout === undefined ? {} : { timeout: props.timeout }),
-      ...(props.logRetention === undefined
-        ? {}
-        : { logRetention: props.logRetention }),
-    }).lambda;
 
-    this.reportLambda = new ReportFunction(this, "ReportJob", {
-      table: props.table,
-      workgroup: props.workgroup,
-      bucket: this.bucket,
-      countsVisitors: settled.countsVisitors,
-      ...(notificationConfiguration === undefined
-        ? {}
-        : { notificationPeriods: notificationConfiguration.periods }),
-      ...(props.visitorSaltParameter === undefined
-        ? {}
-        : { visitorSaltParameter: props.visitorSaltParameter }),
-      ...(props.reportTimeout === undefined
-        ? {}
-        : { timeout: props.reportTimeout }),
-      ...(props.logRetention === undefined
-        ? {}
-        : { logRetention: props.logRetention }),
-    }).lambda;
+    const jobs = summaryJobs(this, props, settled, this.bucket);
 
-    const summarySchedules = new SummarySchedules(this, "Schedules", {
-      lambda: this.lambda,
-      lag: settled.lag,
-      namePrefix: settled.namePrefix,
-      runs: summaryRuns({
-        rollups: settled.rollups,
-        granularities: settled.granularities,
-        dataset: props.table.dataset,
-        ...(props.requests === undefined ? {} : { requests: props.requests }),
-      }),
-    });
-    this.schedules = summarySchedules.schedules;
-
-    this.reportSchedule = new ReportSchedule(this, "ReportSchedule", {
-      lambda: this.reportLambda,
-      role: summarySchedules.role,
-      lag: settled.reportLag,
-      namePrefix: settled.namePrefix,
-      run: {
-        timeZone: settled.reportTimeZone,
-        weekStartsOn: settled.reportWeekStartsOn,
-        recomputedDays: settled.recomputedReportDays,
-        granularities: settled.granularities,
-        questions: configuredReportQuestions,
-      },
-    }).schedule;
-
-    this.reportNotifications = createReportNotifications(
-      this,
-      this.bucket,
-      notificationConfiguration,
-      props.logRetention,
-    );
+    this.lambda = jobs.lambda;
+    this.reportLambda = jobs.reportLambda;
+    this.schedules = jobs.schedules;
+    this.reportSchedule = jobs.reportSchedule;
+    this.reportNotifications = jobs.reportNotifications;
   }
 
   /**

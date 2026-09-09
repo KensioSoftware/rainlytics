@@ -35,13 +35,18 @@ import { CloudFrontLogDelivery } from "./log-delivery.js";
 import { LogBucket } from "./log-bucket.js";
 import { LogTable } from "./log-table.js";
 import { QueryWorkgroup } from "./query-workgroup.js";
-import type { RollupQueriesProps } from "./rollup-queries.js";
 import { RollupQueries } from "./rollup-queries.js";
+import type {
+  RollupQueriesOverTable,
+  RollupQueriesProps,
+} from "./saved-query-configuration.js";
+import { RollupSummaries } from "./rollup-summaries.js";
+import type { RollupSummariesProps } from "./summary-configuration.js";
 
 describe("the rollups saved in Athena", () => {
   /** The whole pipeline deployed, with the saved queries on top of it. */
   const deployRollups = async (
-    saving: Pick<RollupQueriesProps, "rollups" | "requests"> = {},
+    saving: Pick<RollupQueriesOverTable, "rollups" | "requests"> = {},
   ) => {
     const { simAws } = await deployStacks((app: App, account: string) => {
       const stack = new Stack(app, "AnalyticsStack", {
@@ -77,7 +82,7 @@ describe("the rollups saved in Athena", () => {
   /** One saved query, by the name the console lists it under. */
   const named = async (
     name: string,
-    saving: Pick<RollupQueriesProps, "rollups" | "requests"> = {},
+    saving: Pick<RollupQueriesOverTable, "rollups" | "requests"> = {},
   ) => {
     const saved = await deployRollups(saving);
 
@@ -500,5 +505,101 @@ describe("the rollups saved in Athena", () => {
       );
       assertStringMatches(error.message, /Shorten the rollup's summary/u);
     }
+  });
+
+  describe("taken from a deployment's scheduled summaries", () => {
+    /** The whole pipeline, with the summaries and the saved queries over it. */
+    const deployBoth = async (
+      computing: Pick<RollupSummariesProps, "rollups" | "requests"> = {},
+      alsoTold: Partial<RollupQueriesOverTable> = {},
+    ) => {
+      const { simAws } = await deployStacks((app: App, account: string) => {
+        const stack = new Stack(app, "AnalyticsStack", {
+          env: { account, region: "us-east-1" },
+        });
+        const logs = new LogBucket(stack, "RainlyticsLogs", {
+          bucketName: `rainlytics-logs-${faker.string.uuid()}`,
+        });
+        const distribution = new Distribution(stack, "Site", {
+          defaultBehavior: { origin: new HttpOrigin("origin.example.com") },
+        });
+        const delivery = new CloudFrontLogDelivery(stack, "Delivery", {
+          distributionId: distribution.distributionId,
+          logBucket: logs.bucket,
+        });
+        const table = new LogTable(stack, "RainlyticsTable", {
+          deliveries: [delivery],
+        });
+        const workgroup = new QueryWorkgroup(stack, "RainlyticsQueries", {
+          resultsBucketName: `rainlytics-results-${faker.string.uuid()}`,
+        });
+        const summaries = new RollupSummaries(stack, "RainlyticsSummaries", {
+          table,
+          workgroup,
+          summariesBucketName: `rainlytics-summaries-${faker.string.uuid()}`,
+          ...computing,
+        });
+
+        new RollupQueries(stack, "RainlyticsRollups", {
+          summaries,
+          ...alsoTold,
+        } as RollupQueriesProps);
+      });
+
+      return simAws.region("us-east-1").account().athena().namedQueries();
+    };
+
+    it("saves the questions the schedules compute", async () => {
+      // Given a deployment that added a question of its own to the summaries
+      // and told the saved queries nothing.
+      const saved = await deployBoth({ rollups: [...rollups, countries] });
+
+      // Then the console holds it too. Passing the list twice is what let a
+      // deployment schedule seven questions and save six, and report success.
+      assertObjectEquals(
+        saved.map((query) => query.name),
+        [
+          "rainlytics-pageviews",
+          "rainlytics-referrers",
+          "rainlytics-browsers",
+          "rainlytics-status-codes",
+          "rainlytics-cache-hit-ratio",
+          "rainlytics-searches",
+          "rainlytics-countries",
+        ],
+      );
+    });
+
+    it("saves each question narrowed the way the schedule narrows it", async () => {
+      // Given a search page named once, to the summaries.
+      const searchPage = `/${faker.string.alpha(8)}/`;
+      const param = faker.string.alpha(5);
+
+      const saved = await deployBoth({
+        requests: { searches: { paths: [searchPage], param } },
+      });
+
+      // Then the saved copy counts what the schedule counts. A console copy
+      // over the whole distribution beside a schedule over one page is two
+      // answers to one question.
+      const search = saved.find(
+        (query) => query.name === "rainlytics-searches",
+      );
+
+      assertStringIncludes(search?.queryString, quoted(searchPage));
+      assertStringIncludes(search.queryString, quoted(param));
+    });
+
+    it("refuses a deployment that gave summaries and a list of its own", async () => {
+      // Given both, which the type refuses and JavaScript does not.
+      const error = await assertThrowsErrorAsync(() =>
+        deployBoth({}, { rollups: [countries] }),
+      );
+
+      // Then synthesis fails and names what arrived twice. Taking the
+      // summaries and ignoring the rest would save queries for questions the
+      // deployment's own code asked for, and report success.
+      assertStringMatches(error.message, /given summaries and rollups/u);
+    });
   });
 });

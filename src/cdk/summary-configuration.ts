@@ -22,7 +22,7 @@ import {
   type ReportConfigurationProps,
 } from "./report-configuration.js";
 import { assertRequestedNames } from "./saved-query-names.js";
-import type { SavedRollupRequest } from "./rollup-queries.js";
+import type { SavedRollupRequest } from "./saved-query-configuration.js";
 import type { SummaryBucketProps } from "./summary-bucket.js";
 import type { ReportNotificationsProps } from "./report-notification-configuration.js";
 import { defaultSummaryLag } from "./summary-lag.js";

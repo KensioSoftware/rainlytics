@@ -80,12 +80,12 @@ class AnalyticsStack extends Stack {
 
     const workgroup = new QueryWorkgroup(this, "Workgroup");
 
-    new RollupQueries(this, "SavedQueries", { table, workgroup });
-
     const summaries = new RollupSummaries(this, "Summaries", {
       table,
       workgroup,
     });
+
+    new RollupQueries(this, "SavedQueries", { summaries });
 
     new CfnOutput(this, "SummaryBucketName", {
       value: summaries.bucket.bucketName,
@@ -116,6 +116,16 @@ This stack creates:
 The log bucket is the source of record. Its objects are retained for 370 days by default. The
 summary and query result buckets are separate because they hold derived data with different
 retention rules.
+
+`RollupQueries` reads its questions off the summaries, so a deployment that adds one names it once.
+Give it a table and a workgroup instead where there are no summaries to read. The two shapes are
+exclusive. Passing `summaries` alongside a `table`, a `workgroup` or a list of its own is refused at
+synthesis and by the type.
+
+Everything here is in us-east-1, which is the simplest arrangement and the one to start from. Only
+the delivery has to be there. A site whose data belongs in another region keeps the bucket, the
+table and the summaries where that region is and declares the delivery on its own, which
+[the log table page](../log-table/) covers.
 
 ## Synthesize and deploy
 

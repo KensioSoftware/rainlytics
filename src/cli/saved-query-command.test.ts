@@ -21,7 +21,7 @@ import { CloudFrontLogDelivery } from "../cdk/log-delivery.js";
 import { LogBucket } from "../cdk/log-bucket.js";
 import { LogTable } from "../cdk/log-table.js";
 import { QueryWorkgroup } from "../cdk/query-workgroup.js";
-import type { RollupQueriesProps } from "../cdk/rollup-queries.js";
+import type { RollupQueriesOverTable } from "../cdk/saved-query-configuration.js";
 import { RollupQueries } from "../cdk/rollup-queries.js";
 import { qualifiedTableName } from "../dataset.js";
 import { partitionPrefix } from "../partitions.js";
@@ -75,7 +75,7 @@ describe("rainlytics saved-query", () => {
    * which is what a workgroup looks like before anyone deploys the construct.
    */
   const deployAnalytics = async (
-    saving?: Pick<RollupQueriesProps, "rollups" | "requests">,
+    saving?: Pick<RollupQueriesOverTable, "rollups" | "requests">,
   ) => {
     const logBucketName = `rainlytics-logs-${faker.string.uuid()}`;
 
