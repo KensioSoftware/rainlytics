@@ -859,6 +859,52 @@ describe("the Glue table over delivered logs", () => {
     assertStringMatches(error.message, /disagree about the prefix/u);
   });
 
+  it("refuses a second delivery whose ARN names a different bucket", async () => {
+    // Given two descriptions agreeing on the bucket's name, where the second
+    // one's ARN names another bucket. They agree on everything the deliveries
+    // are checked against each other on, so nothing there catches it.
+    const logBucketName = `rainlytics-logs-${faker.string.uuid()}`;
+    const error = await assertThrowsErrorAsync(() =>
+      deployStacks((app: App, account: string) => {
+        const stack = new Stack(app, "QueryStack", {
+          env: { account, region: "eu-west-1" },
+        });
+        const described = {
+          bucketName: logBucketName,
+          prefix: "rainlytics",
+          outputFormat: "json",
+          granularity: "hourly",
+          fields: deliveredLogFieldNames,
+        } as const;
+
+        new LogTable(stack, "RainlyticsTable", {
+          deliveries: [
+            {
+              ...described,
+              distributionId: "E1EXAMPLE1234",
+              logBucket: {
+                bucketName: logBucketName,
+                bucketArn: `arn:aws:s3:::${logBucketName}`,
+              },
+            },
+            {
+              ...described,
+              distributionId: "E2EXAMPLE5678",
+              logBucket: {
+                bucketName: logBucketName,
+                bucketArn: "arn:aws:s3:::somewhere-else",
+              },
+            },
+          ],
+        });
+      }),
+    );
+
+    // Then synthesis fails. The table would otherwise be built from the first
+    // description while the second delivery filled a bucket nothing queries.
+    assertStringMatches(error.message, /does not match its ARN/u);
+  });
+
   it("refuses a described bucket whose name and ARN are different buckets", async () => {
     // Given a description assembled out of two literals that name two
     // buckets. A construct carries tokens resolved out of one bucket and has

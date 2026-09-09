@@ -42,7 +42,7 @@ const table = new LogTable(this, "Table", {
     {
       distributionId: "E1EXAMPLE1234",
       logBucket: logs.bucket,
-      prefix: "rainlytics",
+      prefix,
       outputFormat: "json",
       granularity: "hourly",
       fields: deliveredLogFieldNames,
@@ -66,20 +66,27 @@ us-east-1 however far away the bucket is. That is the only piece of Rainlytics p
 The bucket, the table, the workgroup and the summaries go wherever a site's data belongs, and the
 delivery alone has to be declared in us-east-1.
 
-That makes two stacks. The first holds the data:
+That makes two stacks, and both name the bucket and the prefix as literals:
+
+```typescript
+const logBucketName = "example-rainlytics-logs";
+const prefix = "rainlytics";
+```
+
+The first stack holds the data:
 
 ```typescript
 const storing = new Stack(app, "DataStack", {
   env: { account, region: "eu-west-1" },
 });
-const logs = new LogBucket(storing, "Logs");
+const logs = new LogBucket(storing, "Logs", { bucketName: logBucketName });
 
 new LogTable(storing, "Table", {
   deliveries: [
     {
       distributionId: "E1EXAMPLE1234",
       logBucket: logs.bucket,
-      prefix: "rainlytics",
+      prefix,
       outputFormat: "json",
       granularity: "hourly",
       fields: deliveredLogFieldNames,
@@ -97,18 +104,21 @@ const delivering = new Stack(app, "DeliveryStack", {
 
 new CloudFrontLogDelivery(delivering, "Delivery", {
   distributionId: "E1EXAMPLE1234",
-  logBucket: Bucket.fromBucketName(delivering, "Logs", logs.bucket.bucketName),
-  prefix: "rainlytics",
+  logBucket: Bucket.fromBucketName(delivering, "Logs", logBucketName),
+  prefix,
 });
 ```
 
-The table describes the delivery rather than holding it. Handing the construct across would be a
-cross-region reference, which CDK serves with custom resources, and the six values are values.
+The literals are what makes this work. `logs.bucket.bucketName` is a token belonging to the
+eu-west-1 stack, and reading it from the us-east-1 one is a cross-region reference, which CDK serves
+with custom resources and an SSM parameter. A name both stacks already know needs none of that. The
+same holds for the table, which describes the delivery rather than holding it.
+
+Those two literals are also what a description gets wrong, so keep each in one constant and use it
+on both sides.
 
 `LogBucket` grants the delivery service access scoped to delivery sources in us-east-1 whatever
-region the bucket itself is in, so a bucket in eu-west-1 works as it stands. Both stacks name the
-same bucket and the same prefix, and those two literals are what a description gets wrong. Keep
-each of them in one constant.
+region the bucket itself is in, so a bucket in eu-west-1 works as it stands.
 
 ## Partition projection
 

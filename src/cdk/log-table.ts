@@ -136,13 +136,18 @@ export class LogTable extends Construct {
   constructor(scope: Construct, id: string, props: LogTableProps) {
     super(scope, id);
 
+    // Every delivery and not only the one they agree on. They are checked
+    // against each other on the bucket's name, so a second description whose
+    // ARN names a different bucket agrees with the first and still writes
+    // somewhere this table never reads. A described delivery is the pair of
+    // literals `assertOneBucket` was written for, and a construct's tokens
+    // resolve out of one bucket and cannot disagree.
+    for (const described of props.deliveries) {
+      assertOneBucket(described.logBucket);
+    }
+
     const delivery = agreedDelivery(props.deliveries);
     const catalogId = Stack.of(this).account;
-
-    // A described delivery is the pair of literals `assertOneBucket` was
-    // written for. `CloudFrontLogDelivery` checks its own bucket already, and
-    // a construct's tokens resolve out of one bucket and cannot disagree.
-    assertOneBucket(delivery.logBucket);
 
     this.dataset = {
       databaseName: props.databaseName ?? defaultLogDataset.databaseName,

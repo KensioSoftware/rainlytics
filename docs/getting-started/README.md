@@ -118,7 +118,9 @@ summary and query result buckets are separate because they hold derived data wit
 retention rules.
 
 `RollupQueries` reads its questions off the summaries, so a deployment that adds one names it once.
-Give it a table and a workgroup instead where there are no summaries to read.
+Give it a table and a workgroup instead where there are no summaries to read. The two shapes are
+exclusive. Passing `summaries` alongside a `table`, a `workgroup` or a list of its own is refused at
+synthesis and by the type.
 
 Everything here is in us-east-1, which is the simplest arrangement and the one to start from. Only
 the delivery has to be there. A site whose data belongs in another region keeps the bucket, the
