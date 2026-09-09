@@ -7,18 +7,13 @@ import {
   beaconEventColumn,
   beaconMessageColumn,
   beaconPageColumn,
+  onBeaconPath,
 } from "./beacon-rows.js";
 import { qualifiedTableName } from "./dataset.js";
 import { errorEventNames, errorMessageLimit } from "./error-events.js";
-import type { Rollup, RollupRequest, RollupTotals } from "./rollups.js";
+import type { Rollup, RollupTotals } from "./rollups.js";
 import { rowsFor } from "./rollups.js";
 import { oneOf } from "./sql-text.js";
-
-/** The beacon path a request counts, with the package default filled in. */
-const onBeaconPath = (request: RollupRequest): RollupRequest => ({
-  ...request,
-  paths: request.paths ?? [defaultBeaconPath],
-});
 
 /** Error counts added across stored windows. */
 const javascriptErrorTotals: RollupTotals = { added: ["errors"] };

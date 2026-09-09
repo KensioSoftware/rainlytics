@@ -10,9 +10,10 @@ import {
   aBeaconEvent,
   beaconEventColumn,
   beaconValueColumn,
+  onBeaconPath,
 } from "./beacon-rows.js";
 import { qualifiedTableName } from "./dataset.js";
-import type { Rollup, RollupRequest } from "./rollups.js";
+import type { Rollup } from "./rollups.js";
 import { rowsFor } from "./rollups.js";
 import { oneOf, quoted } from "./sql-text.js";
 import { vitalEventNames } from "./vital-events.js";
@@ -27,12 +28,6 @@ const measuredValue = `try_cast(${beaconValueColumn} AS double)`;
 const aNumericValue = `regexp_like(${beaconValueColumn}, ${quoted(
   String.raw`^-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$`,
 )})`;
-
-/** The beacon path a request counts, with the package default filled in. */
-const onBeaconPath = (request: RollupRequest): RollupRequest => ({
-  ...request,
-  paths: request.paths ?? [defaultBeaconPath],
-});
 
 /** The p75 of each Web Vital reported across the site. */
 export const webVitals: Rollup = {

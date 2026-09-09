@@ -12,6 +12,7 @@
 // the parameter names these expressions read.
 
 import { decodedParameter } from "./log-encoding.js";
+import type { RollupRequest } from "./rollups.js";
 import { quoted } from "./sql-text.js";
 
 import { beaconParameters, defaultBeaconPath } from "./beacon-events.js";
@@ -79,6 +80,29 @@ export const aBeaconEvent: readonly string[] = [
   "cs_uri_query <> '-'",
   `${beaconVersionColumn} <> ''`,
 ];
+
+/**
+ * One request with the beacon's path filled in, where nobody named one.
+ *
+ * Every question over beacon rows needs this and each of them had its own
+ * copy. A rollup that leaves it out counts every request on the site carrying
+ * a `v` parameter, and `/main.a1b2c3.js?v=3` is an ordinary thing for a site
+ * to serve.
+ *
+ * Exported for the reason `rowsFor` is. A site writing a question of its own
+ * over beacon rows needs the same four lines, and a hand-written copy is a
+ * second statement of the rule.
+ *
+ * A request that named its own paths keeps them, so a site whose beacon
+ * reports somewhere else says so once.
+ *
+ * ```typescript
+ * rowsFor(onBeaconPath(request), aBeaconEvent);
+ * ```
+ */
+export function onBeaconPath(request: RollupRequest): RollupRequest {
+  return { ...request, paths: request.paths ?? [defaultBeaconPath] };
+}
 
 /**
  * The rows outside the beacon's path, as a condition for `rowsFor`.

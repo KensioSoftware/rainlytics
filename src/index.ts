@@ -17,6 +17,7 @@ export {
   statusCodes,
 } from "./rollup-questions.js";
 export { beaconEventCap, beaconEvents } from "./beacon-rollup.js";
+export { beaconTotalCap, beaconTotals } from "./beacon-totals-rollup.js";
 export { errorEventNames, errorMessageLimit } from "./error-events.js";
 export { javascriptErrors } from "./javascript-errors-rollup.js";
 export { webVitals, webVitalsPercentile } from "./web-vitals-rollup.js";
@@ -161,9 +162,11 @@ export {
   beaconSubjectColumn,
   beaconValueColumn,
   beaconVersionColumn,
+  onBeaconPath,
   outsideTheBeaconPath,
 } from "./beacon-rows.js";
 export { decodedColumn, decodedParameter } from "./log-encoding.js";
+export { oneOf, quoted } from "./sql-text.js";
 export {
   lastRange,
   type PartitionValues,
