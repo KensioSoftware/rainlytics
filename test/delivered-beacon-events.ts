@@ -122,8 +122,13 @@ export async function deployBeaconTable(): Promise<DeployedBeaconTable> {
  *
  * The browser encoded it once and CloudFront encodes what it writes again,
  * which is the pass `beaconEventColumn` reads back off.
+ *
+ * Exported for a case building its own records. `conversion-rollup.test.ts`
+ * seeds page requests beside beacon rows, so it cannot go through
+ * {@link putDeliveredEvents}, and a second copy of this would be a second
+ * statement of what CloudFront does to a query string.
  */
-function asCloudFrontWrites(queryString: string): string {
+export function asCloudFrontWrites(queryString: string): string {
   return queryString
     .split("&")
     .map((pair) => {
@@ -146,15 +151,30 @@ export async function putDeliveredEvents(
   deployed: DeployedBeaconTable,
   sent: readonly SentEvent[],
 ): Promise<void> {
-  const records = sent.map((event) => ({
-    "timestamp(ms)": String((event.at ?? theBeaconHour).getTime()),
-    "cs-method": "GET",
-    "cs-uri-stem": defaultBeaconPath,
-    "cs-uri-query": asCloudFrontWrites(beaconQueryString(event)),
-    "cs(User-Agent)": event.userAgent ?? "Mozilla/5.0",
-    "c-ip": event.address,
-  }));
+  await putDeliveredRecords(
+    deployed,
+    sent.map((event) => ({
+      "timestamp(ms)": String((event.at ?? theBeaconHour).getTime()),
+      "cs-method": "GET",
+      "cs-uri-stem": defaultBeaconPath,
+      "cs-uri-query": asCloudFrontWrites(beaconQueryString(event)),
+      "cs(User-Agent)": event.userAgent ?? "Mozilla/5.0",
+      "c-ip": event.address,
+    })),
+  );
+}
 
+/**
+ * Whatever records a case wrote, delivered into the hour's partition.
+ *
+ * The half of {@link putDeliveredEvents} that has nothing to do with beacon
+ * events. A question reading page requests and beacon rows together builds
+ * both kinds itself and hands them over here.
+ */
+export async function putDeliveredRecords(
+  deployed: DeployedBeaconTable,
+  records: readonly Readonly<Record<string, string>>[],
+): Promise<void> {
   await deployed.simAws
     .region("us-east-1")
     .account()
