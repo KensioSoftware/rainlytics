@@ -28,6 +28,88 @@ const table = new LogTable(this, "Table", {
 All deliveries must use the same bucket, prefix, output format, granularity and field set. The
 `distributionid` partition separates their objects.
 
+## Describe a delivery in another stack
+
+`deliveries` takes anything carrying the six values a table is built from. A
+`CloudFrontLogDelivery` publishes all six, and a plain object holding them does just as well:
+
+```typescript
+import { deliveredLogFieldNames } from "@kensio/rainlytics";
+import { LogTable } from "@kensio/rainlytics/cdk";
+
+const table = new LogTable(this, "Table", {
+  deliveries: [
+    {
+      distributionId: "E1EXAMPLE1234",
+      logBucket: logs.bucket,
+      prefix: "rainlytics",
+      outputFormat: "json",
+      granularity: "hourly",
+      fields: deliveredLogFieldNames,
+    },
+  ],
+});
+```
+
+Pass the construct where the stack holds one. A description is checked the way a construct is. Two
+deliveries that disagree are refused, and so is a bucket whose name and ARN name different buckets.
+
+What nothing here can check is whether the description matches how CloudFront was actually
+configured. A prefix typed wrong builds a table over an empty path, and a query then comes back
+with no rows rather than an error. That is the cost of the arrangement, and it is why a deployment
+that can hold the construct should.
+
+## Split the delivery from the query layer
+
+Standard logging v2 is configured through the CloudWatch Logs API, and that API accepts the call in
+us-east-1 however far away the bucket is. That is the only piece of Rainlytics pinned to a region.
+The bucket, the table, the workgroup and the summaries go wherever a site's data belongs, and the
+delivery alone has to be declared in us-east-1.
+
+That makes two stacks. The first holds the data:
+
+```typescript
+const storing = new Stack(app, "DataStack", {
+  env: { account, region: "eu-west-1" },
+});
+const logs = new LogBucket(storing, "Logs");
+
+new LogTable(storing, "Table", {
+  deliveries: [
+    {
+      distributionId: "E1EXAMPLE1234",
+      logBucket: logs.bucket,
+      prefix: "rainlytics",
+      outputFormat: "json",
+      granularity: "hourly",
+      fields: deliveredLogFieldNames,
+    },
+  ],
+});
+```
+
+The second configures the delivery into it, from us-east-1:
+
+```typescript
+const delivering = new Stack(app, "DeliveryStack", {
+  env: { account, region: "us-east-1" },
+});
+
+new CloudFrontLogDelivery(delivering, "Delivery", {
+  distributionId: "E1EXAMPLE1234",
+  logBucket: Bucket.fromBucketName(delivering, "Logs", logs.bucket.bucketName),
+  prefix: "rainlytics",
+});
+```
+
+The table describes the delivery rather than holding it. Handing the construct across would be a
+cross-region reference, which CDK serves with custom resources, and the six values are values.
+
+`LogBucket` grants the delivery service access scoped to delivery sources in us-east-1 whatever
+region the bucket itself is in, so a bucket in eu-west-1 works as it stands. Both stacks name the
+same bucket and the same prefix, and those two literals are what a description gets wrong. Keep
+each of them in one constant.
+
 ## Partition projection
 
 The table projects partitions from the S3 path. Projection removes the need to register partitions
@@ -115,7 +197,8 @@ names to command-line queries with `--database` when you change the defaults.
 ## Region and removal
 
 Keep the table in the log bucket's region. Athena can read an S3 bucket in another region, but each
-query then pays data transfer.
+query then pays data transfer. The delivery is the one piece that has to be in us-east-1, and
+splitting it off is above.
 
 The Glue database and table are deleted with the stack. The raw objects stay in the retained log
 bucket and a later deployment can recreate the catalog definitions.

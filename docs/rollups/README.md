@@ -82,11 +82,35 @@ raw distribution or identity set require a single stored window or `--query` for
 
 ## Save the generated SQL
 
-`RollupQueries` stores one Athena named query per rollup:
+`RollupQueries` stores one Athena named query per rollup, over whatever the schedules compute:
 
 ```typescript
-import { RollupQueries } from "@kensio/rainlytics/cdk";
+import { RollupQueries, RollupSummaries } from "@kensio/rainlytics/cdk";
 
+const summaries = new RollupSummaries(this, "Summaries", {
+  table,
+  workgroup,
+  requests: {
+    searches: { paths: ["/search/"], param: "q" },
+  },
+});
+
+new RollupQueries(this, "SavedQueries", { summaries });
+```
+
+Saved queries cover the current month. Run one with:
+
+```bash
+rainlytics saved-query searches
+```
+
+The summaries carry the table, the workgroup, the questions and what each one covers, so a
+deployment names all four once. Adding a question to `RollupSummaries` alone used to give it a
+schedule and leave the console holding the shipped six, and the deploy reported success.
+
+A deployment with no summaries to read passes a table and a workgroup:
+
+```typescript
 new RollupQueries(this, "SavedQueries", {
   table,
   workgroup,
@@ -96,14 +120,8 @@ new RollupQueries(this, "SavedQueries", {
 });
 ```
 
-Saved queries cover the current month. Run one with:
-
-```bash
-rainlytics saved-query searches
-```
-
-Pass the same `requests` values to `RollupQueries` and `RollupSummaries` so the saved SQL and stored
-answers describe the same question.
+Both together are refused at synthesis, since the point of the first shape is that there is one
+list.
 
 ## Write a custom rollup
 

@@ -16,6 +16,7 @@ export {
 } from "./log-delivery.js";
 export { LogBucket, type LogBucketProps } from "./log-bucket.js";
 export { LogTable, type LogTableProps } from "./log-table.js";
+export type { DeliveredLogs } from "./log-table-deliveries.js";
 export {
   assertUsableCutoff,
   defaultBytesScannedCutoff,
@@ -24,11 +25,14 @@ export {
 } from "./query-cost.js";
 export { QueryWorkgroup, type QueryWorkgroupProps } from "./query-workgroup.js";
 export type { QueryResultsBucket } from "./query-results-bucket.js";
-export {
-  RollupQueries,
-  type RollupQueriesProps,
-  type SavedRollupRequest,
-} from "./rollup-queries.js";
+export { RollupQueries } from "./rollup-queries.js";
+export type {
+  RollupQueriesFromSummaries,
+  RollupQueriesOverTable,
+  RollupQueriesProps,
+  SavedRollupRequest,
+  SummarisedRollups,
+} from "./saved-query-configuration.js";
 export { RollupSummaries } from "./rollup-summaries.js";
 export type { RollupSummariesProps } from "./summary-configuration.js";
 export type { ReportNotificationsProps } from "./report-notification-configuration.js";

@@ -12,7 +12,7 @@ import {
 import type { LogDataset } from "../dataset.js";
 import type { SummaryGranularity } from "../summary-windows.js";
 import { visitorCountSql } from "../visitor-counts.js";
-import type { SavedRollupRequest } from "./rollup-queries.js";
+import type { SavedRollupRequest } from "./saved-query-configuration.js";
 
 /** What the runs of one deployment are built from. */
 export interface SummaryQuestions {
