@@ -5,12 +5,14 @@
 // something a request can carry, and the three that can be given nonsense
 // refuse it before anything reaches Athena.
 
+import { defaultLogDataset, defaultWorkgroupName } from "../dataset.js";
 import { defaultRedirectStatuses } from "../rollups.js";
 import type { TimeRange } from "../time-range.js";
 import { lastRange } from "../time-range.js";
 import type { OptionValue } from "./command-line.js";
 import { valuesOf } from "./command-line.js";
 import { UsageError } from "./failure.js";
+import { databaseVariable, workgroupVariable } from "./query-help.js";
 import { defaultLast } from "./rollup-help.js";
 import { summaryBucketVariable } from "./summary-help.js";
 
@@ -115,7 +117,38 @@ export function rangeFrom(value: unknown, command: string): TimeRange {
  * missing object for every window.
  */
 export function summaryBucketFrom(value: unknown): string | undefined {
-  const named = chosen(value) ?? process.env[summaryBucketVariable] ?? "";
+  return named(value, summaryBucketVariable);
+}
 
-  return named === "" ? undefined : named;
+/**
+ * The Glue database an unqualified table name is resolved against.
+ *
+ * The option, then the environment, then the name `LogTable` creates. A
+ * deployment that renamed the database sets the variable once and stops
+ * passing --database on every command that reaches Athena.
+ */
+export function databaseFrom(value: unknown): string {
+  return named(value, databaseVariable) ?? defaultLogDataset.databaseName;
+}
+
+/**
+ * The Athena workgroup a query runs in.
+ *
+ * The option, then the environment, then the name `QueryWorkgroup` creates.
+ */
+export function workgroupFrom(value: unknown): string {
+  return named(value, workgroupVariable) ?? defaultWorkgroupName;
+}
+
+/**
+ * What an option was given, or what its environment variable holds.
+ *
+ * An empty value counts as nothing named. An unset variable in a shell script
+ * expands to one, and a workgroup called "" would be refused by Athena for a
+ * reason the reader has to work backwards from.
+ */
+function named(value: unknown, variable: string): string | undefined {
+  const chose = chosen(value) ?? process.env[variable] ?? "";
+
+  return chose === "" ? undefined : chose;
 }

@@ -1,8 +1,8 @@
 // `rainlytics query`, which is the whole of reading the data back by hand.
 
-import { defaultLogDataset, defaultWorkgroupName } from "../dataset.js";
 import type { Command, CommandContext } from "./command.js";
 import { UsageError } from "./failure.js";
+import { chosen, databaseFrom, workgroupFrom } from "./option-values.js";
 import type { CommandResult } from "./output/result.js";
 import {
   databaseOption,
@@ -39,19 +39,13 @@ function sqlFrom(args: readonly string[]): string {
   return sql;
 }
 
-/** The text of an option, where one was given. */
-function chosen(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
 /** Runs the query and answers with its rows. */
 async function run(context: CommandContext): Promise<CommandResult> {
   return queryRows(
     {
       sql: sqlFrom(context.args),
-      database:
-        chosen(context.options["database"]) ?? defaultLogDataset.databaseName,
-      workgroup: chosen(context.options["workgroup"]) ?? defaultWorkgroupName,
+      database: databaseFrom(context.options["database"]),
+      workgroup: workgroupFrom(context.options["workgroup"]),
       region: chosen(context.options["region"]),
     },
     context.io,

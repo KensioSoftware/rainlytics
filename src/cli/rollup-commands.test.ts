@@ -12,7 +12,7 @@ import { SimSdk } from "@kensio/yulin/sdk";
 import { Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { type App, CfnOutput, Stack } from "aws-cdk-lib/core";
-import { describe, it } from "vitest";
+import { describe, it, vi } from "vitest";
 
 import { readingAthenaCaller } from "#test/reading-athena-caller.js";
 import { deployStacks } from "#test/simulated-deployment.js";
@@ -23,6 +23,7 @@ import { LogTable } from "../cdk/log-table.js";
 import { QueryWorkgroup } from "../cdk/query-workgroup.js";
 import { partitionPrefix } from "../partitions.js";
 import { rainlyticsCommands } from "./command.js";
+import { workgroupVariable } from "./query-help.js";
 import { runCli } from "./run.js";
 
 describe("the named questions, run through Athena", () => {
@@ -858,6 +859,22 @@ describe("the named questions, run through Athena", () => {
     // Then it fails the way `query` does, since the two run the same way
     // once the SQL is written. A rollup in the wrong workgroup is a rollup
     // with no ceiling on it.
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "not-a-workgroup");
+  });
+
+  it("reads the workgroup out of the environment too", async () => {
+    // Given a workgroup named in the environment and no --workgroup on the
+    // line, the way a deployment that renamed one would set it once.
+    const deployed = await deployAnalytics();
+    await anHourOfTraffic(deployed);
+    vi.stubEnv(workgroupVariable, "not-a-workgroup");
+
+    // When a rollup is asked for.
+    const run = await cli(["pageviews", "--query", "--last", "24h"]);
+
+    // Then it went there. A named question reads the same three variables
+    // `query` does.
     assertIdentical(run.code, 1);
     assertStringIncludes(run.error, "not-a-workgroup");
   });

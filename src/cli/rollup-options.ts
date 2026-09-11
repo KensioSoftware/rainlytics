@@ -5,7 +5,7 @@
 // before anything reaches Athena. `option-values.ts` holds the readers this
 // assembles from, one per option.
 
-import { defaultLogDataset, defaultWorkgroupName } from "../dataset.js";
+import { defaultLogDataset } from "../dataset.js";
 import type { Rollup, RollupRequest } from "../rollups.js";
 import { rollupRequest } from "../rollups.js";
 import type { TimeRange } from "../time-range.js";
@@ -13,10 +13,12 @@ import type { CommandContext } from "./command.js";
 import {
   chosen,
   counted,
+  databaseFrom,
   eachChosen,
   rangeFrom,
   statusesFrom,
   summaryBucketFrom,
+  workgroupFrom,
 } from "./option-values.js";
 import { defaultLimit, defaultParam } from "./rollup-help.js";
 import type { NarrowingOption } from "./summary-question.js";
@@ -91,15 +93,14 @@ export function requestFrom(
   context: CommandContext,
   rollup: Rollup,
 ): RollupAsked {
-  const database =
-    chosen(context.options["database"]) ?? defaultLogDataset.databaseName;
+  const database = databaseFrom(context.options["database"]);
   const range = rangeFrom(context.options["last"], rollup.name);
 
   return {
     database,
     range,
     named: namedOn(context),
-    workgroup: chosen(context.options["workgroup"]) ?? defaultWorkgroupName,
+    workgroup: workgroupFrom(context.options["workgroup"]),
     region: chosen(context.options["region"]),
     summaries: summaryBucketFrom(context.options["summaries"]),
     runsTheQuery: context.options["query"] === true,

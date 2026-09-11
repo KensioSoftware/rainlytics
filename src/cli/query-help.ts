@@ -5,7 +5,21 @@
 // reason. This is documentation meant to be edited as prose.
 
 import { defaultLogDataset, defaultWorkgroupName } from "../dataset.js";
+import { summaryEnvironment } from "../functions/summary-deployment.js";
 import type { CliOption } from "./option.js";
+
+/**
+ * The environment variable naming the Glue database to resolve against.
+ *
+ * The same variable `RollupSummaries` sets on its job, taken from there, the
+ * way `summaryBucketVariable` is. A deployment that renamed the database
+ * renamed it for both halves, and a second spelling here is the copy that
+ * goes stale.
+ */
+export const databaseVariable = summaryEnvironment.database;
+
+/** The environment variable naming the Athena workgroup to run in. */
+export const workgroupVariable = summaryEnvironment.workgroup;
 
 export const databaseOption: CliOption = {
   name: "database",
@@ -14,7 +28,8 @@ export const databaseOption: CliOption = {
   valueName: "name",
   description:
     `The Glue database an unqualified table name is resolved against.` +
-    ` Defaults to ${defaultLogDataset.databaseName}, which is what the` +
+    ` Defaults to ${databaseVariable} in the environment, and to` +
+    ` ${defaultLogDataset.databaseName} behind that, which is what the` +
     ` LogTable construct creates.`,
 };
 
@@ -25,9 +40,10 @@ export const workgroupOption: CliOption = {
   valueName: "name",
   description:
     `The Athena workgroup to run in, which carries the bytes-scanned cutoff` +
-    ` and the results location. Defaults to ${defaultWorkgroupName}, which` +
-    ` is what the QueryWorkgroup construct creates. Athena's own "primary"` +
-    ` workgroup has no cutoff at all.`,
+    ` and the results location. Defaults to ${workgroupVariable} in the` +
+    ` environment, and to ${defaultWorkgroupName} behind that, which is what` +
+    ` the QueryWorkgroup construct creates. Athena's own "primary" workgroup` +
+    ` has no cutoff at all.`,
 };
 
 export const regionOption: CliOption = {

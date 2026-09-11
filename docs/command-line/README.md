@@ -31,6 +31,27 @@ Every command that reaches AWS also accepts `--region`. Athena commands accept `
 The region must contain the Glue table, Athena workgroup and summary bucket. A missing workgroup in
 the selected region is often a profile or region mistake.
 
+## Naming the deployment
+
+Three environment variables name the parts of a deployment. A deployment that kept the default
+names needs none of them:
+
+| Variable                    | Option        | Default      |
+| --------------------------- | ------------- | ------------ |
+| `RAINLYTICS_DATABASE`       | `--database`  | `rainlytics` |
+| `RAINLYTICS_WORKGROUP`      | `--workgroup` | `rainlytics` |
+| `RAINLYTICS_SUMMARY_BUCKET` | `--summaries` | none         |
+
+```bash
+export RAINLYTICS_DATABASE=analytics
+export RAINLYTICS_WORKGROUP=analytics
+export RAINLYTICS_SUMMARY_BUCKET=rainlytics-summaries-1a2b
+rainlytics pageviews --last 7d
+```
+
+The option wins where both name something. These are the same three variables `RollupSummaries`
+sets on its scheduled job. One set of names covers the deployment and the command line.
+
 ## Read a named question
 
 The named commands cover pageviews, referrers, browsers, status codes, cache hit ratio, searches,
