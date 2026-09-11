@@ -1,4 +1,4 @@
-// What proportion of the people who looked at a site did the thing.
+// What proportion of the people who looked at a site raised a beacon event.
 //
 // Every ingredient was already here and nothing related them.
 // `visitor-counts.ts` says what one visitor is, `beaconEvents` computes the
@@ -12,33 +12,24 @@
 // two saved queries and two summary keys. The name a question gets is
 // `conversions-<event>`.
 //
-// **The visitor is the raw pair, not the salted digest.** `visitorIdentifier`
-// carries `visitorSaltPlaceholder`, and the summary job fills that in for the
-// visitor count alone. A question's own SQL gets the window and nothing else,
-// so a body carrying the placeholder would reach Athena still holding it and
-// be refused, which is what the placeholder is for. `beaconEvents` has the
-// same need and answers it the same way: group by `c_ip, cs_user_agent`, let
-// the pair reach no further than the `GROUP BY`, and set `identifiesViewers`
-// so a deployment with no address is refused at synthesis. Nothing here
-// writes an address into a summary, a result object or a reader's terminal.
+// A site with no beacon asks the same question of the access log through
+// `conversionsOfPath` in `conversion-path-rollup.ts`. The visitor pair, the
+// pageview half and the single pass are in `conversion-query.ts`, which both
+// read.
 
 import {
   aBeaconEvent,
   beaconEventColumn,
   onTheBeaconPath,
 } from "./beacon-rows.js";
-import { qualifiedTableName } from "./dataset.js";
-import { aPageView } from "./rollup-questions.js";
+import {
+  all,
+  conversionQuery,
+  countingConvertedVisitors,
+} from "./conversion-query.js";
 import type { Rollup, RollupRequest } from "./rollups.js";
-import { assertRollupName, rowsFor } from "./rollups.js";
+import { assertRollupName } from "./rollups.js";
 import { quoted } from "./sql-text.js";
-
-/** Several conditions as one, for a `CASE` that has to weigh them together. */
-const all = (conditions: readonly string[]): string =>
-  `(${conditions.join(" AND ")})`;
-
-/** A row that is somebody looking at a page. */
-const aViewedPage = all(aPageView);
 
 /** A row that is the event this question counts as a conversion. */
 const aConversion = (request: RollupRequest, event: string): string =>
@@ -46,30 +37,6 @@ const aConversion = (request: RollupRequest, event: string): string =>
     onTheBeaconPath(request.paths?.at(0)),
     ...aBeaconEvent,
     `${beaconEventColumn} = ${quoted(event)}`,
-  ]);
-
-/** How many of one visitor's rows were of a kind, within the window. */
-const times = (condition: string): string =>
-  `sum(CASE WHEN ${condition} THEN 1 ELSE 0 END)`;
-
-/**
- * The rows this reads, which are page requests and one kind of beacon event.
- *
- * Site-wide on the pageview half, because the denominator is every visitor the
- * window saw. `paths` on the request names the beacon's own collection path
- * instead, the way it does for every other question over beacon rows, and it
- * reaches the beacon half alone through {@link aConversion}. So `rowsFor` is
- * handed a request with no paths on it, and still writes the partitions, the
- * bot filter and the host exactly as it does for every other question.
- *
- * The address test leaves out a record that has none. CloudFront writes a
- * hyphen where a field was empty, and rows without one would gather into a
- * single visitor nobody was.
- */
-const overOnePass = (request: RollupRequest, event: string): string =>
-  rowsFor({ ...request, paths: undefined }, [
-    `(${aViewedPage} OR ${aConversion(request, event)})`,
-    "c_ip <> '-'",
   ]);
 
 /**
@@ -99,6 +66,9 @@ const overOnePass = (request: RollupRequest, event: string): string =>
  * totals and a command asked about a longer span reports the windows it found
  * and offers the query that would cover them.
  *
+ * {@link conversionsOfPath} answers the same question off the access log,
+ * for a site that ships no beacon.
+ *
  * @throws {Error} where the event name would make a name no subcommand and no
  *   CDK logical id could carry.
  */
@@ -114,47 +84,18 @@ export function conversionsOf(event: string): Rollup {
 Shows how many of the window's visitors raised the \`${event}\` beacon event,
 against how many were seen at all.
 
-A visitor is the viewer's address and their user agent, which is the pair a
-visitor count is hashed from. Neither value leaves the query: the inner
-select groups by them and the outer one adds up what that produced, so no
-address reaches a summary or a reader. A deployment delivering no address
-cannot compute this question, and \`RollupSummaries\` says so at synthesis.
-
 \`visitors\` counts everybody who looked at a page, which is the same rows the
 visitor count beside \`pageviews\` is taken over. \`converted\` counts the ones
 who also raised \`${event}\`. Somebody who raised it without looking at a page
 in the same window counts in neither, which is what holds the proportion at
 or below one.
 
-That is also the edge to know about. A reader who looks at 09:59 and buys at
-10:01 is split across two hourly windows and neither sees both halves. Read
-this at a day, where almost every visit fits inside one window, and treat an
-hour as an indication.
-
 The collection path defaults to the beacon's own. Use \`--path\` for a beacon
 deployed somewhere else, and set the same path under \`requests\` when adding
 this rollup to \`RollupSummaries\`. The visitors counted are site-wide either
 way, since the denominator is everybody the window saw.
 
-One row, so \`--limit\` does nothing here.
-
-A distinct count belongs to one window. Two windows' counts do not add, the
-way two percentiles do not, so this answers from one stored window and offers
-\`--query\` over anything longer.`,
-    body: (request) =>
-      [
-        "SELECT",
-        `  ${times("converted > 0 AND viewed > 0")} AS converted,`,
-        `  ${times("viewed > 0")} AS visitors,`,
-        `  round(100.0 * ${times("converted > 0 AND viewed > 0")}` +
-          ` / nullif(${times("viewed > 0")}, 0), 1) AS converted_percent`,
-        "  FROM (",
-        `  SELECT ${times(aViewedPage)} AS viewed,`,
-        `    ${times(aConversion(request, event))} AS converted`,
-        `  FROM ${qualifiedTableName(request.dataset)}`,
-        overOnePass(request, event),
-        "  GROUP BY c_ip, cs_user_agent",
-        "  )",
-      ].join("\n"),
+${countingConvertedVisitors}`,
+    body: (request) => conversionQuery(request, aConversion(request, event)),
   };
 }

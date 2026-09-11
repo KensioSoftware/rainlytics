@@ -131,7 +131,7 @@ export function matchedPath(request: RollupRequest): string {
   }
 
   const branches = paths.map(
-    (path) => `WHEN ${startingWith(path)} THEN ${quoted(path)}`,
+    (path) => `WHEN ${startingWithPath(path)} THEN ${quoted(path)}`,
   );
 
   return `CASE ${branches.join(" ")} END`;
@@ -192,13 +192,21 @@ function startingWithAny(paths: readonly string[]): readonly string[] {
     return [];
   }
 
-  const anyOf = paths.map((path) => startingWith(path)).join(" OR ");
+  const anyOf = paths.map((path) => startingWithPath(path)).join(" OR ");
 
   return [paths.length === 1 ? anyOf : `(${anyOf})`];
 }
 
-/** A row whose decoded path begins with one prefix. */
-function startingWith(path: string): string {
+/**
+ * A row whose decoded path begins with one prefix.
+ *
+ * Exported for the question counting conversions off the access log, which
+ * matches a converting request against a path of its own rather than through
+ * the request's `paths`. A copy there would be a second definition of what a
+ * prefix match is, and the two would drift into a question whose numerator
+ * matched rows its denominator did not.
+ */
+export function startingWithPath(path: string): string {
   return `strpos(${decodedColumn("cs_uri_stem")}, ${quoted(path)}) = 1`;
 }
 
