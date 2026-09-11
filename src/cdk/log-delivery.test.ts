@@ -398,6 +398,33 @@ describe("delivering CloudFront access logs", () => {
     }
   });
 
+  it("deploys from us-east-1 without being told an account", async () => {
+    // Given a delivery stack naming the region and leaving its account to
+    // whichever profile deploys it, which is how an app that synthesises
+    // without credentials is written.
+    const { stacks } = await deployStacks((app: App) => {
+      const stack = new Stack(app, "DeliveryStack", {
+        env: { region: "us-east-1" },
+      });
+      const distribution = new Distribution(stack, "SiteDistribution", {
+        defaultBehavior: { origin: new HttpOrigin("origin.example.com") },
+      });
+      const logs = new LogBucket(stack, "RainlyticsLogs", {
+        bucketName: `rainlytics-logs-${faker.string.uuid()}`,
+      });
+      new CloudFrontLogDelivery(stack, "Delivery", {
+        distributionId: distribution.distributionId,
+        logBucket: logs.bucket,
+      });
+    });
+
+    // Then it goes up, with the account resolved from the deployment rather
+    // than from the template. Which account these calls are made in was
+    // never part of the constraint, and asking for one would make an
+    // account-agnostic app write an account number down to hold a delivery.
+    assertArrayIncludes([...stacks.keys()], "DeliveryStack");
+  });
+
   it("refuses to be deployed outside us-east-1", async () => {
     // Given the delivery placed beside the rest of a consumer's site, which
     // is the easy mistake since that is where everything else lives.

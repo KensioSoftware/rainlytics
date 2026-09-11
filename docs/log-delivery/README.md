@@ -21,6 +21,18 @@ Pass `delivery` to `LogTable`.
 AWS configures CloudFront standard logging v2 through the CloudWatch Logs API in `us-east-1`.
 Rainlytics refuses to synthesize this construct in another region.
 
+The region is the half of the stack's environment this construct requires. Leave the account out
+and `cdk deploy` resolves it from the profile, as it does for every other stack in the app:
+
+```typescript
+const delivery = new Stack(app, "DeliveryStack", {
+  env: { region: "us-east-1" },
+});
+```
+
+An app that keeps its stacks account-agnostic, so that `cdk synth` runs with no credentials, can
+hold a delivery without writing an account number into it.
+
 The distribution can be defined in another stack. The delivery only needs its ID:
 
 ```typescript

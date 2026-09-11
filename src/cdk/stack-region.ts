@@ -13,10 +13,14 @@ import type { Construct } from "constructs";
  * configured through the CloudWatch Logs API, and that API only accepts these
  * calls in us-east-1 however far away the bucket is.
  *
- * An environment-agnostic stack fails this too. A stack that has not been
- * given an account and a region cannot promise anything about where it lands.
+ * The region is the whole of the constraint. A stack that names the region
+ * and leaves its account to the environment passes, and deploys into
+ * whichever account the profile names, as every other stack in the app does.
+ * Which account these calls are made in has never mattered to them, and
+ * asking for one would make an app that synthesises without credentials
+ * write an account number down to hold a delivery.
  *
- * @throws {Error} when the stack is environment-agnostic, or pinned elsewhere.
+ * @throws {Error} when the stack names no region, or names another one.
  */
 export function requireStackRegion(
   scope: Construct,
@@ -24,11 +28,10 @@ export function requireStackRegion(
 ): void {
   const stack = Stack.of(scope);
 
-  if (Token.isUnresolved(stack.account) || Token.isUnresolved(stack.region)) {
+  if (Token.isUnresolved(stack.region)) {
     throw new Error(
-      `Stack "${stack.stackName}" is environment-agnostic, but it has to be` +
-        ` given an explicit env with an account and the "${requiredRegion}"` +
-        ` region.`,
+      `Stack "${stack.stackName}" is region-agnostic, but it has to be given` +
+        ` an explicit env naming the "${requiredRegion}" region.`,
     );
   }
 
