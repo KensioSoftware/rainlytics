@@ -233,7 +233,12 @@ list.
 A custom rollup supplies a name, help text and a function that builds SQL for one request.
 
 ```typescript
-import { qualifiedTableName, type Rollup, rowsFor } from "@kensio/rainlytics";
+import {
+  aPageView,
+  qualifiedTableName,
+  type Rollup,
+  rowsFor,
+} from "@kensio/rainlytics";
 
 const countries: Rollup = {
   name: "countries",
@@ -245,7 +250,7 @@ const countries: Rollup = {
     [
       "SELECT c_country AS country, count(*) AS views",
       `  FROM ${qualifiedTableName(request.dataset)}`,
-      rowsFor(request, ["sc_content_type LIKE 'text/html%'"]),
+      rowsFor(request, [...aPageView]),
       "  GROUP BY 1",
       "  ORDER BY 2 DESC, 1",
       `  LIMIT ${String(request.limit)}`,
@@ -255,6 +260,22 @@ const countries: Rollup = {
 
 Use `rowsFor` for the `WHERE` clause. It adds the time partitions, timestamp bounds, bot filter,
 host filter and path filters from the request.
+
+`aPageView` is what the shipped questions count as a page view (a `GET` that answered `text/html`
+with a 200 or a 304). Spread it into a custom question counting page views. Writing the three
+conditions out again makes a second definition of what a page view is, and a rollup reporting more
+of them than `pageviews` does is how the drift would show.
+
+Add conditions beside it to narrow what it counts:
+
+```typescript
+import { aPageView, decodedColumn, rowsFor } from "@kensio/rainlytics";
+
+rowsFor(request, [
+  ...aPageView,
+  `${decodedColumn("cs_uri_stem")} = '/basket/'`,
+]);
+```
 
 `totals.added` lists numeric columns that can be added across stored windows. All other columns
 identify a row. A rollup with no totals can only answer from one stored window.

@@ -14,6 +14,7 @@ import { defaultLogDataset, qualifiedTableName } from "./dataset.js";
 import { decodedParameter } from "./log-encoding.js";
 import { defaultBeaconPath } from "./beacon-events.js";
 import { outsideTheBeaconPath } from "./beacon-rows.js";
+import { aPageView, pageviews } from "./index.js";
 import { rollups } from "./rollup-questions.js";
 import type { Rollup, RollupRequest } from "./rollups.js";
 import {
@@ -523,6 +524,36 @@ describe("a rollup a site wrote for itself", () => {
 
   const sqlFor = (over = {}): string =>
     rollupSql(countries, rollupRequest({ range: aWeek, ...over }));
+
+  it("counts the page views the shipped questions count", () => {
+    // Given a question written outside the package over page views of one
+    // path, taking what a page view is from the package.
+    const basketViews: Rollup = {
+      name: "basket-views",
+      summary: "Count views of the basket.",
+      description: "Counts views of the basket page.",
+      isRanked: false,
+      body: (request) =>
+        [
+          "SELECT count(*) AS views",
+          `  FROM ${qualifiedTableName(request.dataset)}`,
+          rowsFor(request, [...aPageView, "cs_uri_stem = '/basket/'"]),
+        ].join("\n"),
+    };
+
+    // When both it and the shipped question are written out.
+    const mine = rollupSql(basketViews, rollupRequest({ range: aWeek }));
+    const shipped = rollupSql(pageviews, rollupRequest({ range: aWeek }));
+
+    // Then every condition one counts on is a condition the other counts on.
+    // Three lines copied out here would be a second definition of what a page
+    // view is, and a site reporting more of them than `pageviews` does is how
+    // the drift would show.
+    for (const condition of aPageView) {
+      assertStringIncludes(mine, condition);
+      assertStringIncludes(shipped, condition);
+    }
+  });
 
   it("prunes to the same partitions the built-in ones prune to", () => {
     // Given a week in August, asked for by a rollup nobody here wrote.
