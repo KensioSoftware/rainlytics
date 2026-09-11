@@ -20,6 +20,10 @@ export {
 export { beaconEventCap, beaconEvents } from "./beacon-rollup.js";
 export { beaconTotalCap, beaconTotals } from "./beacon-totals-rollup.js";
 export { conversionsOf } from "./conversion-rollup.js";
+export {
+  type ConvertingRequest,
+  conversionsOfPath,
+} from "./conversion-path-rollup.js";
 export { errorEventNames, errorMessageLimit } from "./error-events.js";
 export { javascriptErrors } from "./javascript-errors-rollup.js";
 export { webVitals, webVitalsPercentile } from "./web-vitals-rollup.js";

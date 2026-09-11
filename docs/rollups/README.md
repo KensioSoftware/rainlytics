@@ -23,7 +23,8 @@ The exported `rollups` array contains these six questions.
 `javascript-errors`, `web-vitals` and `beacon-totals` are optional questions for sites using the
 browser module. `beacon-events` and the `conversions-<event>` questions `conversionsOf` builds are
 optional too, and both run through `saved-query`. Optional questions are excluded from the defaults
-because a site without those browser events would pay for empty queries.
+because a site without those browser events would pay for empty queries. `conversionsOfPath` is the
+one factory that needs no browser module, since it reads requests the access log already holds.
 
 ## Total what beacon events measured
 
@@ -128,6 +129,47 @@ percentile does. Two hours of ten visitors each describe somewhere between ten a
 and the stored counts leave that open. A command asked about a longer span reports the windows it
 found and offers `--query` over the whole of it.
 [Counting visitors](../visitors/) has what the daily salt means for a longer span.
+
+### Measure one without a beacon
+
+A server-rendered site converts on a URL. Adding to a basket is a `POST /do/basket/add`, checking
+out is a `POST /do/checkout`, and the order page is a `GET`. CloudFront logged all three.
+`conversionsOfPath` asks the same question over those rows:
+
+```typescript
+import { conversionsOfPath, rollups } from "@kensio/rainlytics";
+
+new RollupSummaries(this, "Summaries", {
+  table,
+  workgroup,
+  rollups: [
+    ...rollups,
+    conversionsOfPath({
+      path: "/do/checkout",
+      method: "POST",
+      statuses: ["303"],
+    }),
+  ],
+});
+```
+
+```bash
+rainlytics saved-query conversions-do-checkout
+```
+
+Reach for `conversionsOf` where the site ships the browser module and raises its own events, and
+for `conversionsOfPath` where it does not. The two answer in the same three columns over the same
+visitors, and everything above about the window, the visitor pair and the missing totals holds for
+both.
+
+`method` and `statuses` each narrow what counts. A checkout that came back 400 is somebody who
+tried, and a question counting it reports a rate the shop never had. Leave both out where reaching
+the path is the whole of the conversion, such as an order page the site answers with HTML.
+
+The path is a prefix, matched the way `--path` is, so `/do/checkout` covers `/do/checkout/1a2b`.
+
+The name comes from the path. `/do/checkout` gives `conversions-do-checkout`. Pass `name` where two
+paths would reduce to the same words, or where the path gives nothing to name a question after.
 
 ## Filter a question
 
