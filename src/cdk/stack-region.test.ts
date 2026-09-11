@@ -3,6 +3,7 @@ import {
   assertArrayIncludesAll,
   assertArrayNotIncludes,
   assertStringMatches,
+  assertStringNotIncludes,
   assertThrowsError,
   assertThrowsErrorAsync,
 } from "@kensio/smartass";
@@ -62,6 +63,46 @@ describe("requiring a stack region", () => {
     }
   });
 
+  it("accepts a stack pinned to the region but not to an account", () => {
+    // Given a stack naming the region and leaving its account to whichever
+    // profile deploys it, which is how an app that synthesises without
+    // credentials is written.
+    const stack = new Stack(new App(), "DeliveryStack", {
+      env: { region: "us-east-1" },
+    });
+
+    // When us-east-1 is required of it.
+    const requiring = (): void => {
+      requireStackRegion(stack, "us-east-1");
+    };
+
+    // Then it synthesises. The region is the whole of the constraint, and
+    // which account the call is made in has never been part of it.
+    requiring();
+  });
+
+  it("refuses a stack pinned to an account but not to a region", () => {
+    // Given the other half named, which lands wherever the profile points.
+    const stack = new Stack(new App(), "AccountOnlyStack", {
+      env: { account: anAccount() },
+    });
+
+    // When a region is required of it.
+    const requiring = (): void => {
+      requireStackRegion(stack, "us-east-1");
+    };
+
+    // Then it is refused, and the message asks for the region alone.
+    {
+      const error = assertThrowsError(requiring);
+      assertStringMatches(error.message, /region-agnostic/u);
+    }
+    {
+      const error = assertThrowsError(requiring);
+      assertStringMatches(error.message, /us-east-1/u);
+    }
+  });
+
   it("refuses an environment-agnostic stack", () => {
     // Given a stack with no env, which lands wherever the profile points.
     const stack = new Stack(new App(), "AgnosticStack");
@@ -76,7 +117,14 @@ describe("requiring a stack region", () => {
     // pinned to the wrong place, and the message says so.
     {
       const error = assertThrowsError(requiring);
-      assertStringMatches(error.message, /environment-agnostic/u);
+      assertStringMatches(error.message, /region-agnostic/u);
+    }
+
+    // And it asks for the region rather than for an account, which it would
+    // otherwise send the reader off to find for no reason.
+    {
+      const error = assertThrowsError(requiring);
+      assertStringNotIncludes(error.message, "account");
     }
   });
 
