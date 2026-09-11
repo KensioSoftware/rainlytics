@@ -15,7 +15,7 @@ import { SimSdk } from "@kensio/yulin/sdk";
 import { Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { type App, CfnOutput, Size, Stack } from "aws-cdk-lib/core";
-import { describe, it } from "vitest";
+import { describe, it, vi } from "vitest";
 
 import { readingAthenaCaller } from "#test/reading-athena-caller.js";
 import { deployStacks, simStartedAt } from "#test/simulated-deployment.js";
@@ -24,9 +24,11 @@ import { CloudFrontLogDelivery } from "../cdk/log-delivery.js";
 import { LogBucket } from "../cdk/log-bucket.js";
 import { LogTable } from "../cdk/log-table.js";
 import { QueryWorkgroup } from "../cdk/query-workgroup.js";
+import { defaultLogDataset, defaultWorkgroupName } from "../dataset.js";
 import { partitionPrefix } from "../partitions.js";
 import { rainlyticsCommands } from "./command.js";
 import { runCli } from "./run.js";
+import { databaseVariable, workgroupVariable } from "./query-help.js";
 import { summaryBucketVariable } from "./summary-help.js";
 
 describe("rainlytics query", () => {
@@ -513,6 +515,75 @@ describe("rainlytics query", () => {
     // ceiling on it.
     assertIdentical(run.code, 1);
     assertStringIncludes(run.error, "not-a-workgroup");
+  });
+
+  it("runs in the workgroup the environment names", async () => {
+    // Given a workgroup named in the environment, the way a shell profile
+    // would set it for a deployment that renamed one.
+    const deployed = await deployAnalytics();
+    await twoPageViews(deployed);
+    vi.stubEnv(workgroupVariable, "not-a-workgroup");
+
+    // When a query is run with no --workgroup.
+    const run = await cli(["query", anHourQuery]);
+
+    // Then it went to the workgroup the variable named. A deployment that
+    // renamed one stops carrying the flag on every command that reaches
+    // Athena.
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "not-a-workgroup");
+  });
+
+  it("takes the workgroup on the line over the environment", async () => {
+    // Given the environment naming a workgroup that was never created.
+    const deployed = await deployAnalytics();
+    await twoPageViews(deployed);
+    vi.stubEnv(workgroupVariable, "not-a-workgroup");
+
+    // When the line names the one that was.
+    const run = await cli([
+      "query",
+      anHourQuery,
+      "--workgroup",
+      defaultWorkgroupName,
+    ]);
+
+    // Then the query runs there. What somebody typed wins over what their
+    // shell profile set for them.
+    assertIdentical(run.code, 0);
+    assertStringIncludes(run.error, `ran in workgroup ${defaultWorkgroupName}`);
+  });
+
+  it("resolves the table against the database the environment names", async () => {
+    // Given a database named in the environment.
+    const deployed = await deployAnalytics();
+    await twoPageViews(deployed);
+    vi.stubEnv(databaseVariable, "not_a_database");
+
+    // When a query naming an unqualified table is run with no --database.
+    const run = await cli(["query", anHourQuery]);
+
+    // Then Athena looked for the table there.
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "not_a_database");
+  });
+
+  it("takes the database on the line over the environment", async () => {
+    // Given the environment naming a database that holds no log table.
+    const deployed = await deployAnalytics();
+    await twoPageViews(deployed);
+    vi.stubEnv(databaseVariable, "not_a_database");
+
+    // When the line names the one LogTable created.
+    const run = await cli([
+      "query",
+      anHourQuery,
+      "--database",
+      defaultLogDataset.databaseName,
+    ]);
+
+    // Then the rows come back.
+    assertIdentical(run.code, 0);
   });
 
   /**

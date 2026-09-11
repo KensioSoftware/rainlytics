@@ -9,8 +9,8 @@
 // written with, so the options a rollup command takes are absent rather than
 // silently ignored. `saved-query-help.ts` says so where somebody will read it.
 
-import { defaultWorkgroupName } from "../dataset.js";
 import type { Command, CommandContext } from "./command.js";
+import { chosen, workgroupFrom } from "./option-values.js";
 import type { CommandResult } from "./output/result.js";
 import { regionOption, workgroupOption } from "./query-help.js";
 import { queryRows } from "./query-run.js";
@@ -22,15 +22,9 @@ import {
   savedQueryNamed,
 } from "./saved-query-name.js";
 
-/** The text of an option, where one was given. */
-function chosen(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
 /** Finds the saved query, runs it, and answers with its rows. */
 async function run(context: CommandContext): Promise<CommandResult> {
-  const workgroup =
-    chosen(context.options["workgroup"]) ?? defaultWorkgroupName;
+  const workgroup = workgroupFrom(context.options["workgroup"]);
   const region = chosen(context.options["region"]);
   const name = nameFrom(context.args);
   const found = savedQueryNamed(

@@ -12,7 +12,7 @@ import { SimSdk } from "@kensio/yulin/sdk";
 import { Distribution } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { type App, CfnOutput, Stack } from "aws-cdk-lib/core";
-import { describe, it } from "vitest";
+import { describe, it, vi } from "vitest";
 
 import { readingAthenaCaller } from "#test/reading-athena-caller.js";
 import { deployStacks, simStartedAt } from "#test/simulated-deployment.js";
@@ -29,6 +29,7 @@ import { rollups } from "../rollup-questions.js";
 import type { Rollup } from "../rollups.js";
 import { rowsFor } from "../rollups.js";
 import { rainlyticsCommands } from "./command.js";
+import { workgroupVariable } from "./query-help.js";
 import { runCli } from "./run.js";
 
 describe("rainlytics saved-query", () => {
@@ -360,6 +361,22 @@ describe("rainlytics saved-query", () => {
     // Then Athena refuses it there. A saved query is found and run in one
     // workgroup, and running one somewhere else is running it with no
     // ceiling on what it can scan.
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "not-a-workgroup");
+  });
+
+  it("looks in the workgroup the environment names too", async () => {
+    // Given a workgroup named in the environment and no --workgroup on the
+    // line.
+    await deployAnalytics({ rollups: [...rollups, countries] });
+    vi.stubEnv(workgroupVariable, "not-a-workgroup");
+
+    // When a saved query is asked for by name.
+    const run = await cli(["saved-query", "countries"]);
+
+    // Then it is looked for there. The workgroup is both where a saved query
+    // lives and where it runs, so one variable covers both halves of this
+    // command.
     assertIdentical(run.code, 1);
     assertStringIncludes(run.error, "not-a-workgroup");
   });
