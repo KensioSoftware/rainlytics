@@ -28,6 +28,10 @@ import { oneOf, quoted } from "./sql-text.js";
  * Exported for `visitor-counts.ts`, which counts visitors over exactly these
  * rows. A copy there would be a second definition of what a pageview is, and
  * a summary reporting more visitors than views is how the drift would show.
+ *
+ * Exported from the package root for the same reason. A site writing a rollup
+ * of its own over page views gets these three lines from here, and its answer
+ * then moves with the shipped questions rather than away from them.
  */
 export const aPageView: readonly string[] = [
   "cs_method = 'GET'",

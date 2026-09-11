@@ -8,6 +8,7 @@
 // the built output.
 
 export {
+  aPageView,
   browsers,
   cacheHitRatio,
   pageviews,
