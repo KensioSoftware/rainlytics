@@ -25,7 +25,7 @@ The region is the half of the stack's environment this construct requires. Leave
 and `cdk deploy` resolves it from the profile, as it does for every other stack in the app:
 
 ```typescript
-const delivery = new Stack(app, "DeliveryStack", {
+const stack = new Stack(app, "DeliveryStack", {
   env: { region: "us-east-1" },
 });
 ```
