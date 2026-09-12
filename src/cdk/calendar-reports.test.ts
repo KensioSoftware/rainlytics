@@ -231,7 +231,7 @@ describe("precomputing calendar report documents", () => {
       source: { summaries: 0, queries: 1, complete: true },
       value: {
         type: "rows",
-        rows: [{ hits: "3", misses: "0", hit_percent: "100" }],
+        rows: [{ hits: "3", misses: "0", hit_percent: "100.0" }],
       },
     });
 

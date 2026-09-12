@@ -16,4 +16,4 @@ export {
 // framework with its own router hook already has the pieces for. `watchRoutes`
 // is deliberately not here. It is how `startBeacon` does its job rather than
 // something a site has a use for.
-export { sendBeaconEvent } from "./send.js";
+export { sendBeaconEvents } from "./send.js";

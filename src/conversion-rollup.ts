@@ -19,6 +19,7 @@
 
 import {
   aBeaconEvent,
+  beaconEventsJoin,
   beaconEventColumn,
   onTheBeaconPath,
 } from "./beacon-rows.js";
@@ -96,6 +97,9 @@ this rollup to \`RollupSummaries\`. The visitors counted are site-wide either
 way, since the denominator is everybody the window saw.
 
 ${countingConvertedVisitors}`,
-    body: (request) => conversionQuery(request, aConversion(request, event)),
+    body: (request) =>
+      conversionQuery(request, aConversion(request, event), [
+        beaconEventsJoin(),
+      ]),
   };
 }

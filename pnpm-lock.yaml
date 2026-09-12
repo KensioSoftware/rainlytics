@@ -31,8 +31,8 @@ importers:
         specifier: ^1.37.5
         version: 1.40.1
       '@kensio/yulin':
-        specifier: ^1.21.0
-        version: 1.21.19(node-sql-parser@5.4.0)
+        specifier: ^1.21.23
+        version: 1.21.23(node-sql-parser@5.4.0)
       '@semantic-release/exec':
         specifier: 7.1.0
         version: 7.1.0(semantic-release@25.0.9(@typescript/typescript6@6.0.2)(supports-color@7.2.0))(supports-color@7.2.0)
@@ -406,8 +406,8 @@ packages:
     resolution: {integrity: sha512-xsP3plQlF9p5rLRNAIKmTGy8Xw8squb4HQkbDajy7pns2ZzT0jv/9NXXT6+AkrdfJJEK+5XuhAcYyvwordTOiQ==}
     engines: {node: '>=24.0.0'}
 
-  '@kensio/yulin@1.21.19':
-    resolution: {integrity: sha512-o65KVFNQ13nAjfLBS79z1+0e/VG0cWorT7PShuQ5Z67HrBD3wAEZbbYjx7USp98FHwI31J7cBZne5kE8KY4Bcw==}
+  '@kensio/yulin@1.21.23':
+    resolution: {integrity: sha512-/iZ+a3xmliGhUVWaZR2opFiUW+O7ab/ujbiC+IBjYw1tPtiWsOej5rglLPUWzBo8DLPcL4OZrDQDSF6iFQwiXA==}
     engines: {node: '>=24.0.0'}
     hasBin: true
     peerDependencies:
@@ -2933,7 +2933,7 @@ snapshots:
 
   '@kensio/smartass@1.40.1': {}
 
-  '@kensio/yulin@1.21.19(node-sql-parser@5.4.0)':
+  '@kensio/yulin@1.21.23(node-sql-parser@5.4.0)':
     dependencies:
       '@faker-js/faker': 10.6.0
       '@kensio/part-factory': 1.10.1

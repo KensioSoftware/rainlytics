@@ -23,9 +23,14 @@ import { describe, it } from "vitest";
 import { deployStacks, simStartedAt } from "#test/simulated-deployment.js";
 
 import { defaultLogDataset, qualifiedTableName } from "../dataset.js";
-import { beaconQueryString, defaultBeaconPath } from "../beacon-events.js";
+import {
+  beaconQueryString,
+  beaconSchemaVersion,
+  defaultBeaconPath,
+} from "../beacon-events.js";
 import {
   beaconEventColumn,
+  beaconEventsJoin,
   beaconPageColumn,
   beaconVersionColumn,
 } from "../beacon-rows.js";
@@ -451,7 +456,7 @@ describe("the Glue table over delivered logs", () => {
     // names, which is the case a payload in the query string exists for.
     const deployed = await deployTable();
     const [distributionId = ""] = deployed.distributionIds;
-    const sent = beaconQueryString({ event: "route", page: "/guides/好/" });
+    const sent = beaconQueryString([{ event: "route", page: "/guides/好/" }]);
     await putDelivered(deployed, distributionId, simStartedAt, [
       {
         "timestamp(ms)": String(simStartedAt.getTime()),
@@ -467,14 +472,17 @@ describe("the Glue table over delivered logs", () => {
     const answered = await queryRows(
       deployed,
       `SELECT ${beaconEventColumn}, ${beaconPageColumn},` +
-        ` ${beaconVersionColumn} FROM ${table()} WHERE year = '2026'` +
+        ` ${beaconVersionColumn} FROM ${table()}` +
+        `${beaconEventsJoin()} WHERE year = '2026'` +
         ` AND month = '08' AND day = '23' AND hour = '09'`,
     );
 
     // Then the event arrives as the beacon meant it, through the browser's
     // encoding and CloudFront's on top of it. No column of this table holds
     // any of the three, and nothing had to be added to it for the beacon.
-    assertObjectEquals(answered.rows, [["route", "/guides/好/", "1"]]);
+    assertObjectEquals(answered.rows, [
+      ["route", "/guides/好/", String(beaconSchemaVersion)],
+    ]);
     assertIdentical(answered.answeredBy, "engine");
   });
 

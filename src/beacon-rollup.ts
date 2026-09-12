@@ -33,6 +33,7 @@
 import { defaultBeaconPath } from "./beacon-events.js";
 import {
   aBeaconEvent,
+  beaconEventsJoin,
   beaconEventColumn,
   beaconPageColumn,
 } from "./beacon-rows.js";
@@ -136,6 +137,7 @@ a re-run over rows that are all still there.`,
       `    ${beaconEventColumn} AS event,`,
       `    ${cappedCount} AS counted`,
       `  FROM ${qualifiedTableName(request.dataset)}`,
+      beaconEventsJoin(),
       rowsFor(request, aBeaconEvent),
       `  GROUP BY 1, 2, ${sender}, ${loggedHour}`,
       "  )",

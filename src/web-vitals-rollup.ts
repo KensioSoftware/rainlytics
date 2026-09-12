@@ -8,6 +8,7 @@
 import { defaultBeaconPath } from "./beacon-events.js";
 import {
   aBeaconEvent,
+  beaconEventsJoin,
   beaconEventColumn,
   beaconValueColumn,
   onBeaconPath,
@@ -63,6 +64,7 @@ one percentile over a longer span.`,
       `  approx_percentile(${measuredValue}, ${String(webVitalsPercentile)}) AS p75,`,
       `  count(${measuredValue}) AS samples`,
       `  FROM ${qualifiedTableName(request.dataset)}`,
+      beaconEventsJoin(),
       rowsFor(onBeaconPath(request), [
         ...aBeaconEvent,
         oneOf(beaconEventColumn, Object.values(vitalEventNames)),

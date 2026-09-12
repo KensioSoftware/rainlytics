@@ -10,11 +10,13 @@ import { describe, it } from "vitest";
 import { answeredRows } from "#test/answered-rows.js";
 import {
   deployBeaconTable,
+  putDeliveredBatches,
   putDeliveredEvents,
   type SentEvent,
   theBeaconDay,
   theBeaconHour,
 } from "#test/delivered-beacon-events.js";
+import { putDeliveredVersion1Events } from "#test/version-1-beacon-events.js";
 
 import { type BeaconEvent, defaultBeaconPath } from "./beacon-events.js";
 import { beaconEventCap, beaconEvents } from "./beacon-rollup.js";
@@ -201,5 +203,89 @@ describe("counting what the beacon reported", () => {
     // optional, and a scheduled question over rows nobody writes is an
     // Athena charge per window for an empty answer.
     assertArrayNotIncludes(rollups, beaconEvents);
+  });
+
+  it("counts every event a single request carried", async () => {
+    // Given one request carrying the two vitals that become final together,
+    // which is what `reportVitals` sends when a page is hidden.
+    const deployed = await deployBeaconTable();
+    await putDeliveredBatches(deployed, [
+      {
+        address: "203.0.113.7",
+        events: [
+          { event: "lcp", page: "/guides/", value: 2400 },
+          { event: "cls", page: "/guides/", value: 0.02 },
+        ],
+      },
+    ]);
+
+    // When the rollup counts what the beacon reported.
+    const rows = await answeredRows(deployed, beaconSql());
+
+    // Then both are counted, out of the one row CloudFront wrote. A reader
+    // that took one event per row would answer whichever came first and
+    // silently lose the rest, which is the whole risk of #177.
+    assertObjectEquals(rows, [
+      ["/guides/", "cls", "1"],
+      ["/guides/", "lcp", "1"],
+    ]);
+  });
+
+  it("counts the two envelope versions together in one partition", async () => {
+    // Given an hour holding rows from before the envelope moved to version 2
+    // and rows from after it, which is what every deployment writes while it
+    // is being upgraded. The raw store is immutable, so the old rows are read
+    // under the old rules for as long as the log objects last.
+    const deployed = await deployBeaconTable();
+    await putDeliveredVersion1Events(deployed, [
+      { event: "route", page: "/liju/", address: "203.0.113.1" },
+      { event: "route", page: "/liju/", address: "203.0.113.2" },
+    ]);
+    await putDeliveredBatches(deployed, [
+      {
+        address: "203.0.113.3",
+        events: [
+          { event: "route", page: "/liju/" },
+          { event: "route", page: "/grammar/" },
+        ],
+      },
+    ]);
+
+    // When the rollup counts them.
+    const rows = await answeredRows(deployed, beaconSql());
+
+    // Then the version a row was written under makes no difference to what
+    // it counts as. Three route changes on one page and one on another.
+    assertObjectEquals(rows, [
+      ["/liju/", "route", "3"],
+      ["/grammar/", "route", "1"],
+    ]);
+  });
+
+  it("carries a message holding the separators the payload packs with", async () => {
+    // Given an error whose text holds both a comma and a semicolon, which is
+    // ordinary in a thrown message and is exactly what would end a field or
+    // an event early if the packing did not escape it.
+    const deployed = await deployBeaconTable();
+    const message = "Bad input: a, b; c";
+    await putDeliveredBatches(deployed, [
+      {
+        address: "203.0.113.9",
+        events: [
+          { event: "error", page: "/checkout/", message },
+          { event: "route", page: "/checkout/" },
+        ],
+      },
+    ]);
+
+    // When the rollup counts what arrived.
+    const rows = await answeredRows(deployed, beaconSql());
+
+    // Then the request still reads as the two events it carried. A separator
+    // surviving unescaped inside the message would split it into more.
+    assertObjectEquals(rows, [
+      ["/checkout/", "error", "1"],
+      ["/checkout/", "route", "1"],
+    ]);
   });
 });

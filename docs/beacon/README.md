@@ -36,9 +36,35 @@ beacon.report({
 });
 ```
 
-Each request contains an envelope version, event name and page. An event can also carry a number, a
+Each event contains an envelope version, event name and page. An event can also carry a number, a
 subject naming what the number is about, and a text message. Keep personal data out of event names,
 pages, subjects and messages. These values remain in the raw log until its lifecycle expires them.
+
+## Report several events in one request
+
+`report` takes as many events as the site has to hand, and sends them in one request:
+
+```typescript
+beacon.report(
+  { event: "purchase", page, value: 4995, subject: "SKU-1234" },
+  { event: "purchase-line", page, value: 1999, subject: "SKU-9876" },
+);
+```
+
+Nothing is held back for a later request. Events passed in one call travel together, and a call made
+a second later is a second request. That keeps the beacon free of a timer, and of the events a timer
+would still be holding when the page goes away.
+
+## What the beacon costs
+
+Under CloudFront pay-as-you-go pricing, an event is a row in a log object the site is already paying
+for, and requests cost a fraction of a cent per ten thousand.
+
+Under a CloudFront flat-rate plan the allowance meters requests, and a beacon event is one of them.
+On one measured site the beacon accounted for 19.3% of all requests in an hour, against an allowance
+the site was using 80% of in 11 days. Data transfer was nowhere near its own allowance. If a site is
+on a flat-rate plan, requests are the dimension to watch, and reporting several events per call is
+what reduces them.
 
 ## Send numbers as integer minor units
 
@@ -81,8 +107,8 @@ for (const line of order.lines) {
 Two event names, because a question totalling both would count the money twice. Each name is a
 question of its own: `purchase` answers what the shop took, and `purchase-line` answers what sold.
 
-Keep the number of events per action small. Each one is a request the browser makes and a row the
-log stores, and an order with fifty lines is fifty of both.
+Keep the number of events per action small. An order with fifty lines is fifty events, and even
+batched into one request it is fifty rows once a query unpacks it.
 
 The browser sends no cookies. Requests use `fetch` with `credentials: "omit"` and `keepalive: true`.
 The beacon creates no browser identifier.

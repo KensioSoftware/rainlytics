@@ -277,7 +277,7 @@ describe("one direct run of the calendar report job", () => {
     assertObjectMatches(report.sections[2], {
       accuracy: "exact",
       composition: "period-query",
-      value: { rows: [{ hits: "3", misses: "0", hit_percent: "100" }] },
+      value: { rows: [{ hits: "3", misses: "0", hit_percent: "100.0" }] },
     });
   });
 

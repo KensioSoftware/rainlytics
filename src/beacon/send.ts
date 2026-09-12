@@ -1,4 +1,4 @@
-// How one event leaves the browser.
+// How events leave the browser.
 //
 // A GET to a path on the site's own domain, with the payload in the query
 // string. `BeaconPath` answers it with a 204 from a CloudFront Function and
@@ -9,7 +9,14 @@
 import { type BeaconEvent, beaconQueryString } from "../beacon-events.js";
 
 /**
- * Sends one event to the collection path.
+ * Sends events to the collection path, all of them in one request.
+ *
+ * A request is what a CloudFront flat-rate plan meters, so events known at
+ * the same instant travel together. #177 measured a site spending 19.3% of
+ * its requests on a beacon sending one event at a time.
+ *
+ * An empty list sends nothing. A caller with nothing to report should make no
+ * request, and a row carrying no events would still be counted as traffic.
  *
  * `fetch` rather than `new Image()`, for the two things an image cannot do.
  *
@@ -32,8 +39,15 @@ import { type BeaconEvent, beaconQueryString } from "../beacon-events.js";
  * one row that never arrives, and an unhandled rejection in a site's console
  * over lost analytics would be worse than the loss.
  */
-export function sendBeaconEvent(path: string, event: BeaconEvent): void {
-  void fetch(`${path}?${beaconQueryString(event)}`, {
+export function sendBeaconEvents(
+  path: string,
+  events: readonly BeaconEvent[],
+): void {
+  if (events.length === 0) {
+    return;
+  }
+
+  void fetch(`${path}?${beaconQueryString(events)}`, {
     keepalive: true,
     credentials: "omit",
     mode: "same-origin",

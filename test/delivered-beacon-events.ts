@@ -40,8 +40,8 @@ export const theBeaconDay = {
   to: new Date("2026-08-24T00:00:00.000Z"),
 };
 
-/** One request, as the beacon sends it and CloudFront records it. */
-export interface SentEvent extends BeaconEvent {
+/** Who sent a request, and when, which is all the cap is keyed on. */
+export interface SentBy {
   /** Who sent it, which is what the flood cap is keyed on. */
   readonly address: string;
 
@@ -50,6 +50,15 @@ export interface SentEvent extends BeaconEvent {
 
   /** What the sender called itself, defaulting to a browser. */
   readonly userAgent?: string | undefined;
+}
+
+/** One request carrying one event, as CloudFront records it. */
+export interface SentEvent extends BeaconEvent, SentBy {}
+
+/** One request carrying several events, as version 2 sends it. */
+export interface SentBatch extends SentBy {
+  /** Everything the one request reported. */
+  readonly events: readonly BeaconEvent[];
 }
 
 /** A deployed table, and what a case needs to reach it afterwards. */
@@ -140,7 +149,28 @@ export function asCloudFrontWrites(queryString: string): string {
 }
 
 /**
- * These events, delivered into the bucket the way CloudFront delivers them.
+ * One beacon request, as a record in the log.
+ *
+ * The three functions below differ only in the query string they hand over,
+ * and a copy of this in each was three statements of what a beacon row looks
+ * like.
+ */
+export function beaconRecord(
+  queryString: string,
+  sender: SentBy,
+): Record<string, string> {
+  return {
+    "timestamp(ms)": String((sender.at ?? theBeaconHour).getTime()),
+    "cs-method": "GET",
+    "cs-uri-stem": defaultBeaconPath,
+    "cs-uri-query": asCloudFrontWrites(queryString),
+    "cs(User-Agent)": sender.userAgent ?? "Mozilla/5.0",
+    "c-ip": sender.address,
+  };
+}
+
+/**
+ * These events, delivered as one record each.
  *
  * Every record lands in the partition for the hour in {@link theBeaconHour},
  * whatever timestamp it carries. The partition is what a query prunes on and
@@ -153,14 +183,25 @@ export async function putDeliveredEvents(
 ): Promise<void> {
   await putDeliveredRecords(
     deployed,
-    sent.map((event) => ({
-      "timestamp(ms)": String((event.at ?? theBeaconHour).getTime()),
-      "cs-method": "GET",
-      "cs-uri-stem": defaultBeaconPath,
-      "cs-uri-query": asCloudFrontWrites(beaconQueryString(event)),
-      "cs(User-Agent)": event.userAgent ?? "Mozilla/5.0",
-      "c-ip": event.address,
-    })),
+    sent.map((event) => beaconRecord(beaconQueryString([event]), event)),
+  );
+}
+
+/**
+ * Batches, delivered as one record each.
+ *
+ * The difference from {@link putDeliveredEvents} is how many events a row
+ * carries. That one writes a row per event, which is what most cases want.
+ * This one writes a row per request, which is what a case about unnesting
+ * needs.
+ */
+export async function putDeliveredBatches(
+  deployed: DeployedBeaconTable,
+  sent: readonly SentBatch[],
+): Promise<void> {
+  await putDeliveredRecords(
+    deployed,
+    sent.map((batch) => beaconRecord(beaconQueryString(batch.events), batch)),
   );
 }
 
@@ -182,9 +223,12 @@ export async function putDeliveredRecords(
     .putObject({
       input: {
         Bucket: deployed.logBucketName,
+        // One object per call rather than one per hour. CloudFront writes
+        // many objects into an hour's prefix, and a fixed key meant a case
+        // seeding twice silently replaced what it seeded first.
         Key:
           `rainlytics/distributionid=${deployed.distributionId}` +
-          `/year=2026/month=08/day=23/hour=09/events.gz`,
+          `/year=2026/month=08/day=23/hour=09/${faker.string.uuid()}.gz`,
         Body: gzipSync(
           records.map((record) => JSON.stringify(record)).join("\n"),
         ),

@@ -13,8 +13,10 @@ import {
   requestsSettled,
 } from "#test/collection-endpoint.js";
 
+import { theEventIn } from "#test/received-beacon-events.js";
+
 import { defaultBeaconPath } from "../beacon-events.js";
-import { sendBeaconEvent } from "./send.js";
+import { sendBeaconEvents } from "./send.js";
 
 describe("sending one event", () => {
   it("carries a page whose characters have to be encoded", async () => {
@@ -24,15 +26,14 @@ describe("sending one event", () => {
     const page = "/文法/a b&c=d/";
 
     // When the event is sent.
-    sendBeaconEvent(defaultBeaconPath, { event: "route", page });
+    sendBeaconEvents(defaultBeaconPath, [{ event: "route", page }]);
 
     // Then what arrives decodes back to the path that went in. The value
     // travels through the browser's encoding, CloudFront's own on the way
     // into the record, and `beaconPageColumn` reading both back off.
     const [request] = await endpoint.received(1);
-    const arrived = new URLSearchParams((request ?? "").split("?")[1]);
 
-    assertIdentical(arrived.get("p"), page);
+    assertIdentical(theEventIn(request ?? "").page, page);
     assertStringNotIncludes(request, " ");
 
     await endpoint.close();
@@ -45,10 +46,12 @@ describe("sending one event", () => {
     await endpoint.close();
 
     // When an event is sent to it.
-    sendBeaconEvent(defaultBeaconPath, {
-      event: "route",
-      page: `/${faker.lorem.slug()}/`,
-    });
+    sendBeaconEvents(defaultBeaconPath, [
+      {
+        event: "route",
+        page: `/${faker.lorem.slug()}/`,
+      },
+    ]);
 
     // Then the failure stays inside the beacon. Vitest fails a file over an
     // unhandled rejection, so reaching the end of this case is the
