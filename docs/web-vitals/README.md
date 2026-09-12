@@ -55,18 +55,27 @@ So put it wherever the rest of the site's JavaScript goes. Moving it earlier cos
 on every page and buys no samples.
 
 Two things do lose measurements, and neither is about when the bundle runs. `reportVitals` measures
-the document it started in, so a single-page app reports one set of vitals per document rather than
-one per route. And LCP and CLS are only final once the page is going away, so a document the browser
-never hides reports neither. Following a link, closing the tab and switching app all hide it first.
+the document it started in. A single-page app reports one set of vitals per document, whatever its
+router does afterwards. LCP and CLS are also only final once the page is going away, and a document
+the browser never hides reports neither of them. Following a link, closing the tab and switching app
+all hide it first.
 
 ## How many requests a page view sends
 
-Three. TTFB goes out as soon as the navigation timing entry can be read, FCP when the paint happens,
-and LCP and CLS together when the document is hidden. Those two become final at the same instant and
-travel in one request.
+Two, on a page that paints within four seconds. TTFB is known before anything paints. It waits for
+FCP and the two travel together, and LCP and CLS become final at the same instant and travel
+together when the document is hidden.
 
-Batching all four into the hide would cost more than it saves. A document the browser leaves visible
-reports only what went out before it, and a crawler usually leaves one visible.
+A page that paints after that wait sends three. TTFB has gone on its own by then, so the paint goes
+on its own when it arrives, and LCP and CLS still follow at the hide.
+
+TTFB stops waiting after four seconds, or sooner if the page is hidden first, in which case it goes
+with LCP and CLS. Roughly a quarter of the pages reporting TTFB never paint, mostly crawlers, and a
+wait with no end would drop those. What survived would be a TTFB measurement biased towards the
+pages that paint, which are the faster ones.
+
+Only the second pair waits for the hide. A document the browser leaves visible reports whatever went
+out before it, and a crawler usually leaves one visible.
 
 ## Calculation
 
