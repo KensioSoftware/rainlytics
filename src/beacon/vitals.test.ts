@@ -55,22 +55,57 @@ describe("reporting Core Web Vitals", () => {
       ),
     );
 
-  it("reports the time to first byte as soon as it is known", async () => {
+  it("sends the time to first byte with the paint it waited for", async () => {
     // Given a page whose navigation timing is already recorded, which it is
     // by the time any bundled script runs.
     const endpoint = await collectionEndpoint();
     const timeline = performanceTimeline();
     timeline.emit("navigation", [{ responseStart: 128.4 }]);
-
-    // When the vitals are reported.
     const { stop } = watching();
 
-    // Then it goes out at once, rounded to a whole millisecond. Nothing
-    // later can change it, so nothing is gained by holding it.
+    // When the page paints.
+    timeline.emit("paint", [
+      { name: "first-contentful-paint", startTime: 210.7 },
+    ]);
+
+    // Then both travel in one request, each rounded to a whole millisecond.
+    // TTFB is known before anything paints and #178 has what sending it on
+    // its own was costing.
     const [request] = await endpoint.received(1);
 
-    assertIdentical(eventOf(request ?? ""), vitalEventNames.timeToFirstByte);
-    assertIdentical(valueOf(request ?? ""), "128");
+    assertObjectEquals(reported([request ?? ""]), {
+      [vitalEventNames.timeToFirstByte]: "128",
+      [vitalEventNames.firstContentfulPaint]: "211",
+    });
+
+    stop();
+    await endpoint.close();
+  });
+
+  it("sends the time to first byte alone where nothing ever paints", async () => {
+    // Given a page that records its navigation timing and never paints. A
+    // crawler that fetches without rendering is the ordinary case, and #177
+    // measured roughly a quarter of the pages reporting TTFB as ones that
+    // never reported FCP.
+    const endpoint = await collectionEndpoint();
+    const timeline = performanceTimeline();
+    timeline.emit("navigation", [{ responseStart: 96 }]);
+
+    // When the vitals are reported and no paint follows.
+    //
+    // This case waits out `firstByteWait` for real. Vitest's fake timers stop
+    // the collection endpoint settling its requests, so simulating the clock
+    // here measures nothing arriving rather than the wait ending.
+    const { stop } = watching();
+
+    // Then TTFB still arrives once the wait is over. Holding it for a paint
+    // that never comes would drop the measurement and leave what is left
+    // biased towards the pages that do paint, which are the faster ones.
+    const [request] = await endpoint.received(1);
+
+    assertObjectEquals(reported([request ?? ""]), {
+      [vitalEventNames.timeToFirstByte]: "96",
+    });
 
     stop();
     await endpoint.close();
@@ -127,7 +162,7 @@ describe("reporting Core Web Vitals", () => {
     // navigation entry stays for the life of the document. So the docs can
     // say to start the beacon wherever the bundle runs, rather than asking
     // for a blocking script on every page.
-    const requests = await endpoint.received(3);
+    const requests = await endpoint.received(2);
 
     assertObjectEquals(reported(requests), {
       [vitalEventNames.timeToFirstByte]: "128",
@@ -136,14 +171,17 @@ describe("reporting Core Web Vitals", () => {
       [vitalEventNames.cumulativeLayoutShift]: "0.05",
     });
 
-    // And the two that become final together travel in one request. Four
-    // measurements in three requests rather than four, which is what #177
-    // asked for.
+    // And they arrive as two pairs. TTFB waits for the paint and LCP and CLS
+    // become final together, so a page view costs two requests rather than
+    // four. #177 paired the second half and #178 the first.
     assertObjectEquals(
-      eventsIn(requests[2] ?? "").map((event) => event.event),
+      requests.map((request) => eventsIn(request).map((event) => event.event)),
       [
-        vitalEventNames.largestContentfulPaint,
-        vitalEventNames.cumulativeLayoutShift,
+        [vitalEventNames.timeToFirstByte, vitalEventNames.firstContentfulPaint],
+        [
+          vitalEventNames.largestContentfulPaint,
+          vitalEventNames.cumulativeLayoutShift,
+        ],
       ],
     );
 
@@ -246,7 +284,7 @@ describe("reporting Core Web Vitals", () => {
     // Then the ones it does record still arrive. A browser raises over an
     // entry type it has never heard of, and one unknown type taking the
     // other three down with it would leave those pages reporting nothing.
-    const requests = await endpoint.received(2);
+    const requests = await endpoint.received(1);
     const seen = reported(requests);
 
     assertIdentical(seen[vitalEventNames.timeToFirstByte], "96");

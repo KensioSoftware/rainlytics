@@ -48,6 +48,25 @@ const rounded = (value: number, places = 0): number =>
   Number(value.toFixed(places));
 
 /**
+ * How long TTFB waits for the paint it would rather travel with.
+ *
+ * TTFB is known before anything has painted and FCP arrives later, so holding
+ * the first for the second puts both in one request. #178 has what that saves
+ * a site on a CloudFront flat-rate plan.
+ *
+ * The wait has to end somewhere. Roughly a quarter of the pages that reported
+ * TTFB in the hour #177 measured never reported FCP at all, and most of those
+ * were crawlers. Holding TTFB for a paint that never comes would drop those
+ * measurements and bias what is left towards pages that paint, which are the
+ * faster ones.
+ *
+ * Four seconds. Long enough for a slow page to paint first and still pair,
+ * since a page painting past this is already far outside what Core Web Vitals
+ * calls good, and short enough that a page nobody stays on reports anyway.
+ */
+export const firstByteWait = 4000;
+
+/**
  * Reports this page's Core Web Vitals through a running beacon.
  *
  * ```typescript
@@ -64,14 +83,15 @@ const rounded = (value: number, places = 0): number =>
  * `keepalive` on the send exists for, and #111 has why the beacon uses
  * `fetch` for it.
  *
- * **LCP and CLS travel in one request.** Both become final at the same
- * instant, and #177 measured what sending them separately cost a site on a
- * CloudFront flat-rate plan. Nothing about when either measurement leaves
- * the browser changed.
+ * **A page view costs two requests.** TTFB is known before anything paints,
+ * so it waits and travels with FCP. LCP and CLS become final at the same
+ * instant and travel together when the document hides. #177 and #178 have
+ * what a request costs a site on a CloudFront flat-rate plan.
  *
- * TTFB and FCP are known as soon as they happen and go straight out, one
- * request each. Holding TTFB until FCP would pair those two as well, and
- * #178 has the question that decides it.
+ * TTFB stops waiting after {@link firstByteWait}, or sooner where the page is
+ * hidden first, in which case it goes with LCP and CLS. A quarter of the
+ * pages that report TTFB never paint at all, so a wait with no end would drop
+ * those and leave a measurement biased towards pages that paint.
  *
  * A page that is never hidden reports neither LCP nor CLS. Every ordinary
  * way of leaving a page hides the document first, including following a link
@@ -81,9 +101,39 @@ const rounded = (value: number, places = 0): number =>
  */
 export function reportVitals(beacon: Beacon): StopVitals {
   const page = location.pathname;
-  const report = (event: string, value: number): void => {
-    beacon.report({ event, page, value });
+  const measured = (event: string, value: number): BeaconEvent => ({
+    event,
+    page,
+    value,
+  });
+
+  // Read before anything is observed, so a buffered paint entry arriving at
+  // once still finds TTFB here to travel with.
+  const navigation = performance.getEntriesByType("navigation").at(0) as
+    | PerformanceNavigationTiming
+    | undefined;
+
+  let held: BeaconEvent | undefined =
+    navigation &&
+    measured(
+      vitalEventNames.timeToFirstByte,
+      rounded(navigation.responseStart),
+    );
+
+  /** Sends these, with TTFB along for the ride where it is still waiting. */
+  const send = (...events: BeaconEvent[]): void => {
+    const carried = held === undefined ? events : [held, ...events];
+
+    held = undefined;
+
+    if (carried.length > 0) {
+      beacon.report(...carried);
+    }
   };
+
+  const waited = setTimeout(() => {
+    send();
+  }, firstByteWait);
 
   const paint = largestPaint();
   const shift = layoutShift();
@@ -94,22 +144,17 @@ export function reportVitals(beacon: Beacon): StopVitals {
     observe("paint", (entries) => {
       for (const entry of entries) {
         if (entry.name === "first-contentful-paint") {
-          report(
-            vitalEventNames.firstContentfulPaint,
-            rounded(entry.startTime),
+          clearTimeout(waited);
+          send(
+            measured(
+              vitalEventNames.firstContentfulPaint,
+              rounded(entry.startTime),
+            ),
           );
         }
       }
     }),
   ];
-
-  const navigation = performance.getEntriesByType("navigation").at(0) as
-    | PerformanceNavigationTiming
-    | undefined;
-
-  if (navigation !== undefined) {
-    report(vitalEventNames.timeToFirstByte, rounded(navigation.responseStart));
-  }
 
   let settled = false;
 
@@ -119,30 +164,31 @@ export function reportVitals(beacon: Beacon): StopVitals {
     }
 
     settled = true;
+    clearTimeout(waited);
 
     const final: BeaconEvent[] = [];
+    const largest = paint.reached();
 
-    if (paint.reached() > 0) {
-      final.push({
-        event: vitalEventNames.largestContentfulPaint,
-        page,
-        value: rounded(paint.reached()),
-      });
+    if (largest > 0) {
+      final.push(
+        measured(vitalEventNames.largestContentfulPaint, rounded(largest)),
+      );
     }
 
-    final.push({
-      event: vitalEventNames.cumulativeLayoutShift,
-      page,
-      value: rounded(shift.reached(), 3),
-    });
+    const shifted = rounded(shift.reached(), 3);
 
-    beacon.report(...final);
+    final.push(measured(vitalEventNames.cumulativeLayoutShift, shifted));
+
+    // `send` adds TTFB where a page was hidden before it went out, which is
+    // what keeps the measurement on a page nobody waited around on.
+    send(...final);
   };
 
   document.addEventListener("visibilitychange", settle);
 
   return () => {
     settled = true;
+    clearTimeout(waited);
     document.removeEventListener("visibilitychange", settle);
 
     for (const stop of stopping) {
