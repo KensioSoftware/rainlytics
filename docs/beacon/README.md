@@ -36,9 +36,13 @@ beacon.report({
 });
 ```
 
-Each event contains an envelope version, event name and page. An event can also carry a number, a
-subject naming what the number is about, and a text message. Keep personal data out of event names,
-pages, subjects and messages. These values remain in the raw log until its lifecycle expires them.
+A request carries one envelope version and every event it reports, and CloudFront writes it as one
+log record. Each event inside it carries an event name and a page, and can also carry a number, a
+subject naming what the number is about, and a text message. A query unpacks that record back into
+one row per event, so a request is what the plan meters and an event is what a question counts.
+
+Keep personal data out of event names, pages, subjects and messages. These values remain in the raw
+log until its lifecycle expires them.
 
 ## Report several events in one request
 

@@ -41,7 +41,7 @@ const errors = 'import { reportErrors } from "./dist/beacon/errors.js";';
 const entries = [
   {
     name: "beacon",
-    budget: 690,
+    budget: 780,
     source: `
 ${start}
 
@@ -51,7 +51,7 @@ beacon.report({ event: "signup", page: location.pathname });
   },
   {
     name: "beacon + vitals",
-    budget: 1300,
+    budget: 1380,
     source: `
 ${start}
 ${vitals}
@@ -61,7 +61,7 @@ reportVitals(startBeacon());
   },
   {
     name: "beacon + errors",
-    budget: 880,
+    budget: 960,
     source: `
 ${start}
 ${errors}
@@ -71,7 +71,7 @@ reportErrors(startBeacon());
   },
   {
     name: "all of it",
-    budget: 1500,
+    budget: 1600,
     source: `
 ${start}
 ${vitals}

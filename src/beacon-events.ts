@@ -128,6 +128,27 @@ export const beaconFieldSeparator = ",";
 /** What separates one packed event from the next. */
 export const beaconEventSeparator = ";";
 
+/**
+ * The most a collection request may carry, in characters of path and query.
+ *
+ * CloudFront refuses a URL past roughly 8 KB, and a refused request loses
+ * every event in it rather than the last one that would not fit. Version 1
+ * could only ever overflow on a single event, and `errorMessageLimit` is what
+ * bounds the one field long enough to do it. Version 2 puts a caller in
+ * charge of how many events go in a request, so the ceiling has to be kept
+ * here rather than assumed.
+ *
+ * Under the limit rather than at it. The margin covers the request line and
+ * the headers around it, none of which this can see.
+ *
+ * `sendBeaconEvents` splits a list that would exceed this across as many
+ * requests as it takes, so the events still arrive. A single event that
+ * exceeds it on its own is sent anyway, because dropping it would be a
+ * measurement silently lost where CloudFront refusing it is one that can be
+ * seen.
+ */
+export const beaconRequestLimit = 8000;
+
 /** One event, as the beacon reports it. */
 export interface BeaconEvent {
   /**
