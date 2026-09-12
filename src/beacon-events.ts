@@ -4,8 +4,7 @@
 // payload in the query string. CloudFront records `cs-uri-query` whatever the
 // cache key and origin forwarding are set to, so the event lands in the same
 // objects, the same partitions and the same table as every page request.
-// Layer 2 is more rows in the dataset layer 1 already writes, and that is what
-// makes the beacon nearly free.
+// Layer 2 is more rows in the dataset layer 1 already writes.
 //
 // The rows carry different information all the same, and this module is the
 // one place saying what. KensioSoftware/rainlytics#100 asked where that
@@ -25,11 +24,12 @@
 // added later. This is the one shape of schema change an immutable store
 // takes without argument.
 //
-// **The envelope is versioned and the payload is not.** Every event carries
-// the same three parameters, and #112 and #159 added three more that an event
-// writes only where it has them. `version` is what lets a later shape arrive
-// without reinterpreting rows already written, and it has not had to move
-// yet, because a reader takes the three back off a new row exactly as it did.
+// **The envelope is versioned and the payload is not.** `version` is what
+// lets a later shape arrive without reinterpreting rows already written, and
+// #177 is the case it was built for. Version 1 carried exactly one event per
+// request. Version 2 carries as many as the caller hands over, because a
+// request is the thing a CloudFront flat-rate plan meters and four vitals a
+// page view were costing four of them.
 //
 // This module is the browser's half of that definition, and it imports
 // nothing. Every page of a measured site downloads it, so the SQL reading
@@ -55,51 +55,99 @@ export const defaultBeaconPath = "/_rainlytics";
  * The version of the envelope below.
  *
  * Written into every event and read back off every row. The raw store is
- * immutable, so a row written today is still read under today's rules in a
- * year. A query that has to tell two shapes apart has this to tell them
- * apart by.
+ * immutable, so a row written under version 1 is still read under version 1
+ * rules in a year, in the same partitions as the version 2 rows beside it.
+ * `beaconEventsOf` in `beacon-rows.ts` is the reader that tells them apart.
+ *
+ * Version 2 replaced one event per request with a list of them. #159 and #112
+ * both added a parameter and left this at 1, because a reader took the first
+ * three back off a new row unchanged. This one moves the payload into a
+ * parameter of its own, and a version 1 reader would find none of what it
+ * expects.
  */
-export const beaconSchemaVersion = 1;
+export const beaconSchemaVersion = 2;
 
 /**
- * The query-string parameters every event carries.
+ * The query-string parameters an event travels in.
  *
  * One letter each. The whole query string is written into `cs-uri-query` on
  * every event, percent-encoded, and stored for as long as the log objects
  * last. Long names would be paid for on every row and scanned by every query
  * reading the column.
+ *
+ * Only `version` and `events` are written today. The five below them are what
+ * version 1 wrote, and they are here because the rows are still in the store
+ * and still read. Nothing in the browser emits them.
  */
 export const beaconParameters = {
   /** The envelope version, being {@link beaconSchemaVersion}. */
   version: "v",
 
-  /** What happened, such as a route change or a web vital. */
+  /** Every event in the request, packed by {@link beaconQueryString}. */
+  events: "b",
+
+  /** Version 1 only. What happened. */
   event: "e",
 
-  /** The page it happened on, which the beacon's own path cannot say. */
+  /** Version 1 only. The page it happened on. */
   page: "p",
 
-  /** A number the event measured, such as a web vital's value. */
+  /** Version 1 only. A number the event measured. */
   value: "n",
 
-  /**
-   * What the event is about, such as the SKU an amount was paid for.
-   *
-   * KensioSoftware/rainlytics#159 added it. `m` is spoken for by what an
-   * error said, so an event carrying a number had nowhere to say what the
-   * number counted. A shop encoding a purchase used two event names and two
-   * rollups to work around that, and a question reading both doubled the
-   * money.
-   *
-   * Additive, and {@link beaconSchemaVersion} stays at 1 for the reason `n`
-   * and `m` left it there. A reader takes the first three off a new row
-   * exactly as it did.
-   */
+  /** Version 1 only. What the event was about, such as a SKU. */
   subject: "s",
 
-  /** Text the event carries, such as what an error said. */
+  /** Version 1 only. Text the event carried, such as what an error said. */
   message: "m",
 } as const;
+
+/**
+ * What each position in a packed event holds, in the order it is written.
+ *
+ * The browser writes a field per position and `beaconEventsOf` in
+ * `beacon-rows.ts` reads one back per position. Two statements of an order
+ * drift, and the way they drift is a reader that starts answering a page
+ * where a question asked for an event name.
+ *
+ * A sixth field appends. A reader indexing by position finds nothing at the
+ * new one over every row already written, which is the same answer it gives
+ * for a field the event left empty.
+ */
+export const beaconEventFields = [
+  "event",
+  "page",
+  "value",
+  "subject",
+  "message",
+] as const;
+
+/** What separates one field from the next inside a packed event. */
+export const beaconFieldSeparator = ",";
+
+/** What separates one packed event from the next. */
+export const beaconEventSeparator = ";";
+
+/**
+ * The most a collection request may carry, in characters of path and query.
+ *
+ * CloudFront refuses a URL past roughly 8 KB, and a refused request loses
+ * every event in it rather than the last one that would not fit. Version 1
+ * could only ever overflow on a single event, and `errorMessageLimit` is what
+ * bounds the one field long enough to do it. Version 2 puts a caller in
+ * charge of how many events go in a request, so the ceiling has to be kept
+ * here rather than assumed.
+ *
+ * Under the limit rather than at it. The margin covers the request line and
+ * the headers around it, none of which this can see.
+ *
+ * `sendBeaconEvents` splits a list that would exceed this across as many
+ * requests as it takes, so the events still arrive. A single event that
+ * exceeds it on its own is sent anyway, because dropping it would be a
+ * measurement silently lost where CloudFront refusing it is one that can be
+ * seen.
+ */
+export const beaconRequestLimit = 8000;
 
 /** One event, as the beacon reports it. */
 export interface BeaconEvent {
@@ -117,6 +165,10 @@ export interface BeaconEvent {
    * The request's own path is the beacon's path, so the page has to travel in
    * the payload. A single-page app changing route is the case this exists
    * for, where the address bar has moved and no request was made.
+   *
+   * Carried per event rather than once per request. Two events batched
+   * together are often two vitals for one page, and they are sometimes a
+   * route change and whatever the site raised on the page before it.
    */
   readonly page: string;
 
@@ -124,8 +176,8 @@ export interface BeaconEvent {
    * A number the event measured, where it measured one.
    *
    * A web vital is the case this exists for. Left off an event that measured
-   * nothing, and the parameter is then absent from the query string rather
-   * than present and empty, which keeps a route change the length it was.
+   * nothing, and the position is then empty rather than absent, which keeps
+   * every field after it where a reader expects to find it.
    *
    * Apart from {@link message} because a number can hold no personal data and
    * text can. `docs/beacon/` has what that separation buys a site.
@@ -143,9 +195,6 @@ export interface BeaconEvent {
    * separates this from {@link message}. A SKU is an identifier a site
    * already publishes. An error message is whatever the browser or the
    * site's own code produced, and can hold anything.
-   *
-   * Left off an event that names nothing, so the parameter is absent from
-   * the query string rather than present and empty.
    */
   readonly subject?: string | undefined;
 
@@ -161,50 +210,58 @@ export interface BeaconEvent {
 }
 
 /**
- * One event as a query string, ready to be sent.
+ * Every field of one event, encoded and joined, with empty positions at the
+ * end dropped.
  *
- * The browser's own encoding, which is the single pass a request carries.
- * CloudFront adds its own on the way into the record, and
- * `beaconEventColumn` in `beacon-rows.ts` reads both back off.
+ * The encoding is what makes the separators safe. `encodeURIComponent`
+ * escapes both a comma and a semicolon, so neither survives inside a value,
+ * and an error message holding either one packs and unpacks unchanged.
+ */
+function packEvent(event: BeaconEvent): string {
+  const fields = beaconEventFields.map((field) => {
+    const value = event[field];
+
+    return value === undefined ? "" : encodeURIComponent(String(value));
+  });
+
+  while (fields.length > 0 && fields.at(-1) === "") {
+    fields.pop();
+  }
+
+  return fields.join(beaconFieldSeparator);
+}
+
+/**
+ * Events as a query string, ready to be sent.
+ *
+ * Two parameters. The version, and every event packed into one value.
+ *
+ * The browser's own encoding is the single pass a request carries. CloudFront
+ * adds its own on the way into the record, and `beaconEventsOf` in
+ * `beacon-rows.ts` reads both back off before it splits anything. The fields
+ * inside the packed value carry a pass of their own underneath those two,
+ * which is what keeps a separator out of a value.
  *
  * No leading `?`. The caller joins it to the path it is sending to.
  *
- * Only the three parts of the envelope are always there. `value`, `subject`
- * and `message` are written where the event carries them and left out
- * entirely where it does not, so an event measuring nothing is the length it
- * always was. None of the three changed how a reader takes the first three
- * back off, which is why {@link beaconSchemaVersion} is still 1.
+ * An empty list still produces a query string, and the row it writes holds no
+ * events. `sendBeaconEvents` is where that request is not made.
  *
  * ```typescript
- * beaconQueryString({ event: "lcp", page: "/", value: 2400 });
- * beaconQueryString({
- *   event: "purchase",
- *   page: "/checkout/",
- *   value: 2499,
- *   subject: "SKU-1234",
- * });
+ * beaconQueryString([{ event: "lcp", page: "/", value: 2400 }]);
+ * beaconQueryString([
+ *   { event: "lcp", page: "/", value: 2400 },
+ *   { event: "cls", page: "/", value: 0.02 },
+ * ]);
  * ```
  */
-export function beaconQueryString(event: BeaconEvent): string {
-  const carried: [string, string][] = [
-    [beaconParameters.version, String(beaconSchemaVersion)],
-    [beaconParameters.event, event.event],
-    [beaconParameters.page, event.page],
-  ];
+export function beaconQueryString(events: readonly BeaconEvent[]): string {
+  const packed = events
+    .map((event) => packEvent(event))
+    .join(beaconEventSeparator);
 
-  if (event.value !== undefined) {
-    carried.push([beaconParameters.value, String(event.value)]);
-  }
-
-  if (event.subject !== undefined) {
-    carried.push([beaconParameters.subject, event.subject]);
-  }
-
-  if (event.message !== undefined) {
-    carried.push([beaconParameters.message, event.message]);
-  }
-
-  return carried
-    .map(([name, value]) => `${name}=${encodeURIComponent(value)}`)
-    .join("&");
+  return (
+    `${beaconParameters.version}=${String(beaconSchemaVersion)}` +
+    `&${beaconParameters.events}=${encodeURIComponent(packed)}`
+  );
 }

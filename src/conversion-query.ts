@@ -65,10 +65,18 @@ function overOnePass(request: RollupRequest, aConversion: string): string {
  *
  * `aConversion` is the condition a converting row satisfies, already written
  * for the request being answered.
+ *
+ * `joins` goes between the table and the conditions. A question counting
+ * beacon events passes `beaconEventsJoin()`, since one row carries as many
+ * events as the request that wrote it did. A question over page requests
+ * alone passes nothing and pays for no unnesting. Neither the pageview half
+ * nor the visitor pair changes either way, because a row with no events to
+ * unnest still contributes exactly one.
  */
 export function conversionQuery(
   request: RollupRequest,
   aConversion: string,
+  joins: readonly string[] = [],
 ): string {
   return [
     "SELECT",
@@ -80,6 +88,7 @@ export function conversionQuery(
     `  SELECT ${times(aViewedPage)} AS viewed,`,
     `    ${times(aConversion)} AS converted`,
     `  FROM ${qualifiedTableName(request.dataset)}`,
+    ...joins,
     overOnePass(request, aConversion),
     "  GROUP BY c_ip, cs_user_agent",
     "  )",

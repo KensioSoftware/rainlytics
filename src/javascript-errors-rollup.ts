@@ -4,6 +4,7 @@
 import { defaultBeaconPath } from "./beacon-events.js";
 import {
   aBeaconEvent,
+  beaconEventsJoin,
   beaconEventColumn,
   beaconMessageColumn,
   beaconPageColumn,
@@ -52,6 +53,7 @@ windows is approximate because each summary keeps only its own top rows.
       `  ${beaconMessageColumn} AS message,`,
       "  count(*) AS errors",
       `  FROM ${qualifiedTableName(request.dataset)}`,
+      beaconEventsJoin(),
       rowsFor(onBeaconPath(request), [
         ...aBeaconEvent,
         oneOf(beaconEventColumn, Object.values(errorEventNames)),

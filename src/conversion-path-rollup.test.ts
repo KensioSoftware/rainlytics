@@ -127,7 +127,7 @@ describe("counting how many visitors converted on a path", () => {
     // Then it answers two out of ten, off rows CloudFront had already
     // written. A site with no JavaScript was the case Rainlytics exists for
     // and the conversion rate was the one question it could not answer.
-    assertObjectEquals(rows, [["2", "10", "20"]]);
+    assertObjectEquals(rows, [["2", "10", "20.0"]]);
   });
 
   it("counts one visitor once however often they converted", async () => {
@@ -145,7 +145,7 @@ describe("counting how many visitors converted on a path", () => {
     // people, and the request-counting version of this question answers
     // something weaker.
     assertObjectEquals(await answeredRows(deployed, conversionSql()), [
-      ["1", "2", "50"],
+      ["1", "2", "50.0"],
     ]);
   });
 
@@ -161,7 +161,7 @@ describe("counting how many visitors converted on a path", () => {
     // declined tried, and a question counting them reports a rate the shop
     // never had.
     assertObjectEquals(await answeredRows(deployed, conversionSql()), [
-      ["1", "2", "50"],
+      ["1", "2", "50.0"],
     ]);
   });
 
@@ -176,7 +176,7 @@ describe("counting how many visitors converted on a path", () => {
 
     // Then the post is the conversion and the page load is not.
     assertObjectEquals(await answeredRows(deployed, conversionSql()), [
-      ["1", "2", "50"],
+      ["1", "2", "50.0"],
     ]);
   });
 
@@ -199,7 +199,7 @@ describe("counting how many visitors converted on a path", () => {
     // is counted once in each column rather than twice in the denominator.
     assertObjectEquals(
       await answeredRows(deployed, conversionSql({ path: "/order/done/" })),
-      [["1", "2", "50"]],
+      [["1", "2", "50.0"]],
     );
   });
 
@@ -216,7 +216,7 @@ describe("counting how many visitors converted on a path", () => {
     // one. A numerator counting them against a denominator that cannot see
     // them is how a conversion rate comes back above 100%.
     assertObjectEquals(await answeredRows(deployed, conversionSql()), [
-      ["0", "1", "0"],
+      ["0", "1", "0.0"],
     ]);
   });
 
@@ -231,7 +231,7 @@ describe("counting how many visitors converted on a path", () => {
     // Then it matches, the way `--path` matches a section of a site. One
     // definition of a prefix covers the filter and this question's numerator.
     assertObjectEquals(await answeredRows(deployed, conversionSql()), [
-      ["1", "2", "50"],
+      ["1", "2", "50.0"],
     ]);
   });
 

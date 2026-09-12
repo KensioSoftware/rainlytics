@@ -102,7 +102,7 @@ describe("answering the beacon's collection path", () => {
     const { get } = await deployBeacon();
 
     // When the browser reports an event.
-    const query = beaconQueryString({ event: "route", page: "/liju/" });
+    const query = beaconQueryString([{ event: "route", page: "/liju/" }]);
     const response = await get(`${defaultBeaconPath}?${query}`);
 
     // Then CloudFront answers 204 with nothing in it. The event is the log
@@ -118,10 +118,12 @@ describe("answering the beacon's collection path", () => {
 
     // When an event arrives.
     const response = await get(
-      `${defaultBeaconPath}?${beaconQueryString({
-        event: "vital",
-        page: "/",
-      })}`,
+      `${defaultBeaconPath}?${beaconQueryString([
+        {
+          event: "vital",
+          page: "/",
+        },
+      ])}`,
     );
 
     // Then it is answered at the edge. A request that reached the bucket
@@ -136,10 +138,12 @@ describe("answering the beacon's collection path", () => {
 
     // When the same event is reported twice from the same page, which is the
     // same URL twice.
-    const url = `${defaultBeaconPath}?${beaconQueryString({
-      event: "click",
-      page: "/grammar/",
-    })}`;
+    const url = `${defaultBeaconPath}?${beaconQueryString([
+      {
+        event: "click",
+        page: "/grammar/",
+      },
+    ])}`;
     const first = await get(url);
     const second = await get(url);
 
@@ -179,7 +183,7 @@ describe("answering the beacon's collection path", () => {
 
     // Then that path is the one answered.
     const response = await get(
-      `${path}?${beaconQueryString({ event: "route", page: "/" })}`,
+      `${path}?${beaconQueryString([{ event: "route", page: "/" }])}`,
     );
     assertResponseStatus(response, 204, await describeResponse(response));
   });

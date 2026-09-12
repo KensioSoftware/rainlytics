@@ -7,7 +7,7 @@
 import type { BeaconEvent } from "../beacon-events.js";
 import { defaultBeaconPath } from "../beacon-events.js";
 import { watchRoutes } from "./routes.js";
-import { sendBeaconEvent } from "./send.js";
+import { sendBeaconEvents } from "./send.js";
 
 /**
  * The event name a route change is reported under.
@@ -40,13 +40,28 @@ export interface BeaconOptions {
 /** A running beacon. */
 export interface Beacon {
   /**
-   * Reports one event.
+   * Reports events, all of them in one request.
    *
    * ```typescript
    * beacon.report({ event: "signup", page: location.pathname });
    * ```
+   *
+   * Several at once where the site knows several at once. A request is what
+   * a CloudFront flat-rate plan meters, and #177 has what one event per
+   * request was costing.
+   *
+   * ```typescript
+   * beacon.report(
+   *   { event: "lcp", page, value: 2400 },
+   *   { event: "cls", page, value: 0.02 },
+   * );
+   * ```
+   *
+   * Nothing is held back for a later request. Batching across time would
+   * need a timer, and whatever is still waiting when the page goes away is
+   * lost. Events known at the same instant is the batch this takes.
    */
-  report: (event: BeaconEvent) => void;
+  report: (...events: readonly BeaconEvent[]) => void;
 
   /**
    * Stops reporting and puts back what starting it wrapped.
@@ -82,11 +97,17 @@ export interface Beacon {
  * story built in here would be one more thing every page downloads, and it
  * would be wrong for whichever banner the site actually runs.
  *
- * **There is no sampling.** A beacon event is a row in a log object the site
- * is already paying for, and `beacon-events` bounds a flood in the query
+ * **There is no sampling.** `beacon-events` bounds a flood in the query
  * rather than in the browser. Sampling would cost bytes on every page to
  * save nothing worth saving, and it would put a scaling factor in front of
  * numbers that are otherwise counts.
+ *
+ * What an event costs depends on the CloudFront plan. Under pay-as-you-go it
+ * is a row in a log object the site is already paying for. Under a flat-rate
+ * plan the allowance meters requests, and an event is one of them. #177
+ * measured a site spending 19.3% of its requests on the beacon.
+ * `docs/beacon/` has the numbers. Report several events in one call where
+ * the site knows several at once.
  */
 export function startBeacon(options: BeaconOptions = {}): Beacon {
   const path = options.path ?? defaultBeaconPath;
@@ -97,9 +118,9 @@ export function startBeacon(options: BeaconOptions = {}): Beacon {
   let reported = location.pathname;
   let stopped = false;
 
-  const report = (event: BeaconEvent): void => {
+  const report = (...events: readonly BeaconEvent[]): void => {
     if (!stopped) {
-      sendBeaconEvent(path, event);
+      sendBeaconEvents(path, events);
     }
   };
 

@@ -13,6 +13,7 @@
 
 import {
   aBeaconEvent,
+  beaconEventsJoin,
   beaconEventColumn,
   beaconValueColumn,
   onBeaconPath,
@@ -155,6 +156,7 @@ the day.`,
       `    ${measuredValue} AS value,`,
       `    ${positionInHour} AS seen`,
       `  FROM ${qualifiedTableName(request.dataset)}`,
+      beaconEventsJoin(),
       rowsFor(onBeaconPath(request), [
         ...aBeaconEvent,
         `NOT (${oneOf(beaconEventColumn, rainlyticsEventNames)})`,

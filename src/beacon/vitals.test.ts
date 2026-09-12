@@ -9,18 +9,17 @@ import { describe, it } from "vitest";
 
 import { collectionEndpoint } from "#test/collection-endpoint.js";
 import { performanceTimeline } from "#test/performance-timeline.js";
+import { eventsIn, theEventIn } from "#test/received-beacon-events.js";
 
 import { startBeacon } from "./start.js";
 import { reportVitals, vitalEventNames } from "./vitals.js";
 
 describe("reporting Core Web Vitals", () => {
   /** The value one event carried, read back off the request line. */
-  const valueOf = (request: string): string =>
-    new URLSearchParams(request.split("?")[1]).get("n") ?? "";
+  const valueOf = (request: string): string => theEventIn(request).value;
 
   /** The event name one request carried. */
-  const eventOf = (request: string): string =>
-    new URLSearchParams(request.split("?")[1]).get("e") ?? "";
+  const eventOf = (request: string): string => theEventIn(request).event;
 
   /**
    * A beacon reporting vitals, and the one call that puts both away.
@@ -41,10 +40,19 @@ describe("reporting Core Web Vitals", () => {
     };
   };
 
-  /** What the endpoint received, as event name to value. */
+  /**
+   * What the endpoint received, as event name to value.
+   *
+   * Across requests rather than one per request. LCP and CLS travel together
+   * in one of them since #177, and a case about what was measured should
+   * read the same either way. `requestsCarrying` is what says how many
+   * requests those events arrived in.
+   */
   const reported = (requests: readonly string[]): Record<string, string> =>
     Object.fromEntries(
-      requests.map((request) => [eventOf(request), valueOf(request)]),
+      requests.flatMap((request) =>
+        eventsIn(request).map((event) => [event.event, event.value]),
+      ),
     );
 
   it("reports the time to first byte as soon as it is known", async () => {
@@ -119,12 +127,25 @@ describe("reporting Core Web Vitals", () => {
     // navigation entry stays for the life of the document. So the docs can
     // say to start the beacon wherever the bundle runs, rather than asking
     // for a blocking script on every page.
-    assertObjectEquals(reported(await endpoint.received(4)), {
+    const requests = await endpoint.received(3);
+
+    assertObjectEquals(reported(requests), {
       [vitalEventNames.timeToFirstByte]: "128",
       [vitalEventNames.firstContentfulPaint]: "211",
       [vitalEventNames.largestContentfulPaint]: "980",
       [vitalEventNames.cumulativeLayoutShift]: "0.05",
     });
+
+    // And the two that become final together travel in one request. Four
+    // measurements in three requests rather than four, which is what #177
+    // asked for.
+    assertObjectEquals(
+      eventsIn(requests[2] ?? "").map((event) => event.event),
+      [
+        vitalEventNames.largestContentfulPaint,
+        vitalEventNames.cumulativeLayoutShift,
+      ],
+    );
 
     stop();
     await endpoint.close();
@@ -145,7 +166,7 @@ describe("reporting Core Web Vitals", () => {
     // Then the last one is what is reported, and not before. LCP is not
     // final until the page stops painting, and a value sent early would be
     // whichever element happened to be largest at the time.
-    const requests = await endpoint.received(2);
+    const requests = await endpoint.received(1);
 
     assertIdentical(
       reported(requests)[vitalEventNames.largestContentfulPaint],
@@ -244,11 +265,11 @@ describe("reporting Core Web Vitals", () => {
     const { stop } = watching();
     timeline.emit("largest-contentful-paint", [{ startTime: 900 }]);
     timeline.hide();
-    const first = await endpoint.received(2);
+    const first = await endpoint.received(1);
 
     // When it is hidden again.
     timeline.hide();
-    await endpoint.received(2);
+    await endpoint.received(1);
 
     // Then nothing more is sent. A vital counted twice would weight one
     // reader's page against everybody else's.

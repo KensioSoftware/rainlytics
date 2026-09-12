@@ -16,6 +16,7 @@ import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { type App, CfnOutput, Stack } from "aws-cdk-lib/core";
 import { describe, it } from "vitest";
 
+import { theEventIn } from "#test/received-beacon-events.js";
 import { deployStacks } from "#test/simulated-deployment.js";
 
 import { runAthenaQuery } from "./athena/athena-query.js";
@@ -29,6 +30,7 @@ import {
 import {
   aBeaconEvent,
   beaconEventColumn,
+  beaconEventsJoin,
   beaconMessageColumn,
   beaconSubjectColumn,
   beaconValueColumn,
@@ -46,10 +48,12 @@ import { rollupRequest, rollupSql } from "./rollups.js";
 describe("the beacon event envelope", () => {
   it("stamps every event with the version it was written under", () => {
     // Given an event the beacon is about to send.
-    const sent = beaconQueryString({
-      event: "route",
-      page: "/guides/",
-    });
+    const sent = beaconQueryString([
+      {
+        event: "route",
+        page: "/guides/",
+      },
+    ]);
 
     // Then the version rides with it. The raw store keeps whatever was
     // written into it, so a row has to say which shape it is rather than
@@ -67,28 +71,32 @@ describe("the beacon event envelope", () => {
     const page = `/${faker.word.noun()}/`;
 
     // When it is sent.
-    const sent = beaconQueryString({ event: "route", page });
+    const sent = beaconQueryString([{ event: "route", page }]);
 
-    // Then the page travels in the payload.
-    assertStringIncludes(
-      sent,
-      `${beaconParameters.page}=${encodeURIComponent(page)}`,
-    );
+    // Then the page travels in the payload, and reads back as the address
+    // the reader was on.
+    assertIdentical(theEventIn(`${defaultBeaconPath}?${sent}`).page, page);
   });
 
   it("encodes a value that would otherwise end the query string", () => {
     // Given a page whose address holds the characters that separate one
     // parameter from the next, which a router with a catch-all route can
     // produce.
-    const sent = beaconQueryString({
-      event: "route",
-      page: "/search/?q=a&b=c",
-    });
+    const sent = beaconQueryString([
+      {
+        event: "route",
+        page: "/search/?q=a&b=c",
+      },
+    ]);
 
-    // Then they arrive as text rather than as three more parameters. Read
-    // back, the page is the address the reader was on.
-    assertStringIncludes(sent, "%3Fq%3Da%26b%3Dc");
-    assertArrayLength(sent.split("&"), 3);
+    // Then they arrive as text rather than as three more parameters. The
+    // whole payload is one parameter beside the version, whatever a page
+    // holds, and reading it back gives the address the reader was on.
+    assertArrayLength(sent.split("&"), 2);
+    assertIdentical(
+      theEventIn(`${defaultBeaconPath}?${sent}`).page,
+      "/search/?q=a&b=c",
+    );
   });
 
   it("sends to a path a site is unlikely to serve already", () => {
@@ -253,7 +261,7 @@ describe("a window holding beacon events", () => {
   ): Promise<void> =>
     putRecord(deployed, {
       "cs-uri-stem": defaultBeaconPath,
-      "cs-uri-query": delivered(beaconQueryString(event)),
+      "cs-uri-query": delivered(beaconQueryString([event])),
       "sc-status": "204",
       "sc-content-type": "-",
       "cs(Referer)": delivered(`https://www.example.com${event.page}`),
@@ -281,6 +289,7 @@ describe("a window holding beacon events", () => {
         `    ${beaconSubjectColumn} AS subject,\n` +
         `    ${beaconMessageColumn} AS message\n` +
         `  FROM ${qualifiedTableName()}\n` +
+        `${beaconEventsJoin()}\n` +
         `  WHERE ${partitionPredicate(theHour)}\n` +
         `    AND ${aBeaconEvent.join("\n    AND ")}\n` +
         `  ORDER BY 1\n`,

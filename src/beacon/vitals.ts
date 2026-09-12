@@ -21,6 +21,7 @@
 // behind that. `web-vitals` covering LCP, CLS and INP bundles to 3209 bytes
 // gzipped, against 550 for the four below.
 
+import type { BeaconEvent } from "../beacon-events.js";
 import { vitalEventNames } from "../vital-events.js";
 
 import type { Beacon } from "./start.js";
@@ -63,11 +64,20 @@ const rounded = (value: number, places = 0): number =>
  * `keepalive` on the send exists for, and #111 has why the beacon uses
  * `fetch` for it.
  *
- * TTFB and FCP are known as soon as they happen and go straight out.
+ * **LCP and CLS travel in one request.** Both become final at the same
+ * instant, and #177 measured what sending them separately cost a site on a
+ * CloudFront flat-rate plan. Nothing about when either measurement leaves
+ * the browser changed.
+ *
+ * TTFB and FCP are known as soon as they happen and go straight out, one
+ * request each. Holding TTFB until FCP would pair those two as well, and
+ * #178 has the question that decides it.
  *
  * A page that is never hidden reports neither LCP nor CLS. Every ordinary
  * way of leaving a page hides the document first, including following a link
- * and closing the tab.
+ * and closing the tab. Batching all four into the hide would lose TTFB and
+ * FCP for every page that is never hidden, and #177 measured crawlers as
+ * most of those.
  */
 export function reportVitals(beacon: Beacon): StopVitals {
   const page = location.pathname;
@@ -110,11 +120,23 @@ export function reportVitals(beacon: Beacon): StopVitals {
 
     settled = true;
 
+    const final: BeaconEvent[] = [];
+
     if (paint.reached() > 0) {
-      report(vitalEventNames.largestContentfulPaint, rounded(paint.reached()));
+      final.push({
+        event: vitalEventNames.largestContentfulPaint,
+        page,
+        value: rounded(paint.reached()),
+      });
     }
 
-    report(vitalEventNames.cumulativeLayoutShift, rounded(shift.reached(), 3));
+    final.push({
+      event: vitalEventNames.cumulativeLayoutShift,
+      page,
+      value: rounded(shift.reached(), 3),
+    });
+
+    beacon.report(...final);
   };
 
   document.addEventListener("visibilitychange", settle);

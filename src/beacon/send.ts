@@ -1,4 +1,4 @@
-// How one event leaves the browser.
+// How events leave the browser.
 //
 // A GET to a path on the site's own domain, with the payload in the query
 // string. `BeaconPath` answers it with a 204 from a CloudFront Function and
@@ -6,10 +6,27 @@
 // `beacon-events.ts` holds the envelope and `docs/beacon-path/` has the round
 // trip.
 
-import { type BeaconEvent, beaconQueryString } from "../beacon-events.js";
+import {
+  type BeaconEvent,
+  beaconQueryString,
+  beaconRequestLimit,
+} from "../beacon-events.js";
 
 /**
- * Sends one event to the collection path.
+ * Sends events to the collection path, all of them in one request.
+ *
+ * A request is what a CloudFront flat-rate plan meters, so events known at
+ * the same instant travel together. #177 measured a site spending 19.3% of
+ * its requests on a beacon sending one event at a time.
+ *
+ * An empty list sends nothing. A caller with nothing to report should make no
+ * request, and a row carrying no events would still be counted as traffic.
+ *
+ * A list too long for one URL is split across several. CloudFront refuses a
+ * URL past roughly 8 KB and the refusal loses every event in it, so events
+ * are gathered up to {@link beaconRequestLimit} and each group is sent. An
+ * event that exceeds the limit on its own still goes, since CloudFront
+ * refusing one request is visible and dropping it here would not be.
  *
  * `fetch` rather than `new Image()`, for the two things an image cannot do.
  *
@@ -27,13 +44,45 @@ import { type BeaconEvent, beaconQueryString } from "../beacon-events.js";
  * `mode: "same-origin"` fails a path that is not the site's own. The whole
  * premise is a first-party request into the site's existing CloudFront log,
  * and an absolute URL somewhere else would quietly measure nothing.
+ */
+export function sendBeaconEvents(
+  path: string,
+  events: readonly BeaconEvent[],
+): void {
+  let batch: BeaconEvent[] = [];
+
+  for (const event of events) {
+    const grown = [...batch, event];
+
+    // One event that will not fit on its own is still sent. Dropping it
+    // would lose a measurement where CloudFront refusing it can be seen.
+    if (batch.length > 0 && urlFor(path, grown).length > beaconRequestLimit) {
+      send(urlFor(path, batch));
+      batch = [event];
+    } else {
+      batch = grown;
+    }
+  }
+
+  if (batch.length > 0) {
+    send(urlFor(path, batch));
+  }
+}
+
+/** The URL one request would be sent to, events and all. */
+function urlFor(path: string, events: readonly BeaconEvent[]): string {
+  return `${path}?${beaconQueryString(events)}`;
+}
+
+/**
+ * One request, sent and forgotten.
  *
  * The rejection is swallowed. Nothing reads the response, a failed send is
  * one row that never arrives, and an unhandled rejection in a site's console
  * over lost analytics would be worse than the loss.
  */
-export function sendBeaconEvent(path: string, event: BeaconEvent): void {
-  void fetch(`${path}?${beaconQueryString(event)}`, {
+function send(url: string): void {
+  void fetch(url, {
     keepalive: true,
     credentials: "omit",
     mode: "same-origin",

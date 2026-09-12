@@ -65,7 +65,7 @@ describe("counting how many visitors converted", () => {
         "sc-content-type": "-",
         "sc-status": "204",
         "cs-uri-query": asCloudFrontWrites(
-          beaconQueryString({ event: visit.raised, page: "/shop/" }),
+          beaconQueryString([{ event: visit.raised, page: "/shop/" }]),
         ),
       });
     }
@@ -112,7 +112,7 @@ describe("counting how many visitors converted", () => {
     // Then it answers two out of ten. This is the first question a shop asks
     // and every ingredient was already in the table: a pageview and a
     // purchase were two rows with no join drawn between them.
-    assertObjectEquals(rows, [["2", "10", "20"]]);
+    assertObjectEquals(rows, [["2", "10", "20.0"]]);
   });
 
   it("counts one visitor once however often they raised it", async () => {
@@ -130,7 +130,7 @@ describe("counting how many visitors converted", () => {
     // people rather than events, which is what separates this question from
     // `beacon-events`.
     assertObjectEquals(await answeredRows(deployed, conversionSql()), [
-      ["1", "2", "50"],
+      ["1", "2", "50.0"],
     ]);
   });
 
@@ -147,7 +147,7 @@ describe("counting how many visitors converted", () => {
     // one. A numerator counting them against a denominator that cannot see
     // them is how a conversion rate comes back above 100%.
     assertObjectEquals(await answeredRows(deployed, conversionSql()), [
-      ["0", "1", "0"],
+      ["0", "1", "0.0"],
     ]);
   });
 
@@ -163,10 +163,10 @@ describe("counting how many visitors converted", () => {
     // about signups sees the other. Two questions, two names, two summaries.
     assertObjectEquals(
       await answeredRows(deployed, conversionSql("purchase")),
-      [["1", "2", "50"]],
+      [["1", "2", "50.0"]],
     );
     assertObjectEquals(await answeredRows(deployed, conversionSql("signup")), [
-      ["1", "2", "50"],
+      ["1", "2", "50.0"],
     ]);
   });
 
@@ -186,7 +186,7 @@ describe("counting how many visitors converted", () => {
         deployed,
         conversionSql("purchase", { paths: [ownPath] }),
       ),
-      [["1", "2", "50"]],
+      [["1", "2", "50.0"]],
     );
   });
 

@@ -181,7 +181,7 @@ describe("the named questions, answered from stored summaries", () => {
   const aBeaconRecord = (
     event: BeaconEvent,
   ): Readonly<Record<string, string>> =>
-    aBeaconQueryRecord(beaconQueryString(event));
+    aBeaconQueryRecord(beaconQueryString([event]));
 
   /** One delivered object holding these records. */
   const putDelivered = async (

@@ -1,5 +1,8 @@
 import {
+  assertArrayLength,
+  assertGreaterThan,
   assertIdentical,
+  assertLessThanOrEqual,
   assertObjectEquals,
   assertStringNotIncludes,
 } from "@kensio/smartass";
@@ -13,8 +16,10 @@ import {
   requestsSettled,
 } from "#test/collection-endpoint.js";
 
-import { defaultBeaconPath } from "../beacon-events.js";
-import { sendBeaconEvent } from "./send.js";
+import { eventsIn, theEventIn } from "#test/received-beacon-events.js";
+
+import { beaconRequestLimit, defaultBeaconPath } from "../beacon-events.js";
+import { sendBeaconEvents } from "./send.js";
 
 describe("sending one event", () => {
   it("carries a page whose characters have to be encoded", async () => {
@@ -24,15 +29,14 @@ describe("sending one event", () => {
     const page = "/文法/a b&c=d/";
 
     // When the event is sent.
-    sendBeaconEvent(defaultBeaconPath, { event: "route", page });
+    sendBeaconEvents(defaultBeaconPath, [{ event: "route", page }]);
 
     // Then what arrives decodes back to the path that went in. The value
     // travels through the browser's encoding, CloudFront's own on the way
     // into the record, and `beaconPageColumn` reading both back off.
     const [request] = await endpoint.received(1);
-    const arrived = new URLSearchParams((request ?? "").split("?")[1]);
 
-    assertIdentical(arrived.get("p"), page);
+    assertIdentical(theEventIn(request ?? "").page, page);
     assertStringNotIncludes(request, " ");
 
     await endpoint.close();
@@ -45,10 +49,12 @@ describe("sending one event", () => {
     await endpoint.close();
 
     // When an event is sent to it.
-    sendBeaconEvent(defaultBeaconPath, {
-      event: "route",
-      page: `/${faker.lorem.slug()}/`,
-    });
+    sendBeaconEvents(defaultBeaconPath, [
+      {
+        event: "route",
+        page: `/${faker.lorem.slug()}/`,
+      },
+    ]);
 
     // Then the failure stays inside the beacon. Vitest fails a file over an
     // unhandled rejection, so reaching the end of this case is the
@@ -60,5 +66,56 @@ describe("sending one event", () => {
     await requestsSettled();
 
     assertObjectEquals(endpoint.requests, []);
+  });
+
+  it("splits events too many for one URL across several requests", async () => {
+    // Given far more events than one URL can hold. CloudFront refuses a URL
+    // past roughly 8 KB, and a refused request loses every event in it.
+    const endpoint = await collectionEndpoint();
+    const events = Array.from({ length: 200 }, (_, index) => ({
+      event: "route",
+      page: `/${faker.lorem.slug()}/${String(index)}/`,
+    }));
+
+    // When they are all reported at once.
+    sendBeaconEvents(defaultBeaconPath, events);
+    await requestsSettled();
+
+    // Then every one of them still arrives, across as many requests as it
+    // took, and no request is over the limit.
+    const arrived = endpoint.requests.flatMap((request) => eventsIn(request));
+
+    assertArrayLength(arrived, events.length);
+    assertObjectEquals(
+      arrived.map((event) => event.page),
+      events.map((event) => event.page),
+    );
+    assertGreaterThan(endpoint.requests.length, 1);
+
+    for (const request of endpoint.requests) {
+      assertLessThanOrEqual(request.length, beaconRequestLimit);
+    }
+
+    await endpoint.close();
+  });
+
+  it("sends one event that is too large on its own anyway", async () => {
+    // Given a single event whose own payload exceeds what a URL may carry.
+    // Splitting cannot help, since there is nothing to split.
+    const endpoint = await collectionEndpoint();
+    const message = "x".repeat(beaconRequestLimit);
+
+    // When it is reported.
+    sendBeaconEvents(defaultBeaconPath, [
+      { event: "error", page: "/", message },
+    ]);
+    await requestsSettled();
+
+    // Then it is sent rather than dropped. CloudFront refusing one request
+    // is something a site can see, and a measurement quietly discarded here
+    // is not. `errorMessageLimit` is what keeps a real message under this.
+    assertArrayLength(endpoint.requests, 1);
+
+    await endpoint.close();
   });
 });

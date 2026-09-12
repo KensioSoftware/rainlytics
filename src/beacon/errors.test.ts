@@ -14,6 +14,7 @@ import {
   collectionEndpoint,
   requestsSettled,
 } from "#test/collection-endpoint.js";
+import { theEventIn } from "#test/received-beacon-events.js";
 
 import { errorEventNames, errorMessageLimit, reportErrors } from "./errors.js";
 import type { ErrorOptions } from "./errors.js";
@@ -39,12 +40,10 @@ describe("reporting uncaught errors", () => {
   };
 
   /** The message one event carried, read back off the request line. */
-  const messageOf = (request: string): string =>
-    new URLSearchParams(request.split("?")[1]).get("m") ?? "";
+  const messageOf = (request: string): string => theEventIn(request).message;
 
   /** The event name one request carried. */
-  const eventOf = (request: string): string =>
-    new URLSearchParams(request.split("?")[1]).get("e") ?? "";
+  const eventOf = (request: string): string => theEventIn(request).event;
 
   it("reports what an uncaught error said", async () => {
     // Given a page whose script is about to throw.

@@ -59,6 +59,15 @@ the document it started in, so a single-page app reports one set of vitals per d
 one per route. And LCP and CLS are only final once the page is going away, so a document the browser
 never hides reports neither. Following a link, closing the tab and switching app all hide it first.
 
+## How many requests a page view sends
+
+Three. TTFB goes out as soon as the navigation timing entry can be read, FCP when the paint happens,
+and LCP and CLS together when the document is hidden. Those two become final at the same instant and
+travel in one request.
+
+Batching all four into the hide would cost more than it saves. A document the browser leaves visible
+reports only what went out before it, and a crawler usually leaves one visible.
+
 ## Calculation
 
 The rollup uses Athena `approx_percentile` to calculate p75 separately for TTFB, FCP, LCP and CLS.

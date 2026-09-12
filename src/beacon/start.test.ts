@@ -14,6 +14,8 @@ import {
   requestsSettled,
 } from "#test/collection-endpoint.js";
 
+import { theEventIn } from "#test/received-beacon-events.js";
+
 import { defaultBeaconPath } from "../beacon-events.js";
 import { routeEventName, startBeacon } from "./start.js";
 
@@ -56,10 +58,14 @@ describe("the beacon a site starts", () => {
     // is the gap the browser half exists to fill.
     const [request] = await endpoint.received(1);
 
-    assertIdentical(
-      request,
-      `${defaultBeaconPath}?v=1&e=${routeEventName}&p=${encodeURIComponent(page)}`,
-    );
+    assertStringIncludes(request, `${defaultBeaconPath}?`);
+    assertObjectEquals(theEventIn(request), {
+      event: routeEventName,
+      page,
+      value: "",
+      subject: "",
+      message: "",
+    });
 
     beacon.stop();
     await endpoint.close();
@@ -77,7 +83,7 @@ describe("the beacon a site starts", () => {
     // Then that event is the first thing the collection path hears. Loading
     // the page was a request, CloudFront recorded it, and reporting it here
     // as well would count one view twice in two questions meant to agree.
-    assertStringIncludes(endpoint.requests[0], "e=signup");
+    assertIdentical(theEventIn(endpoint.requests[0] ?? "").event, "signup");
     assertObjectEquals(endpoint.requests, [endpoint.requests[0], marked]);
 
     beacon.stop();
@@ -115,10 +121,14 @@ describe("the beacon a site starts", () => {
     // another row in the same log.
     const [request] = await endpoint.received(1);
 
-    assertIdentical(
-      request,
-      `${defaultBeaconPath}?v=1&e=signup&p=${encodeURIComponent(page)}`,
-    );
+    assertStringIncludes(request, `${defaultBeaconPath}?`);
+    assertObjectEquals(theEventIn(request), {
+      event: "signup",
+      page,
+      value: "",
+      subject: "",
+      message: "",
+    });
 
     beacon.stop();
     await endpoint.close();
@@ -139,7 +149,8 @@ describe("the beacon a site starts", () => {
     // of it is a dataset with no beacon rows in it.
     const [request] = await endpoint.received(1);
 
-    assertIdentical(request, `${path}?v=1&e=signup&p=%2F`);
+    assertStringIncludes(request, `${path}?`);
+    assertIdentical(theEventIn(request).event, "signup");
 
     beacon.stop();
     await endpoint.close();
