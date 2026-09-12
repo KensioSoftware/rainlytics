@@ -163,6 +163,8 @@ export {
 export {
   aBeaconEvent,
   beaconEventColumn,
+  beaconEventsAlias,
+  beaconEventsJoin,
   beaconMessageColumn,
   beaconPageColumn,
   beaconSubjectColumn,

@@ -69,6 +69,62 @@ during synthesis.
 No address or user agent reaches the summary. The query groups by them internally and writes the
 final counts only.
 
+## A question of your own
+
+The package exports the pieces its own beacon questions are built from, so a site can ask something
+Rainlytics does not ship. This one totals what purchases were worth, by page.
+
+```typescript
+import {
+  aBeaconEvent,
+  beaconEventColumn,
+  beaconEventsJoin,
+  beaconPageColumn,
+  beaconValueColumn,
+  onBeaconPath,
+  qualifiedTableName,
+  type Rollup,
+  rowsFor,
+} from "@kensio/rainlytics";
+
+export const takings: Rollup = {
+  name: "takings",
+  summary: "Total what purchases were worth, by page.",
+  description: "Adds up the value every purchase event carried.",
+  isRanked: true,
+  totals: { added: ["purchases", "pennies"] },
+  body: (request) =>
+    [
+      `SELECT ${beaconPageColumn} AS page,`,
+      "  count(*) AS purchases,",
+      `  sum(CAST(${beaconValueColumn} AS bigint)) AS pennies`,
+      `  FROM ${qualifiedTableName(request.dataset)}`,
+      beaconEventsJoin(),
+      rowsFor(onBeaconPath(request), [
+        ...aBeaconEvent,
+        `${beaconEventColumn} = 'purchase'`,
+      ]),
+      "  GROUP BY 1",
+      "  ORDER BY 3 DESC",
+    ].join("\n"),
+};
+```
+
+`beaconEventsJoin()` goes in the `FROM` clause and every beacon column reads through it. One request
+carries as many events as the browser had ready to send, and the join is what turns that row into
+one row per event. A query selecting the columns without it reports `COLUMN_NOT_FOUND`.
+
+`rowsFor` adds the partitions, the timestamp bounds, the bot filter and the path filters.
+`onBeaconPath` fills in the collection path where the request named none, and `aBeaconEvent` is the
+four conditions that say a row is an event rather than a stylesheet carrying `?v=3`.
+
+Cast the value where the question needs arithmetic. `beaconValueColumn` is text, and it reads empty
+for an event that measured nothing. Send money as integer minor units for the reason
+[Beacon](../beacon/) gives.
+
+Add it to `rollups` the way `beaconEvents` is added above, and run it with
+`rainlytics saved-query takings`. Custom questions carry no repeated-event cap of their own.
+
 ## Raw events remain available
 
 The cap changes the query result, not the raw log. Every request remains in S3 until the log bucket

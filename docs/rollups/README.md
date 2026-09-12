@@ -361,7 +361,13 @@ A question over beacon rows also wants `onBeaconPath`, which fills the collectio
 request named none:
 
 ```typescript
-import { aBeaconEvent, onBeaconPath, oneOf, rowsFor } from "@kensio/rainlytics";
+import {
+  aBeaconEvent,
+  beaconEventColumn,
+  onBeaconPath,
+  oneOf,
+  rowsFor,
+} from "@kensio/rainlytics";
 
 rowsFor(onBeaconPath(request), [
   ...aBeaconEvent,
@@ -371,6 +377,11 @@ rowsFor(onBeaconPath(request), [
 
 Without it the question counts every request on the site carrying a `v` parameter, and `?v=3` on a
 stylesheet is an ordinary thing for a site to serve.
+
+The same question needs `beaconEventsJoin()` in its `FROM` clause. One request carries as many
+events as the browser had ready to send, and `beaconEventColumn` and the other beacon columns read a
+field out of the event the join unnested. A query selecting them with no join reports
+`COLUMN_NOT_FOUND`. [Beacon events](../beacon-events/) has a whole question written this way.
 
 These helpers keep custom questions consistent with the built-in URL decoding and path matching.
 

@@ -32,6 +32,11 @@ export const beaconVersionColumn = decodedParameter(beaconParameters.version);
  *
  * {@link beaconEventsJoin} names one column under this alias, holding one
  * packed event. Every column below reads a field out of it.
+ *
+ * Exported from the package root beside the join. A site writing SQL around
+ * the join reaches for the alias by name, in a `GROUP BY` or an aggregate
+ * over the packed column, and `"beacon"` written out there is a second
+ * statement of a name this module owns.
  */
 export const beaconEventsAlias = "beacon";
 
@@ -151,6 +156,12 @@ function packedField(field: (typeof beaconEventFields)[number]): string {
  * ```typescript
  * [`FROM ${qualifiedTableName(request.dataset)}`, beaconEventsJoin()].join("\n");
  * ```
+ *
+ * Exported from the package root for the reason `rowsFor` and `aBeaconEvent`
+ * are. Every beacon column this module exports reads through the alias this
+ * introduces, so a question written outside the package needs the join as
+ * much as the five shipped ones do. Without it those columns build SQL
+ * naming a table nothing declared.
  */
 export function beaconEventsJoin(): string {
   return (
