@@ -83,15 +83,20 @@ export const firstByteWait = 4000;
  * `keepalive` on the send exists for, and #111 has why the beacon uses
  * `fetch` for it.
  *
- * **A page view costs two requests.** TTFB is known before anything paints,
- * so it waits and travels with FCP. LCP and CLS become final at the same
- * instant and travel together when the document hides. #177 and #178 have
- * what a request costs a site on a CloudFront flat-rate plan.
+ * **A page view usually costs two requests.** TTFB is known before anything
+ * paints, so it waits and travels with FCP. LCP and CLS become final at the
+ * same instant and travel together when the document hides. #177 and #178
+ * have what a request costs a site on a CloudFront flat-rate plan.
  *
  * TTFB stops waiting after {@link firstByteWait}, or sooner where the page is
  * hidden first, in which case it goes with LCP and CLS. A quarter of the
  * pages that report TTFB never paint at all, so a wait with no end would drop
  * those and leave a measurement biased towards pages that paint.
+ *
+ * A page painting after that wait costs three. TTFB has gone on its own by
+ * then and FCP has nothing left to travel with, so it goes on its own too.
+ * Holding FCP for the hide instead would lose it on every page the browser
+ * never hides, which is the trade #177 already refused.
  *
  * A page that is never hidden reports neither LCP nor CLS. Every ordinary
  * way of leaving a page hides the document first, including following a link

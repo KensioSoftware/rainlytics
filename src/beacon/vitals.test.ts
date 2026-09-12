@@ -82,29 +82,43 @@ describe("reporting Core Web Vitals", () => {
     await endpoint.close();
   });
 
-  it("sends the time to first byte alone where nothing ever paints", async () => {
-    // Given a page that records its navigation timing and never paints. A
-    // crawler that fetches without rendering is the ordinary case, and #177
+  it("stops waiting for a paint that is too late, and sends both alone", async () => {
+    // Given a page that records its navigation timing and has not painted.
+    // A crawler that fetches without rendering never paints at all, and #177
     // measured roughly a quarter of the pages reporting TTFB as ones that
     // never reported FCP.
     const endpoint = await collectionEndpoint();
     const timeline = performanceTimeline();
     timeline.emit("navigation", [{ responseStart: 96 }]);
 
-    // When the vitals are reported and no paint follows.
+    // When the vitals are reported and the wait runs out with no paint.
     //
     // This case waits out `firstByteWait` for real. Vitest's fake timers stop
     // the collection endpoint settling its requests, so simulating the clock
     // here measures nothing arriving rather than the wait ending.
     const { stop } = watching();
 
-    // Then TTFB still arrives once the wait is over. Holding it for a paint
-    // that never comes would drop the measurement and leave what is left
-    // biased towards the pages that do paint, which are the faster ones.
-    const [request] = await endpoint.received(1);
+    // Then TTFB arrives on its own. Holding it for a paint that never comes
+    // would drop the measurement and leave what is left biased towards the
+    // pages that do paint, which are the faster ones.
+    const [first] = await endpoint.received(1);
 
-    assertObjectEquals(reported([request ?? ""]), {
+    assertObjectEquals(reported([first ?? ""]), {
       [vitalEventNames.timeToFirstByte]: "96",
+    });
+
+    // And a paint arriving after that goes on its own too, since TTFB has
+    // already gone and there is nothing left for it to travel with. That is
+    // the page view that costs three requests rather than two. Holding FCP
+    // for the hide instead would lose it on every page nobody hides.
+    timeline.emit("paint", [
+      { name: "first-contentful-paint", startTime: 4800 },
+    ]);
+
+    const [, second] = await endpoint.received(2);
+
+    assertObjectEquals(reported([second ?? ""]), {
+      [vitalEventNames.firstContentfulPaint]: "4800",
     });
 
     stop();

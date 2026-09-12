@@ -62,8 +62,12 @@ all hide it first.
 
 ## How many requests a page view sends
 
-Two. TTFB is known before anything paints. It waits for FCP and the two travel together, and LCP and
-CLS become final at the same instant and travel together when the document is hidden.
+Two, on a page that paints within four seconds. TTFB is known before anything paints. It waits for
+FCP and the two travel together, and LCP and CLS become final at the same instant and travel
+together when the document is hidden.
+
+A page that paints after that wait sends three. TTFB has gone on its own by then, so the paint goes
+on its own when it arrives, and LCP and CLS still follow at the hide.
 
 TTFB stops waiting after four seconds, or sooner if the page is hidden first, in which case it goes
 with LCP and CLS. Roughly a quarter of the pages reporting TTFB never paint, mostly crawlers, and a
