@@ -36,6 +36,22 @@ import {
   beaconValueColumn,
 } from "./beacon-rows.js";
 import { qualifiedTableName } from "./dataset.js";
+// What a consuming site can import, reached the way a consuming site reaches
+// it. The case at the end of this file writes a rollup out of these alone, and
+// a name that stops being exported from here fails to compile rather than
+// going unnoticed until somebody installs the package.
+import {
+  aBeaconEvent as anExportedBeaconEvent,
+  beaconEventColumn as exportedEventColumn,
+  beaconEventsJoin as exportedEventsJoin,
+  beaconValueColumn as exportedValueColumn,
+  onBeaconPath as exportedOnBeaconPath,
+  qualifiedTableName as exportedTableName,
+  rollupRequest as exportedRollupRequest,
+  type Rollup as ExportedRollup,
+  rollupSql as exportedRollupSql,
+  rowsFor as exportedRowsFor,
+} from "./index.js";
 import { partitionPredicate } from "./rollup-rows.js";
 import { CloudFrontLogDelivery } from "./cdk/log-delivery.js";
 import { LogBucket } from "./cdk/log-bucket.js";
@@ -512,6 +528,79 @@ describe("a window holding beacon events", () => {
       rows.map((row) => row["term"]),
       ["green tea"],
     );
+  });
+
+  /**
+   * One request carrying several events, which is what a version 2 row is.
+   *
+   * The shape the join exists for. A query reading the columns straight off
+   * this row answers one event where the reader sent three.
+   */
+  const putBeaconPayloads = (
+    deployed: Deployed,
+    events: readonly BeaconEvent[],
+  ): Promise<void> =>
+    putRecord(deployed, {
+      "cs-uri-stem": defaultBeaconPath,
+      "cs-uri-query": delivered(beaconQueryString(events)),
+      "sc-status": "204",
+      "sc-content-type": "-",
+      "cs(Referer)": delivered("https://www.example.com/checkout/"),
+      "x-edge-result-type": "FunctionGeneratedResponse",
+    });
+
+  it("answers a rollup a site built out of the package's exports alone", async () => {
+    // Given an hour holding one request that carried three events, which is
+    // the row a version 2 beacon writes.
+    const deployed = await deployAnalytics();
+    await putBeaconPayloads(deployed, [
+      { event: "route", page: "/checkout/" },
+      { event: "purchase", page: "/checkout/", value: 2499 },
+      { event: "purchase", page: "/checkout/", value: 1250 },
+    ]);
+
+    // And a question written the way a site writes one, out of names imported
+    // from the package root and nothing else.
+    const takings: ExportedRollup = {
+      name: "takings",
+      summary: "Total what purchases were worth.",
+      description: "Adds up the value every purchase event carried.",
+      isRanked: false,
+      body: (request) =>
+        [
+          `SELECT ${exportedEventColumn} AS event,`,
+          `  count(*) AS events,`,
+          `  sum(CAST(${exportedValueColumn} AS bigint)) AS pennies`,
+          `  FROM ${exportedTableName(request.dataset)}`,
+          exportedEventsJoin(),
+          exportedRowsFor(exportedOnBeaconPath(request), [
+            ...anExportedBeaconEvent,
+            `${exportedEventColumn} = 'purchase'`,
+          ]),
+          "  GROUP BY 1",
+        ].join("\n"),
+    };
+
+    // When Athena runs it.
+    const outcome = await runAthenaQuery({
+      sql: exportedRollupSql(
+        takings,
+        exportedRollupRequest({ range: theHour }),
+      ),
+      database: "rainlytics",
+      workgroup: "rainlytics",
+      region: "us-east-1",
+    });
+
+    // Then it answers both purchases out of the one row that carried them.
+    // The columns read through the alias `beaconEventsJoin` introduces. A
+    // query dropping the join answers nothing here and raises
+    // COLUMN_NOT_FOUND on Athena itself, which is what makes every beacon
+    // column exported beside it unusable without it.
+    assertIdentical(outcome.state, "SUCCEEDED");
+    assertObjectEquals(outcome.rows, [
+      { event: "purchase", events: "2", pennies: "3749" },
+    ]);
   });
 
   it("leaves beacon events out of the cache hit ratio", async () => {
