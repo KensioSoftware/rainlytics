@@ -1,7 +1,9 @@
 # JavaScript errors
 
-The `javascript-errors` command counts uncaught exceptions and unhandled promise rejections by page
-and message.
+The `javascript-errors` command counts browser errors by page and message. It includes uncaught
+exceptions and unhandled promise rejections.
+
+Add the optional rollup to your scheduled questions:
 
 ```typescript
 import { javascriptErrors, rollups } from "@kensio/rainlytics";
@@ -45,7 +47,8 @@ every scheduled window. Adding it under the default schedule adds 50 Athena quer
 ## Grouping and redaction
 
 Rows group by the exact page and message sent by the browser. Error and rejection events with the
-same page and message share one row. Interpolated identifiers create separate groups.
+same page and message share one row. If a message includes a different order ID on each request,
+each ID produces a separate row.
 
 Normalize a message before sending when several values should form one group:
 
@@ -81,9 +84,9 @@ Use the same path with `BeaconPath` and `startBeacon`.
 
 ## Combined windows
 
-Error counts add across stored windows. Rows match on page and message. Rankings across several
-windows are approximate because each summary only stores its leading rows. Add `--query` to rank
-all raw events across the full range.
+The command adds counts for matching page and message pairs across stored windows. Each summary
+stores only its highest-ranked rows, so the combined ranking may omit errors that were below the
+limit in individual windows. Add `--query` to rank all raw events across the full range.
 
 <!-- card
 ```bash

@@ -1,7 +1,10 @@
 # Browser beacon
 
-The browser beacon records events that CloudFront page requests miss, including SPA route
-changes and events raised by the site.
+The browser beacon records route changes within a single-page app (SPA) and custom events such as
+signups or purchases. These actions may not make a page request that CloudFront can log.
+
+Deploy [Beacon path](../beacon-path/) first, then add the module to your site's existing JavaScript
+bundle:
 
 ```typescript
 import { startBeacon } from "@kensio/rainlytics/beacon";
@@ -9,8 +12,10 @@ import { startBeacon } from "@kensio/rainlytics/beacon";
 const beacon = startBeacon();
 ```
 
-Import it into your site's existing JavaScript bundle. Deploy [Beacon path](../beacon-path/) first
-so `/_rainlytics` returns 204 at the CloudFront edge.
+The beacon sends GET requests to `/_rainlytics` on the site's own domain. A CloudFront Function
+returns 204 and CloudFront records each request in the access log. Requests use `fetch` with
+`credentials: "omit"` and `keepalive: true`. The beacon sends no cookies and creates no browser
+identifier.
 
 ## Report events
 
@@ -36,17 +41,17 @@ beacon.report({
 });
 ```
 
-A request carries one envelope version and every event it reports, and CloudFront writes it as one
-log record. Each event inside it carries an event name and a page, and can also carry a number, a
-subject naming what the number is about, and a text message. A query unpacks that record back into
-one row per event, so a request is what the plan meters and an event is what a question counts.
+A request can contain several events. Each event has an `event` name and a `page` path. Optional
+fields are `value` for a number, `subject` for what it measures (such as a SKU), and `message` for
+text. CloudFront stores one log record per request. Rainlytics queries unpack that record into
+one row per event.
 
 Keep personal data out of event names, pages, subjects and messages. These values remain in the raw
 log until its lifecycle expires them.
 
 ## Report several events in one request
 
-`report` takes as many events as the site has to hand, and sends them in one request:
+Pass several events to one `report` call to send them together:
 
 ```typescript
 beacon.report(
@@ -55,40 +60,33 @@ beacon.report(
 );
 ```
 
-Nothing is held back for a later request. Events passed in one call travel together, and a call made
-a second later is a second request. That keeps the beacon free of a timer, and of the events a timer
-would still be holding when the page goes away.
+Each call sends immediately. Separate calls make separate requests. If a batch would exceed the
+request size limit, the beacon splits it across several requests.
 
 ## What the beacon costs
 
-Under CloudFront pay-as-you-go pricing, an event is a row in a log object the site is already paying
-for, and requests cost a fraction of a cent per ten thousand.
+Under CloudFront pay-as-you-go pricing, beacon requests incur request and function invocation
+charges. Their log records also contribute to S3 storage and Athena scans. See
+[Beacon path](../beacon-path/#limits-and-cost).
 
-Under a CloudFront flat-rate plan the allowance meters requests, and a beacon event is one of them.
-On one measured site the beacon accounted for 19.3% of all requests in an hour, against an allowance
-the site was using 80% of in 11 days. Data transfer was nowhere near its own allowance. If a site is
-on a flat-rate plan, requests are the dimension to watch, and reporting several events per call is
-what reduces them.
+Under a [CloudFront flat-rate plan](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/flat-rate-pricing-plan.html),
+beacon requests count toward the monthly request allowance. Sending several events in one request
+reduces that usage. Monitor request counts as well as data transfer.
 
 ## Send numbers as integer minor units
 
-`value` is a number and Rainlytics never asks what it means. Send money as an integer count of the
-smallest unit: 4995 for £49.95, and 4995 again for $49.95.
+Rainlytics stores `value` without a unit or currency. For money, send an integer in the smallest
+currency unit. For example, send `4995` for £49.95 or $49.95. This avoids floating-point rounding
+errors when summing amounts.
 
-Two reasons. A total is a sum over thousands of rows, and floats drift over a sum where integers do
-not. And the alternative is a unit on every row, which would be bytes paid on every Web Vital as
-well, for something a site already knows about its own events.
+Choose a unit for each event name before collecting data and keep it consistent. Mixing pounds
+and pence, or different currencies, produces an invalid total. See [Rollups](../rollups/) for the
+query that sums these values.
 
-The unit is a site's own convention and nothing checks it. A deployment that sent pounds for a
-month and pence after it has a total that means neither, so pick one before the first event goes
-out. `docs/rollups/` has the question that adds these up.
+## Report an order with several items
 
-## Report something with more parts than the envelope holds
-
-The envelope carries one number, one subject and one message. An order with three lines has more
-parts than that, and there is no JSON payload to reach for.
-
-Send one event per part, under an event name of its own:
+Each event can hold one number, one subject and one message. To report an order and its individual
+items, send separate event names for the order total and the item totals:
 
 ```typescript
 beacon.report({
@@ -108,14 +106,11 @@ for (const line of order.lines) {
 }
 ```
 
-Two event names, because a question totalling both would count the money twice. Each name is a
-question of its own: `purchase` answers what the shop took, and `purchase-line` answers what sold.
+Sum `purchase` events to measure revenue. Group `purchase-line` events by subject to measure sales
+of each item. Summing both event names together would count the same money twice.
 
 Keep the number of events per action small. An order with fifty lines is fifty events, and even
 batched into one request it is fifty rows once a query unpacks it.
-
-The browser sends no cookies. Requests use `fetch` with `credentials: "omit"` and `keepalive: true`.
-The beacon creates no browser identifier.
 
 ## Collect Core Web Vitals
 
@@ -129,18 +124,19 @@ reportVitals(beacon);
 
 Rainlytics reports:
 
-| Event  | Measurement              | Unit         | Sent                    |
-| ------ | ------------------------ | ------------ | ----------------------- |
-| `ttfb` | Time to First Byte       | milliseconds | when available          |
-| `fcp`  | First Contentful Paint   | milliseconds | when available          |
-| `lcp`  | Largest Contentful Paint | milliseconds | when the document hides |
-| `cls`  | Cumulative Layout Shift  | score        | when the document hides |
+| Event  | Measurement              | Unit         |
+| ------ | ------------------------ | ------------ |
+| `ttfb` | Time to First Byte       | milliseconds |
+| `fcp`  | First Contentful Paint   | milliseconds |
+| `lcp`  | Largest Contentful Paint | milliseconds |
+| `cls`  | Cumulative Layout Shift  | score        |
 
-CLS uses the worst session window and ignores shifts after recent user input. LCP and CLS wait until
-the document hides because they can change while the page remains visible.
+TTFB waits up to four seconds for FCP so they can share one request. LCP and CLS share a request
+when the document first becomes hidden. CLS uses the worst session window and ignores shifts
+after recent user input. See [Web Vitals](../web-vitals/) for timing and calculation details.
 
-INP calculation needs interaction grouping and percentile logic. Rainlytics leaves that calculation
-to `web-vitals`, and a site can report the result:
+Rainlytics does not calculate Interaction to Next Paint (INP). You can collect it with the
+`web-vitals` library and report the result:
 
 ```typescript
 import { onINP } from "web-vitals";
@@ -191,7 +187,7 @@ Stop reporting when consent is withdrawn:
 beacon?.stop();
 ```
 
-`stop` restores the wrapped history methods and makes later `report` calls inert.
+`stop` restores the original history methods. Later `report` calls send no requests.
 
 ## Options
 
@@ -207,8 +203,8 @@ framework already provides a router hook and you only want explicit `report` cal
 
 ## Page weight and browser support
 
-The base beacon is currently 586 bytes gzipped. Vitals and errors together bring the complete set
-to 1,349 bytes gzipped. Project checks bundle, minify and gzip each entry point and fail when a size
+The base beacon is currently 707 bytes gzipped. Vitals and errors together bring the complete set
+to 1,559 bytes gzipped. Project checks bundle, minify and gzip each entry point and fail when a size
 budget is exceeded.
 
 The browser target is Baseline 2022 (Chrome and Edge 108, Firefox 108 and Safari 16). A browser

@@ -12,13 +12,13 @@ person read the response.
 The `beaconEvents` rollup caps one visitor's identical events at 60 per hour. The standard bot
 filter also removes clients that identify themselves with common crawler names.
 
-These rules protect the derived count. They do not remove requests from the raw log. You can change
-a query and recompute a poisoned window while its raw objects still exist.
+The filters apply when Athena computes the result. All requests remain in the raw log. If abuse
+distorts a report, you can adjust the query and recompute it while those logs are still available.
 
 A client can avoid the cap by rotating addresses, user agents, pages or event names. Treat event
 counts as signals from an open endpoint.
 
-## Request cost is final
+## Understand request costs
 
 Every abusive request can incur:
 
@@ -29,8 +29,9 @@ Every abusive request can incur:
 Filtering later changes the report only. The Athena workgroup limits one query's scan. CloudFront
 and S3 charges remain outside that limit.
 
-Every component is usage-priced. A large request flood therefore creates a large variable bill even
-though the normal deployment has no fixed monthly capacity.
+Under pay-as-you-go pricing, a large request flood can increase the bill even when those requests
+are excluded from every report. A CloudFront flat-rate plan has different allowances and included
+protections. Check the plan attached to your distribution.
 
 ## Add WAF when its fixed cost is justified
 
@@ -38,9 +39,9 @@ AWS WAF can keep request counts at the edge and apply a rate-based rule to the c
 new web ACL has a monthly charge, each rule has another monthly charge, and request inspection is
 also billed.
 
-At the standard published rates used by the project, one web ACL and one rate-based rule begin at
-$6 per month before request charges. This is much larger than the normal log-storage cost of a quiet
-site. Rainlytics therefore leaves WAF configuration to the site.
+At [standard WAF rates](https://aws.amazon.com/waf/pricing/), one web ACL and one rate-based rule
+cost $6 per month before request charges. This can exceed a quiet site's log-storage cost.
+Configure WAF in the site's CDK app if the protection justifies that cost.
 
 WAF is cheaper to add when the distribution already has a web ACL. Define the rule in the site's
 own CDK app and scope it to `defaultBeaconPath` or the custom path passed to `BeaconPath`.
@@ -51,11 +52,12 @@ layer. Application-level rate limiting requires WAF.
 
 ## Monitor spend
 
-Create an AWS Budget for the account or workload and alert above its normal monthly range. The first
-two AWS Budgets in an account have no charge under the standard pricing described by AWS.
+Create an AWS Budget for the account or workload and alert above its normal monthly range.
+[Budget monitoring and notifications are free](https://aws.amazon.com/aws-cost-management/aws-budgets/pricing/).
+Automatic budget actions and scheduled budget reports have separate pricing.
 
-A budget alert detects CloudFront, function, storage and query growth together. Use the resulting
-traffic and cost data to decide whether a WAF rule is worth its monthly floor.
+A budget can track CloudFront, function, storage and query costs together. Its alerts notify you
+of spending changes. They do not block incoming requests or impose a spending cap.
 
 <!-- card
 ```text

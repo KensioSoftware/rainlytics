@@ -1,7 +1,10 @@
 # Web Vitals
 
 The `web-vitals` command reports the 75th percentile of each performance measurement collected by
-the browser module.
+the browser module. A p75 value means that approximately 75% of the recorded measurements are at
+or below it.
+
+Add the optional rollup to your scheduled questions:
 
 ```typescript
 import { rollups, webVitals } from "@kensio/rainlytics";
@@ -42,56 +45,48 @@ reportVitals(beacon);
 The optional rollup stays outside the defaults because a site without vital events would pay for
 empty Athena queries. Adding it under the default schedule adds 50 queries a day.
 
-## Start it wherever the bundle runs
+## Load with your existing bundle
 
-`reportVitals` can run late. A bundle loaded `async defer` at the end of `<body>` is already past
-the largest paint on a fast page, and every one of the four measurements survives that:
+Call `reportVitals` from your site's existing bundle. It can read measurements recorded before
+the bundle loaded, including when the script uses `async` or `defer`:
 
-- LCP, CLS and FCP come from `PerformanceObserver` with `buffered: true`, which hands over the
-  entries the browser recorded before the observer existed.
-- TTFB comes off the navigation timing entry, which the browser keeps for the life of the document.
+- LCP, CLS and FCP use `PerformanceObserver` with `buffered: true` to receive earlier entries.
+- TTFB uses the navigation timing entry retained by the browser.
 
-So put it wherever the rest of the site's JavaScript goes. Moving it earlier costs a blocking script
-on every page and buys no samples.
-
-Two things do lose measurements, and neither is about when the bundle runs. `reportVitals` measures
-the document it started in. A single-page app reports one set of vitals per document, whatever its
-router does afterwards. LCP and CLS are also only final once the page is going away, and a document
-the browser never hides reports neither of them. Following a link, closing the tab and switching app
-all hide it first.
+The measurements cover the document in which `reportVitals` started. SPA route changes do not
+start a new set of measurements. LCP and CLS are sent when the document first becomes hidden.
+They are not sent if the browser never reports that visibility change.
 
 ## How many requests a page view sends
 
-Two, on a page that paints within four seconds. TTFB is known before anything paints. It waits for
-FCP and the two travel together, and LCP and CLS become final at the same instant and travel
-together when the document is hidden.
+Web Vitals usually add two requests per document:
 
-A page that paints after that wait sends three. TTFB has gone on its own by then, so the paint goes
-on its own when it arrives, and LCP and CLS still follow at the hide.
+1. TTFB and FCP are sent together when FCP becomes available.
+2. LCP and CLS are sent together when the document becomes hidden.
 
-TTFB stops waiting after four seconds, or sooner if the page is hidden first, in which case it goes
-with LCP and CLS. Roughly a quarter of the pages reporting TTFB never paint, mostly crawlers, and a
-wait with no end would drop those. What survived would be a TTFB measurement biased towards the
-pages that paint, which are the faster ones.
+The wait for FCP lasts four seconds from the call to `reportVitals`. If it takes longer, TTFB is
+sent alone. FCP is then sent when available, making three requests if all four measurements are
+collected. If the document becomes hidden during the wait, TTFB goes with LCP and CLS.
 
-Only the second pair waits for the hide. A document the browser leaves visible reports whatever went
-out before it, and a crawler usually leaves one visible.
+The timeout preserves TTFB measurements from pages that never report a paint, including some
+crawlers. A document that stays visible can still report TTFB and FCP.
 
 ## Calculation
 
 The rollup uses Athena `approx_percentile` to calculate p75 separately for TTFB, FCP, LCP and CLS.
 It ignores route events, errors, custom event names, negative values and invalid numbers.
 
-The answer is site-wide. Use `--host` when one distribution serves several hostnames. `--path`
-selects the beacon collection path, not the page reported inside each event.
+The answer covers all reported pages. Use `--host` when one distribution serves several
+hostnames. `--path` selects the beacon collection path. It cannot filter by the page inside an
+event.
 
 INP is absent from the shipped rollup. A site can collect it through `web-vitals` and define a
 custom rollup.
 
 ## Read a useful sample
 
-A percentile from one sample is that sample. Small hourly samples can move sharply, so read
-`samples` beside `p75`.
+Check `samples` alongside `p75`. With one sample, p75 is simply that measurement. Small samples
+can produce large changes between hours.
 
 Run one longer Athena query for a steadier value:
 

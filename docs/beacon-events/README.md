@@ -38,8 +38,7 @@ page        event    events
 /checkout/  signup       38
 ```
 
-The page comes from the event's `p` parameter. The request itself always goes to the collection
-path.
+The page comes from the event's `page` field. The HTTP request itself goes to the collection path.
 
 ## Opt in
 
@@ -58,21 +57,19 @@ The request must name the collection path. If `BeaconPath` uses `/_measure`, use
 The collection path is open and unauthenticated. `beaconEvents` counts one visitor's identical
 events at most 60 times an hour. The key contains the visitor, page, event name and log hour.
 
-This cap allows real traffic to grow with the audience while limiting one client that repeats the
-same event URL. A client can bypass the cap by rotating addresses, user agents, pages or event
-names.
+The limit applies separately to each visitor, page, event name and hour. A client can bypass it
+by changing its address, user agent, page or event name.
 
 The cap requires the viewer address and user agent from the access log. A delivery using
 `logFieldNamesWithoutAddress` cannot schedule `beaconEvents`. Rainlytics rejects that combination
 during synthesis.
 
-No address or user agent reaches the summary. The query groups by them internally and writes the
-final counts only.
+The query uses addresses and user agents internally. Summaries contain only the final counts.
 
-## A question of your own
+## Write a custom beacon rollup
 
-The package exports the pieces its own beacon questions are built from, so a site can ask something
-Rainlytics does not ship. This one totals what purchases were worth, by page.
+Use the exported SQL helpers to define a custom rollup over beacon events. This example counts
+purchases and sums their values by page:
 
 ```typescript
 import {
@@ -110,20 +107,21 @@ export const takings: Rollup = {
 };
 ```
 
-`beaconEventsJoin()` goes in the `FROM` clause and every beacon column reads through it. One request
-carries as many events as the browser had ready to send, and the join is what turns that row into
-one row per event. A query selecting the columns without it reports `COLUMN_NOT_FOUND`.
+Add `beaconEventsJoin()` after the table in the `FROM` clause. It expands each log record into
+one row per event and supports both beacon protocol versions. Every beacon field expression
+reads from this join. Omitting it produces a `COLUMN_NOT_FOUND` error.
 
-`rowsFor` adds the partitions, the timestamp bounds, the bot filter and the path filters.
-`onBeaconPath` fills in the collection path where the request named none, and `aBeaconEvent` is the
-four conditions that say a row is an event rather than a stylesheet carrying `?v=3`.
+`rowsFor` applies the request's partition, timestamp, bot, host and path filters. `onBeaconPath`
+supplies the default collection path when no path was specified. `aBeaconEvent` requires a GET
+request with a query string, a version and a nonempty event name.
 
-Cast the value where the question needs arithmetic. `beaconValueColumn` is text, and it reads empty
-for an event that measured nothing. Send money as integer minor units for the reason
-[Beacon](../beacon/) gives.
+`beaconValueColumn` returns text, including an empty string when an event has no value. Filter
+to the events you need and cast values before arithmetic. For money, use consistent integer
+minor units as described in [Browser beacon](../beacon/#send-numbers-as-integer-minor-units).
 
-Add it to `rollups` the way `beaconEvents` is added above, and run it with
-`rainlytics saved-query takings`. Custom questions carry no repeated-event cap of their own.
+Add the rollup to `RollupSummaries` and save it with `RollupQueries`, as in the first example.
+Run it with `rainlytics saved-query takings`. Custom rollups must implement any repeated-event
+cap they need. This example has none.
 
 ## Raw events remain available
 

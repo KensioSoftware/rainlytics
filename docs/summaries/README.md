@@ -1,7 +1,7 @@
 # Rollup summaries
 
-A rollup summary is one precomputed question over one closed time window. `RollupSummaries` writes
-the JSON document to S3 and named CLI commands read it with `GetObject`.
+A rollup summary is the stored result of one analytics query over a completed hour or day.
+`RollupSummaries` writes it as JSON in S3. Named CLI commands read the object with `GetObject`.
 
 ## Document format
 
@@ -35,8 +35,8 @@ Import the type from the package root:
 import type { RollupSummary } from "@kensio/rainlytics";
 ```
 
-`question` records the rollup name, bot choice, row limit and any host, path or search settings. A
-reader can verify that a stored answer matches the question it was asked.
+`question` records the rollup name, whether bots were included, the row limit and any host, path
+or search filters. Readers use these fields to check whether the summary matches their request.
 
 `columns` stays present when `rows` is empty. Every row value is text or `null`, matching Athena
 results. All timestamps are ISO 8601 strings.
@@ -67,8 +67,8 @@ const key = summaryKey(question, {
 Any instant inside a window produces the same key. A later run replaces the object, allowing late
 CloudFront logs or a corrected query to update the answer.
 
-Only the question name appears in the key. Schedule distinct narrowings under distinct rollup names
-so they cannot overwrite each other.
+Only the question name appears in the key. Give differently filtered versions of a question
+distinct rollup names to prevent them from overwriting each other.
 
 ## Hourly and daily windows
 
@@ -78,7 +78,7 @@ from raw logs.
 Daily summaries reduce the number of S3 reads for long ranges. Hourly summaries cover short ranges,
 fill gaps when a daily run failed and let reports assemble local calendar days.
 
-Daily summaries are not built by adding hourly rows. Direct calculation avoids three errors:
+Daily summaries query the raw logs again. Combining hourly results could lose information:
 
 - a ranked top list can lose rows that were below the limit in each hour
 - visitor identities cannot be added across independently salted periods
@@ -86,8 +86,9 @@ Daily summaries are not built by adding hourly rows. Direct calculation avoids t
 
 ## Empty and missing windows
 
-An empty `rows` array means the query ran and found no matching traffic. A missing S3 object means
-the window was never computed.
+An empty `rows` array means the query completed and found no matching traffic. A missing S3 object
+means there is no stored result for that window. The job may not have run, may have failed, or the
+object may have been removed.
 
 The package represents a missing object with `neverComputed`:
 
@@ -108,7 +109,7 @@ This distinction lets a CLI command separate a quiet window from a failed or not
 The schema version appears in both the key and the document. A breaking format change uses a new
 prefix such as `summaries/v2/`. Readers ask for the version they understand.
 
-Optional fields can be added without changing the version. This is how `visitors` was added.
+Optional fields, such as `visitors`, can be added without changing the version.
 
 ## Read summaries
 
@@ -122,9 +123,9 @@ rainlytics pageviews --last 7d
 The command selects complete daily windows first and uses hourly windows around them. It reports the
 actual covered span and any missing windows on standard error.
 
-A missing window in the middle stops the read because silently skipping it would undercount the
-result. A missing window at either edge is reported and omitted. A range with no stored windows also
-stops. Use `--query` when you choose to calculate the answer from Athena.
+A missing window in the middle stops the read to avoid reporting an incomplete total. Missing
+windows at either edge are reported and omitted. A range with no stored windows also stops.
+Use `--query` to calculate the rollup rows from the available raw logs in Athena.
 
 Reading needs `s3:GetObject` on the summaries bucket. Grant it with:
 
@@ -138,9 +139,9 @@ summaries.grantReadingSummaries(role);
 "visitors": { "distinct": 317, "additive": false }
 ```
 
-`additive: false` prevents a reader from treating daily visitor counts as normal totals. The same
-browser can appear in several windows, and daily salts prevent those identities from being linked by
-adding summary values. Use a period-wide raw query or a calendar report for a longer visitor count.
+`additive: false` marks a count that cannot be added across windows. A returning browser can
+appear in several windows, and the stored counts contain no identities to deduplicate. Use a
+calendar report for a visitor count over a longer period.
 
 See [Counting visitors](../visitors/).
 

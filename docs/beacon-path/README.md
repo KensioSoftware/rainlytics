@@ -1,6 +1,7 @@
 # Beacon path
 
-`BeaconPath` adds a first-party event collection route to an existing CloudFront distribution.
+`BeaconPath` adds the URL that receives browser events on your own domain. Add it to the
+CloudFront distribution that serves the measured site:
 
 ```typescript
 import { BeaconPath } from "@kensio/rainlytics/cdk";
@@ -28,8 +29,8 @@ GET /_rainlytics?v=1&e=route&p=%2Farticles%2F
 CloudFront writes `cs-uri-query` independently of the cache key and origin forwarding settings. The
 function ignores the payload and returns the same empty response for every matching request.
 
-The event enters the same S3 objects, Glue table and Athena queries as normal page requests. There
-is no separate ingestion API.
+The event is stored in the same access logs as normal page requests. Rainlytics reads it through
+the same Glue table and Athena workgroup.
 
 ## Choose the path
 
@@ -66,9 +67,9 @@ new BeaconPath(this, "BeaconPath", {
 });
 ```
 
-The default managed cache policy excludes query strings from the cache key. The function normally
-ends the request before the cache, but the safe fallback is one cached path rather than one key per
-event.
+The managed cache policy excludes query strings from the cache key. The function normally
+returns before CloudFront checks the cache. If the function is removed, this policy uses one cache
+key for the path.
 
 The response includes `cache-control: no-store`, which prevents a browser from satisfying a repeated
 event from its own cache.
@@ -78,12 +79,11 @@ event from its own cache.
 CloudFront accepts up to 8,192 bytes for the path and query string and 32,768 bytes for the complete
 request. Events above either limit receive 414, and CloudFront drops their payload.
 
-A viewer-request CloudFront Function costs $0.10 per million invocations at the documented standard
-rate. CloudFront request and log storage charges also apply. Every charge scales with requests.
+A viewer-request CloudFront Function costs $0.10 per million invocations at the standard
+pay-as-you-go rate, before free-tier allowances. CloudFront request and log storage charges also
+apply. Check [CloudFront pricing](https://aws.amazon.com/cloudfront/pricing/) for your plan.
 
-A cached origin object would avoid the function invocation charge, but it would require every site
-origin to serve the object, allow occasional origin misses and inflate the cache hit ratio. The
-function keeps all event handling at the edge.
+The function handles event requests entirely at the edge and sends no traffic to the origin.
 
 ## Logged result type
 

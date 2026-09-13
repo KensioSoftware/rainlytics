@@ -1,7 +1,7 @@
 # Calendar reports
 
-`RollupSummaries` writes JSON reports for closed days, weeks, months and years. Each report contains
-several analytics sections for one calendar period.
+Calendar reports collect your analytics for a completed day, week, month or year in one JSON
+document. `RollupSummaries` creates them alongside the hourly and daily summaries:
 
 ```typescript
 new RollupSummaries(this, "Summaries", {
@@ -25,8 +25,9 @@ rainlytics report month 2026-07
 rainlytics report year 2025
 ```
 
-The date selects a period. A weekly date can be any date inside the week. `--time-zone` and
-`--week-starts-on` must match the deployment because both values are part of the S3 key.
+The date selects the reporting period. For a weekly report, use any date within that week.
+Set `--time-zone` and `--week-starts-on` to match the deployment. These settings determine which
+stored object the command reads.
 
 The command writes the complete JSON report to standard output. Bucket, key, age and S3 request cost
 go to standard error. A report read never starts Athena.
@@ -75,9 +76,9 @@ go to standard error. A report read never starts Athena.
 `period` carries local dates and the exact UTC range. A daylight-saving change can make a local day
 23 or 25 hours long.
 
-Each section records the question, calculation method, source coverage, accuracy and value. A
-missing or malformed source produces an unavailable section rather than a partial value presented
-as complete.
+Each section records the question, calculation method, source coverage, accuracy and value.
+Source coverage describes which time windows were available. A missing or malformed source marks
+the section unavailable.
 
 Import the builders and types from the package root:
 
@@ -93,8 +94,9 @@ import {
 
 ## How sections are calculated
 
-The report job combines stored summaries when their values can be combined correctly. Additive
-counts remain exact. Rankings built from several truncated summaries are marked approximate.
+The report job combines stored summaries when the values support aggregation. Totals that can be
+added remain exact. A ranking built from summaries that stored only their leading rows is marked
+approximate.
 
 The job runs a period-wide Athena query when summary values cannot reproduce the answer. This path
 is used for percentiles, period visitor counts and derived values whose required raw totals are not
@@ -103,8 +105,8 @@ stored. Those sections are marked `period-query`.
 Visitor counts use one salt derived for the complete report period. This lets a browser count once
 without linking its identifier to another calendar period.
 
-The report writer does not use an Athena query to hide missing summary windows. A gap makes the
-affected section unavailable with `incomplete-source`.
+A missing required summary marks the affected section unavailable with `incomplete-source`.
+The writer does not automatically rerun Athena to fill that gap.
 
 ## Object keys
 
@@ -129,9 +131,10 @@ rainlytics report month 2026-07 --compare
 The command reads the selected report and the immediately preceding report. It calculates a
 versioned comparison document without Athena.
 
-Counts use relative percentage change. Cache hit ratio uses percentage points. Web Vital values use
-relative percentage change and treat lower values as better. A zero baseline produces a `null`
-relative change with a `zero-baseline` reason rather than infinity.
+Counts use relative percentage change. Cache hit ratio uses percentage points. Web Vital values
+use relative percentage change and treat lower values as better. A zero baseline produces a
+`null` relative change with a `zero-baseline` reason because a percentage change cannot be
+calculated from zero.
 
 Ranked rows are matched by their non-metric columns. A row present on one side only is unavailable
 because it may have fallen below the other report's stored limit.

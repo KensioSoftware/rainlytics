@@ -1,6 +1,7 @@
 # Query workgroup
 
-`QueryWorkgroup` creates the Athena workgroup used by Rainlytics and a bucket for Athena results.
+`QueryWorkgroup` creates an Athena workgroup and a bucket for query results. The workgroup enforces
+the same scan limit and result location for every query run through it.
 
 ```typescript
 import { QueryWorkgroup } from "@kensio/rainlytics/cdk";
@@ -13,8 +14,8 @@ expire after 7 days.
 
 ## Limit query cost
 
-Athena charges by bytes scanned. A query without partition predicates can read the full log bucket
-and still succeed. The workgroup stops a query when its scan passes the configured limit.
+Athena charges by bytes scanned. A query that omits partition filters can scan the full log
+dataset. The workgroup stops a query when it exceeds the configured scan limit.
 
 At the standard Athena rate of $5 per TB, the 10 GiB default caps one query near five cents. Change
 the limit for your dataset:
@@ -46,9 +47,8 @@ const workgroup = new QueryWorkgroup(this, "Workgroup", {
 });
 ```
 
-Query results are derived data, so the bucket is unversioned. CloudWatch query metrics are disabled
-because those custom metrics have a monthly charge even when no query runs. The CLI reads scan and
-duration data from Athena after each query.
+The results bucket is unversioned. CloudWatch query metrics are disabled to avoid custom metric
+charges. The CLI reads scan size and duration directly from Athena after each query.
 
 ## Grant query access
 
@@ -83,8 +83,9 @@ const workgroup = new QueryWorkgroup(this, "DocsWorkgroup", {
 });
 ```
 
-Pass the same name to the CLI with `--workgroup` or configure it in your shell command. Queries that
-omit a workgroup run in Athena's `primary` workgroup and bypass this scan limit.
+Pass the same name to the CLI with `--workgroup` or `RAINLYTICS_WORKGROUP`. When using Athena
+directly, select this workgroup too. Athena requests that omit a workgroup use `primary`, which
+has its own settings and does not enforce the Rainlytics scan limit.
 
 ## Removal
 

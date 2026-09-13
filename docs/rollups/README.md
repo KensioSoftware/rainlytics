@@ -1,7 +1,7 @@
 # Rollups
 
-A rollup is a named analytics question. Rainlytics generates its Athena SQL, schedules it and gives
-it a command-line name.
+A rollup is a named analytics query, such as pageviews grouped by path. Rainlytics runs it in Athena
+on a schedule and stores the result in S3. Built-in CLI commands read those stored results:
 
 ```bash
 rainlytics pageviews --last 7d
@@ -20,156 +20,12 @@ rainlytics pageviews --last 7d
 
 The exported `rollups` array contains these six questions.
 
-`javascript-errors`, `web-vitals` and `beacon-totals` are optional questions for sites using the
-browser module. `beacon-events` and the `conversions-<event>` questions `conversionsOf` builds are
-optional too, and both run through `saved-query`. Optional questions are excluded from the defaults
-because a site without those browser events would pay for empty queries. `conversionsOfPath` is the
-one factory that needs no browser module, since it reads requests the access log already holds.
+Browser rollups are optional. Add `javascriptErrors`, `webVitals` or `beaconTotals` when your site
+collects those events. Each has a matching CLI command. `beaconEvents` and the conversion rollups
+are also optional and run through `saved-query`.
 
-## Total what beacon events measured
-
-`beacon-totals` adds up the number each beacon event carried, grouped by event name:
-
-```typescript
-import { beaconTotals, rollups } from "@kensio/rainlytics";
-
-new RollupSummaries(this, "Summaries", {
-  table,
-  workgroup,
-  rollups: [...rollups, beaconTotals],
-});
-```
-
-```bash
-rainlytics beacon-totals --last 7d
-```
-
-```text
-event          events  total
--------------  ------  ------
-purchase           38  94820
-add-to-basket     211  38400
-```
-
-Only events carrying a number are read. Web Vitals and JavaScript errors are left out by name, and
-a route change is left out because it carries no number. A row whose number cannot be read counts in
-`events` and leaves `total` where it was. A site can then see that something sent a value the
-question could not use.
-
-Negative values are kept. A refund reported as a negative amount nets off against the purchases
-beside it.
-
-Send money as integer minor units. [The beacon page](../beacon/) has why.
-
-Both columns add across stored windows, so 24 hourly summaries make the day.
-
-### What one visitor can contribute
-
-One visitor contributes no more than 60 events of one name an hour, the way `beacon-events` bounds a
-count. The rollup therefore names the viewer's address, and `RollupSummaries` refuses a deployment
-whose delivery leaves that field out.
-
-The cap bounds rows and not the value a row carries. A client sending an enormous number a million
-times still contributes sixty of them, which is sixty times a number nobody spent. Capping the value
-itself would clip a genuinely large purchase, and no number separates the two cases.
-
-So a total over an open collection path is a weaker figure than a count over one. What bounds it
-properly is the raw store. Every row is still there, and a site that finds a flood can work out what
-it really took over rows the cap threw away. [Abuse](../abuse/) has the rest.
-
-## Measure a conversion rate
-
-`conversionsOf` builds a question asking how many of a window's visitors raised one beacon event:
-
-```typescript
-import { conversionsOf, rollups } from "@kensio/rainlytics";
-
-new RollupSummaries(this, "Summaries", {
-  table,
-  workgroup,
-  rollups: [...rollups, conversionsOf("purchase")],
-});
-```
-
-```bash
-rainlytics saved-query conversions-purchase
-```
-
-```text
-converted  visitors  converted_percent
----------  --------  -----------------
-       17       842                2.0
-```
-
-A factory rather than a rollup, because a site converting on `purchase` and on `signup` is asking
-two questions. Each takes a name of its own, so each gets its own saved query, schedule and summary
-key.
-
-`visitors` counts everybody who looked at a page, over the same rows the visitor count beside
-`pageviews` is taken over. `converted` counts the ones who also raised the event. Somebody who
-raised it without looking at a page in the same window counts in neither, which holds the proportion
-at or below one.
-
-A visitor here is the viewer's address and their user agent, the pair a visitor count is hashed
-from. Neither value leaves the query. The question sets `identifiesViewers`, and `RollupSummaries`
-refuses a deployment whose delivery omits the address. A question that cannot tell two visitors
-apart would answer every one of them as one.
-
-`--path` names the beacon's collection path, the way it does for the other questions over beacon
-rows. The visitors counted stay site-wide either way, because the denominator is everybody the
-window saw.
-
-### Read it at a day
-
-A reader who looks at 09:59 and buys at 10:01 is split across two hourly windows, each holding one
-half of the visit. Read this at a day, where almost every visit fits inside one window.
-
-The question declares no totals. A distinct count belongs to the window it was taken over, the way a
-percentile does. Two hours of ten visitors each describe somewhere between ten and twenty people,
-and the stored counts leave that open. A command asked about a longer span reports the windows it
-found and offers `--query` over the whole of it.
-[Counting visitors](../visitors/) has what the daily salt means for a longer span.
-
-### Measure one without a beacon
-
-A server-rendered site converts on a URL. Adding to a basket is a `POST /do/basket/add`, checking
-out is a `POST /do/checkout`, and the order page is a `GET`. CloudFront logged all three.
-`conversionsOfPath` asks the same question over those rows:
-
-```typescript
-import { conversionsOfPath, rollups } from "@kensio/rainlytics";
-
-new RollupSummaries(this, "Summaries", {
-  table,
-  workgroup,
-  rollups: [
-    ...rollups,
-    conversionsOfPath({
-      path: "/do/checkout",
-      method: "POST",
-      statuses: ["303"],
-    }),
-  ],
-});
-```
-
-```bash
-rainlytics saved-query conversions-do-checkout
-```
-
-Reach for `conversionsOf` where the site ships the browser module and raises its own events, and
-for `conversionsOfPath` where it does not. The two answer in the same three columns over the same
-visitors, and everything above about the window, the visitor pair and the missing totals holds for
-both.
-
-`method` and `statuses` each narrow what counts. A checkout that came back 400 is somebody who
-tried, and a question counting it reports a rate the shop never had. Leave both out where reaching
-the path is the whole of the conversion, such as an order page the site answers with HTML.
-
-The path is a prefix, matched the way `--path` is, so `/do/checkout` covers `/do/checkout/1a2b`.
-
-The name comes from the path. `/do/checkout` gives `conversions-do-checkout`. Pass `name` where two
-paths would reduce to the same words, or where the path gives nothing to name a question after.
+`conversionsOfPath` measures conversions from ordinary access-log requests and needs no browser
+module. The examples below show how to configure each optional rollup.
 
 ## Filter a question
 
@@ -180,8 +36,8 @@ rainlytics pageviews --last 24h
 rainlytics referrers --last 2w
 ```
 
-The suffix can be `h`, `d` or `w`. The range becomes partition predicates, which limit the bytes
-Athena reads.
+The suffix can be `h`, `d` or `w`. For stored reads, the range selects summary windows. With
+`--query`, it becomes time and partition filters that limit the logs Athena reads.
 
 Filter by path prefix or host:
 
@@ -224,12 +80,13 @@ Stored ranked results are approximate across several windows because each window
 leading rows. Counts are added and the combined rows are ranked again. A fresh Athena query ranks
 the full range in one pass.
 
-Percentiles and visitor identities cannot be combined from summary values. Commands that need the
-raw distribution or identity set require a single stored window or `--query` for a larger range.
+Percentiles cannot be combined from summary values. For example, `web-vitals` requires a single
+stored window or `--query` for a larger range. Visitor counts also need one calculation over the
+whole period. Use [calendar reports](../reports/) for longer visitor counts.
 
 ## Save the generated SQL
 
-`RollupQueries` stores one Athena named query per rollup, over whatever the schedules compute:
+`RollupQueries` saves SQL in Athena for the rollups configured on `RollupSummaries`:
 
 ```typescript
 import { RollupQueries, RollupSummaries } from "@kensio/rainlytics/cdk";
@@ -251,11 +108,10 @@ Saved queries cover the current month. Run one with:
 rainlytics saved-query searches
 ```
 
-The summaries carry the table, the workgroup, the questions and what each one covers, so a
-deployment names all four once. Adding a question to `RollupSummaries` alone used to give it a
-schedule and leave the console holding the shipped six, and the deploy reported success.
+Passing `summaries` reuses its table, workgroup, rollups and request filters. Add or change a rollup
+on `RollupSummaries` to update both the scheduled and saved queries.
 
-A deployment with no summaries to read passes a table and a workgroup:
+For a deployment without scheduled summaries, pass a table and workgroup directly:
 
 ```typescript
 new RollupQueries(this, "SavedQueries", {
@@ -267,8 +123,147 @@ new RollupQueries(this, "SavedQueries", {
 });
 ```
 
-Both together are refused at synthesis, since the point of the first shape is that there is one
-list.
+Pass either `summaries` or the individual configuration properties. Combining them fails
+synthesis.
+
+## Sum numeric event values
+
+`beacon-totals` sums the `value` field of custom beacon events, grouped by event name:
+
+```typescript
+import { beaconTotals, rollups } from "@kensio/rainlytics";
+
+new RollupSummaries(this, "Summaries", {
+  table,
+  workgroup,
+  rollups: [...rollups, beaconTotals],
+});
+```
+
+```bash
+rainlytics beacon-totals --last 7d
+```
+
+```text
+event          events  total
+-------------  ------  ------
+purchase           38  94820
+add-to-basket     211  38400
+```
+
+The rollup reads custom events with a nonempty value. It excludes Web Vitals and JavaScript
+errors by event name. Events without a value, including normal route changes, are excluded.
+An invalid numeric value contributes to `events` but contributes nothing to `total`.
+
+Negative values are included. For example, a negative refund reduces the total of the purchase
+events reported under the same name.
+
+For money, use consistent integer minor units. See
+[Browser beacon](../beacon/#send-numbers-as-integer-minor-units).
+
+Both columns can be added across stored windows for matching event names. The ranking still has
+the stored-row limits described under [Read stored or fresh data](#read-stored-or-fresh-data).
+
+### What one visitor can contribute
+
+One visitor contributes at most 60 events of each name per hour. The query identifies a visitor
+by IP address and user agent. `RollupSummaries` rejects this rollup when log delivery omits the
+address.
+
+The cap limits the number of events included, but each event can contain an arbitrarily large
+value. Sixty fabricated values can still distort a total. A reported amount from this open
+endpoint is not proof of a transaction.
+
+Raw events remain available for investigation and recomputation with stricter filters. Use your
+transaction records to verify revenue. See [Collection-path abuse](../abuse/) for the limits of
+query-time filtering.
+
+## Measure a conversion rate
+
+`conversionsOf(event)` creates a rollup that measures the percentage of page visitors who also
+reported that event within the same time window:
+
+```typescript
+import { conversionsOf, rollups } from "@kensio/rainlytics";
+
+new RollupSummaries(this, "Summaries", {
+  table,
+  workgroup,
+  rollups: [...rollups, conversionsOf("purchase")],
+});
+```
+
+```bash
+rainlytics saved-query conversions-purchase
+```
+
+```text
+converted  visitors  converted_percent
+---------  --------  -----------------
+       17       842                2.0
+```
+
+Call the factory once per event name. For example, `purchase` and `signup` produce separate
+rollups, each with its own saved query, schedule and summary key.
+
+`visitors` counts distinct visitors with a pageview in the window. `converted` counts those who
+also reported the chosen event. `converted_percent` is their percentage of all page visitors.
+An event without a matching pageview in the same window contributes to neither count. The query
+checks whether both occurred in the window, without requiring the pageview to occur first.
+
+The query groups visitors by IP address and user agent. These values stay inside the query and
+are excluded from the result. The rollup declares `identifiesViewers`, and synthesis fails if the
+delivery omits the address.
+
+The request's path filter selects the beacon collection path. Page visitors are counted across
+all page paths under the same host and time filters.
+
+### Choose a window that includes the visit
+
+A page view at 09:59 and a purchase at 10:01 fall in separate hourly windows. Neither window
+contains both actions. A daily window reduces this problem, although visits can still cross
+midnight.
+
+Visitor counts from separate windows cannot be added. Two hours with ten visitors each may contain
+the same ten visitors or twenty different ones. Conversion rollups therefore declare no additive
+totals. Query the raw logs over the full period when you need a longer conversion window.
+
+### Measure conversions from access logs
+
+Use `conversionsOfPath` when a request to a particular URL represents a conversion. For example,
+a successful checkout POST can be counted directly from CloudFront logs:
+
+```typescript
+import { conversionsOfPath, rollups } from "@kensio/rainlytics";
+
+new RollupSummaries(this, "Summaries", {
+  table,
+  workgroup,
+  rollups: [
+    ...rollups,
+    conversionsOfPath({
+      path: "/do/checkout",
+      method: "POST",
+      statuses: ["303"],
+    }),
+  ],
+});
+```
+
+```bash
+rainlytics saved-query conversions-do-checkout
+```
+
+Both conversion factories return the same three columns and use the same visitor definition.
+The window-boundary and aggregation limits apply to both.
+
+Set `method` and `statuses` to select successful requests. Otherwise, a failed checkout can count
+as a conversion. Omit these settings only when every request to the path should count.
+
+The path is a prefix. For example, `/do/checkout` also matches `/do/checkout/1a2b`.
+
+The default rollup name is derived from the path. `/do/checkout` becomes `conversions-do-checkout`.
+Pass `name` if paths would produce duplicate names or if the path contains no usable name.
 
 ## Write a custom rollup
 
@@ -303,10 +298,8 @@ const countries: Rollup = {
 Use `rowsFor` for the `WHERE` clause. It adds the time partitions, timestamp bounds, bot filter,
 host filter and path filters from the request.
 
-`aPageView` is what the shipped questions count as a page view (a `GET` that answered `text/html`
-with a 200 or a 304). Spread it into a custom question counting page views. Writing the three
-conditions out again makes a second definition of what a page view is, and a rollup reporting more
-of them than `pageviews` does is how the drift would show.
+`aPageView` contains the built-in pageview conditions (a `GET` with a `text/html` response and
+status 200 or 304). Include it to use the same pageview definition as the built-in rollup.
 
 Add conditions beside it to narrow what it counts:
 
@@ -353,12 +346,10 @@ the name is part of its saved query and S3 key.
 Use `decodedColumn` for a whole logged field and `decodedParameter` for one query-string value.
 `matchedPath` returns the path prefix matched by a request when a question covers several sections.
 
-`quoted` writes one value into SQL with every quote in it doubled, and `oneOf` writes a column
-holding any of a list. Reach for those rather than building a string literal by hand. That is the
-one part of writing SQL worth getting right once.
+`quoted` escapes a SQL string literal by doubling single quotes. `oneOf` builds a condition that
+matches any value in a list. Use these helpers when inserting values into generated SQL.
 
-A question over beacon rows also wants `onBeaconPath`, which fills the collection path in where the
-request named none:
+A beacon rollup uses `onBeaconPath` to supply the default collection path when none was specified:
 
 ```typescript
 import {
@@ -375,13 +366,13 @@ rowsFor(onBeaconPath(request), [
 ]);
 ```
 
-Without it the question counts every request on the site carrying a `v` parameter, and `?v=3` on a
-stylesheet is an ordinary thing for a site to serve.
+Keep the collection-path filter even when checking the beacon version and event fields. Other
+requests can contain parameters with the same names.
 
-The same question needs `beaconEventsJoin()` in its `FROM` clause. One request carries as many
-events as the browser had ready to send, and `beaconEventColumn` and the other beacon columns read a
-field out of the event the join unnested. A query selecting them with no join reports
-`COLUMN_NOT_FOUND`. [Beacon events](../beacon-events/) has a whole question written this way.
+Add `beaconEventsJoin()` after the table in the `FROM` clause to expand each request into event
+rows. `beaconEventColumn` and the other beacon field expressions require that join. Omitting it
+produces `COLUMN_NOT_FOUND`. See the complete
+[custom beacon rollup](../beacon-events/#write-a-custom-beacon-rollup) example.
 
 These helpers keep custom questions consistent with the built-in URL decoding and path matching.
 

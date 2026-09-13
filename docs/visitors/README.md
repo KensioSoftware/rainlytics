@@ -1,7 +1,8 @@
 # Counting visitors
 
-Rainlytics defines a visitor as one browser identity inside one reporting period. It derives the
-identity from the viewer address and user agent in the CloudFront access log.
+Rainlytics estimates visitors from the IP address and user agent in each CloudFront access-log
+record. It counts each distinct pair once within a reporting period. A summary stores the count
+in its `visitors` field:
 
 ```json
 "visitors": { "distinct": 317, "additive": false }
@@ -9,7 +10,7 @@ identity from the viewer address and user agent in the CloudFront access log.
 
 ## What the number means
 
-The count describes browser connections, not known people:
+The count approximates an audience, but it cannot identify individual people:
 
 - two devices usually count twice
 - identical browsers behind one household address can count once
@@ -24,7 +25,8 @@ client can send any user agent it chooses.
 
 ## How the identifier is built
 
-Athena hashes the period salt, viewer address and user agent:
+A salt is a value added to the address and user agent before hashing. Rainlytics derives a
+different salt for each reporting period. Athena hashes these three values:
 
 ```sql
 to_hex(sha256(to_utf8(concat(<period salt>, '|', c_ip, '|', cs_user_agent))))
@@ -38,8 +40,9 @@ For daily summaries, the salt comes from an HMAC of one deployment secret and th
 HMAC-SHA256(secret, "rainlytics/visitor-salt/1/" + date)
 ```
 
-The same date produces the same salt during recomputation. Another date produces a different salt.
-Calendar reports derive a separate salt for their full period.
+Hourly and daily summaries within the same UTC day use the same salt. Recomputing that day uses
+the same salt again. Another date gets a different salt. Calendar reports derive a separate salt
+for their full period.
 
 The salt used by Athena appears as a literal in Athena query history. The deployment secret does
 not. A period salt cannot derive the secret or another period's salt.
@@ -68,28 +71,24 @@ with `visitorSaltParameter` on `RollupSummaries`.
 Two hourly counts can contain the same browser. Two daily counts deliberately use different salts.
 Adding either pair double-counts returning visitors.
 
-The summary marks this rule with `additive: false`. The CLI refuses to add visitor values across
-stored windows. Use a calendar report or `--query` for one identity set over a larger period.
+The summary marks this rule with `additive: false`. Consumers must not add the stored visitor
+counts. Use a calendar report for a visitor count across a week, month or year.
 
-## What the daily salt means for a longer span
+The `pageviews` command prints pageview rows. Read summary or report JSON to access visitor
+counts. Adding `--query` to the command reruns the pageview query only.
 
-The salt changes at midnight UTC, so the same person is a different identifier tomorrow. That is
-deliberate. A digest that stood for months would be a stable identifier for one visitor. Avoiding
-that is the whole point of the scheme, and it is why a rotating salt is easier to reason about than
-a cookie.
+## Choose a reporting period
 
-The cost is that a visitor count is only ever a count of one day's identities. Over a week it
-answers "how many distinct people-days", which is a larger number than the people. Somebody who
-visited on five days counts five times, and no arithmetic over the stored counts can tell that from
-five people who each visited once.
+Use a daily summary for a daily visitor count. Adding five daily counts would count a browser
+that visited on all five days five times. The stored numbers cannot distinguish that browser
+from five browsers that each visited once.
 
-So read a visitor count at a day or shorter. A calendar report derives one salt for the whole period
-it covers and counts a week under it, which is the answer to "how many people this week". `--query`
-over a longer span does the same thing for an arbitrary range.
+Use a calendar report for the whole period you want to measure. A weekly report queries the raw
+logs with one salt for the week and counts each browser identity once across it.
 
-A question that joins rows by visitor inside one window, such as
-[a conversion rate](../rollups/), carries the same limit for the same reason. It is honest at a day,
-and an hour splits a visit that crosses the boundary.
+Window boundaries also affect [conversion rates](../rollups/#measure-a-conversion-rate). A page
+view at 09:59 and a purchase at 10:01 fall in separate hourly windows. A daily window includes both
+unless the visit crosses midnight.
 
 ## Questions that count visitors
 
@@ -146,9 +145,9 @@ A question that requires visitor addresses is rejected during synthesis when the
 
 ## Raw addresses
 
-The default log bucket stores viewer addresses in clear text for its retention period. The salt
-protects derived identifiers, not the source rows. Anyone who can read the log bucket can read the
-addresses.
+The default raw logs contain viewer addresses for the bucket's retention period. S3 encryption
+protects the stored objects, but an authorized reader can still read those addresses. Hashing
+inside Athena does not remove them from the source logs.
 
 Changing the field set affects new log objects only. Existing addresses remain until the log bucket
 lifecycle expires them.

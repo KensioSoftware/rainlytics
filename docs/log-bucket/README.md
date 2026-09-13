@@ -8,8 +8,8 @@ import { LogBucket } from "@kensio/rainlytics/cdk";
 const logs = new LogBucket(this, "Logs");
 ```
 
-Pass `logs.bucket` to `CloudFrontLogDelivery`. Every summary and report can be rebuilt from the
-objects in this bucket.
+Pass `logs.bucket` to `CloudFrontLogDelivery`. This bucket holds the raw data used to compute
+summaries and reports. Keep its objects for as long as you need to rerun queries over that period.
 
 ## Defaults
 
@@ -42,8 +42,8 @@ const logs = new LogBucket(this, "Logs", {
 });
 ```
 
-The default delivery includes the viewer address. Retention therefore applies to personal data as
-well as request data. Use a shorter period if you need to remove both sooner. Use
+The default delivery includes the viewer's IP address. The retention period also determines how
+long these addresses remain in the raw logs. Use a shorter period to remove them sooner. Use
 `logFieldNamesWithoutAddress` on the delivery if you want to keep request history without storing
 viewer addresses. That option disables visitor counts.
 
@@ -84,7 +84,7 @@ warning produced during synthesis.
 A customer-managed key has a monthly key charge and request charges. This adds fixed and
 usage-based costs that the default avoids.
 
-## Name the bucket only when required
+## Choose a bucket name
 
 CloudFormation generates a bucket name by default. A named bucket makes IAM scoping easier:
 
@@ -123,8 +123,8 @@ The standard CDK bootstrap role has enough permission. A restricted CloudFormati
 needs S3 management permission for the bucket and its objects. The deployed configuration uses
 bucket policy, lifecycle, encryption, ownership, public-access and tagging APIs.
 
-Give a restricted role a stable bucket name before scoping its policy. CloudFormation truncates
-generated names, so a policy built from the full stack name can miss the bucket it created.
+When scoping a deployment role to a bucket name, set that name explicitly. CloudFormation can
+truncate generated names. A policy based on the full stack name may then fail to match the bucket.
 
 <!-- card
 ```typescript

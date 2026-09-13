@@ -1,6 +1,7 @@
 # Searches
 
-`rainlytics searches` counts terms submitted to a search page from the CloudFront access log.
+`rainlytics searches` counts search terms recorded in CloudFront access logs. Use it for a search
+endpoint that puts the term in a query-string parameter:
 
 ```bash
 rainlytics searches --path /search/ --last 30d
@@ -18,8 +19,8 @@ does not include the viewer address in the result.
 
 ## Name the search path and parameter
 
-The path distinguishes search requests from tracking parameters, beacon events and other query
-strings on the site.
+Specify the search endpoint with `--path` and the query-string parameter with `--param`. The path
+filter excludes unrelated requests that happen to use the same parameter name.
 
 ```bash
 rainlytics searches --path /search/ --param q --last 30d
@@ -42,7 +43,8 @@ command line wins.
 
 ## Redirected searches
 
-`redirected` counts searches that received a temporary redirect. The defaults are 302, 303 and 307. This can represent an exact match that sent the reader directly to a page.
+`redirected` counts searches that returned status 302, 303 or 307 by default. For example, a
+search endpoint may redirect an exact match directly to the matching page.
 
 Permanent redirects are omitted because canonical URL redirects can count one search twice. Change
 the statuses when your search endpoint uses another response:
@@ -54,8 +56,8 @@ rainlytics searches \
   --last 30d
 ```
 
-The access log cannot tell a nonempty result list from an empty one when both return 200. Use a
-different status or path if that distinction belongs in analytics.
+If successful searches and searches with no results both return 200, this rollup cannot tell them
+apart. Use a different status or path if you need to measure that distinction.
 
 ## Stored searches
 

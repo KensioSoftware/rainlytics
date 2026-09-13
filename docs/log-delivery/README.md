@@ -21,8 +21,8 @@ Pass `delivery` to `LogTable`.
 AWS configures CloudFront standard logging v2 through the CloudWatch Logs API in `us-east-1`.
 Rainlytics refuses to synthesize this construct in another region.
 
-The region is the half of the stack's environment this construct requires. Leave the account out
-and `cdk deploy` resolves it from the profile, as it does for every other stack in the app:
+Set `env.region` on the stack. You can omit `env.account` and let `cdk deploy` resolve the account
+from your AWS profile:
 
 ```typescript
 const stack = new Stack(app, "DeliveryStack", {
@@ -30,8 +30,7 @@ const stack = new Stack(app, "DeliveryStack", {
 });
 ```
 
-An app that keeps its stacks account-agnostic, so that `cdk synth` runs with no credentials, can
-hold a delivery without writing an account number into it.
+This allows the stack to synthesize without credentials or an account number in its source.
 
 The distribution can be defined in another stack. The delivery only needs its ID:
 
@@ -72,12 +71,11 @@ const delivery = new CloudFrontLogDelivery(this, "Delivery", {
 });
 ```
 
-JSON is the default because CloudFront charges for conversion to Parquet and the project does not
-assume that conversion saves money. Parquet reduces Athena bytes scanned on larger datasets. Choose
-the format from measured traffic and query cost.
+JSON is the default. Parquet can reduce Athena scan size on larger datasets, but CloudFront
+charges for the conversion. Compare conversion and query costs for your traffic before switching.
 
-Changing the prefix or format later creates a second dataset shape. Existing objects stay at their
-old keys and in their old format.
+Changing the prefix or format affects new logs only. Existing objects keep their original keys
+and format. A table configured for the new delivery may no longer read those older objects.
 
 ## Delivered fields
 
