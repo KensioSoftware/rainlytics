@@ -1,6 +1,7 @@
 # Log table
 
-`LogTable` creates a Glue database and table over the objects written by one or more log deliveries.
+`LogTable` creates a Glue database and table that let Athena query your CloudFront logs in S3.
+The table describes the files written by one or more log deliveries.
 
 ```typescript
 import { LogTable } from "@kensio/rainlytics/cdk";
@@ -14,8 +15,8 @@ The defaults create `rainlytics.cloudfront_logs`.
 
 ## The delivery defines the table
 
-The table reads its bucket, prefix, fields, format and partition granularity from `deliveries`.
-One definition keeps the table aligned with the objects it describes.
+Pass the delivery constructs to `deliveries`. The table uses their bucket, prefix, fields, format
+and partition granularity.
 
 Several distributions can share one table:
 
@@ -30,8 +31,8 @@ All deliveries must use the same bucket, prefix, output format, granularity and 
 
 ## Describe a delivery in another stack
 
-`deliveries` takes anything carrying the six values a table is built from. A
-`CloudFrontLogDelivery` publishes all six, and a plain object holding them does just as well:
+If the delivery is defined in another stack or outside CDK, pass an object describing its
+configuration. It must include all six properties shown here:
 
 ```typescript
 import { deliveredLogFieldNames } from "@kensio/rainlytics";
@@ -51,29 +52,28 @@ const table = new LogTable(this, "Table", {
 });
 ```
 
-Pass the construct where the stack holds one. A description is checked the way a construct is. Two
-deliveries that disagree are refused, and so is a bucket whose name and ARN name different buckets.
+Use the delivery construct directly when it is available. Rainlytics validates both forms in the
+same way. Deliveries must agree on their shared settings, and each bucket's name and ARN must
+refer to the same bucket.
 
-What nothing here can check is whether the description matches how CloudFront was actually
-configured. A prefix typed wrong builds a table over an empty path, and a query then comes back
-with no rows rather than an error. That is the cost of the arrangement, and it is why a deployment
-that can hold the construct should.
+A description must also match the deployed CloudFront configuration. Rainlytics cannot check that
+during synthesis. A wrong prefix can produce a valid table that returns no rows because it points
+at an empty S3 path.
 
 ## Split the delivery from the query layer
 
-Standard logging v2 is configured through the CloudWatch Logs API, and that API accepts the call in
-us-east-1 however far away the bucket is. That is the only piece of Rainlytics pinned to a region.
-The bucket, the table, the workgroup and the summaries go wherever a site's data belongs, and the
-delivery alone has to be declared in us-east-1.
+To keep analytics in another region, use two stacks. Put `CloudFrontLogDelivery` in `us-east-1`,
+where AWS configures CloudFront logging. Put the bucket, table, workgroup and summaries in your
+chosen region.
 
-That makes two stacks, and both name the bucket and the prefix as literals:
+Define the bucket name and prefix as shared constants:
 
 ```typescript
 const logBucketName = "example-rainlytics-logs";
 const prefix = "rainlytics";
 ```
 
-The first stack holds the data:
+The first stack creates the storage and query resources:
 
 ```typescript
 const storing = new Stack(app, "DataStack", {
@@ -95,7 +95,7 @@ new LogTable(storing, "Table", {
 });
 ```
 
-The second configures the delivery into it, from us-east-1:
+The second stack configures delivery to that bucket from `us-east-1`:
 
 ```typescript
 const delivering = new Stack(app, "DeliveryStack", {
@@ -109,21 +109,18 @@ new CloudFrontLogDelivery(delivering, "Delivery", {
 });
 ```
 
-The literals are what makes this work. `logs.bucket.bucketName` is a token belonging to the
-eu-west-1 stack, and reading it from the us-east-1 one is a cross-region reference, which CDK serves
-with custom resources and an SSM parameter. A name both stacks already know needs none of that. The
-same holds for the table, which describes the delivery rather than holding it.
+Use the shared bucket name in both stacks. Reading `logs.bucket.bucketName` from the other region
+would create a CDK cross-region reference, which needs additional resources to resolve. The
+delivery description also uses the shared name and prefix to match the deployed configuration.
 
-Those two literals are also what a description gets wrong, so keep each in one constant and use it
-on both sides.
-
-`LogBucket` grants the delivery service access scoped to delivery sources in us-east-1 whatever
-region the bucket itself is in, so a bucket in eu-west-1 works as it stands.
+`LogBucket` grants access to delivery sources in `us-east-1`, including when the bucket itself is
+in another region.
 
 ## Partition projection
 
-The table projects partitions from the S3 path. Projection removes the need to register partitions
-or run a Glue crawler.
+Partition projection lets Athena calculate S3 paths from the query's partition values. The table
+defines the path pattern and allowed values. New log partitions need no catalog registration or
+Glue crawler.
 
 For hourly delivery, the partition keys are:
 
@@ -145,9 +142,9 @@ GROUP BY 1
 ORDER BY 2 DESC
 ```
 
-Partition values are zero-padded strings. Use `hour = '04'`, not `hour = 4`. A condition on
-`timestamp_ms` makes the result precise while leaving the partition scan unchanged. Use both
-partition predicates and timestamp bounds when a range starts or ends inside a partition.
+Partition values are zero-padded strings, such as `hour = '04'`. These conditions limit the S3
+paths Athena scans. Add `timestamp_ms` bounds when the requested range starts or ends inside a
+partition.
 
 ## Column names and values
 
@@ -206,9 +203,8 @@ names to command-line queries with `--database` when you change the defaults.
 
 ## Region and removal
 
-Keep the table in the log bucket's region. Athena can read an S3 bucket in another region, but each
-query then pays data transfer. The delivery is the one piece that has to be in us-east-1, and
-splitting it off is above.
+Keep the table and workgroup in the log bucket's region to avoid cross-region S3 transfer charges.
+The separate delivery stack must remain in `us-east-1`.
 
 The Glue database and table are deleted with the stack. The raw objects stay in the retained log
 bucket and a later deployment can recreate the catalog definitions.

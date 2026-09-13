@@ -1,6 +1,7 @@
 # Summary schedule
 
-`RollupSummaries` computes common analytics questions on a schedule and writes the answers to S3.
+`RollupSummaries` schedules Athena queries and writes their results to S3 as JSON summaries. Each
+summary covers one question over a completed hour or day.
 
 ```typescript
 import { RollupSummaries } from "@kensio/rainlytics/cdk";
@@ -11,8 +12,7 @@ const summaries = new RollupSummaries(this, "Summaries", {
 });
 ```
 
-Named CLI commands read these stored answers. Repeated reads use S3 and do not start another Athena
-query.
+Named CLI commands read these stored summaries with S3 GET requests.
 
 ## Default schedule
 
@@ -25,9 +25,9 @@ The construct computes six default questions:
 - cache hit ratio
 - searches
 
-Each question runs for hourly and daily UTC windows. A schedule starts 15 minutes after a window
-closes and recomputes the two latest closed windows. Recomputing the previous window picks up logs
-that CloudFront delivered late.
+Each question has an hourly and a daily schedule, both using UTC. A run starts 15 minutes after
+the hour or day ends and computes the two most recently completed windows. This includes a second
+attempt at the previous window to pick up logs delivered late by CloudFront.
 
 The same construct runs a calendar-report job once a day. It writes closed daily, weekly, monthly
 and annual reports. See [Calendar reports](../reports/).
@@ -108,8 +108,8 @@ const summaries = new RollupSummaries(this, "Summaries", {
 });
 ```
 
-The summary records this narrowing. A CLI command that omits the same filters adopts the stored
-configuration. A command that requests different filters stops and suggests `--query`.
+The summary records its filters. A CLI command that omits those filters uses the stored settings.
+A command that requests different filters stops and suggests `--query`.
 
 ## Configure windows and reports
 
@@ -127,9 +127,9 @@ const summaries = new RollupSummaries(this, "Summaries", {
 });
 ```
 
-Increase `lag` if logs regularly arrive after the scheduled run. Increase `recomputedWindows` when
-late delivery extends further back. Both changes increase the number of queries or delay fresh
-answers.
+Increase `lag` to wait longer for logs before running a query. Increase `recomputedWindows` to
+revisit more previous windows. A longer lag delays new summaries. More recomputed windows increase
+the number of queries.
 
 ## Cost
 

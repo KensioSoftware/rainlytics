@@ -12,7 +12,7 @@ You can also run the package without installing it in a project:
 npx @kensio/rainlytics --help
 ```
 
-Rainlytics has no account, password or API key of its own.
+Authentication uses your existing AWS credentials.
 
 ## Credentials and region
 
@@ -31,10 +31,10 @@ Every command that reaches AWS also accepts `--region`. Athena commands accept `
 The region must contain the Glue table, Athena workgroup and summary bucket. A missing workgroup in
 the selected region is often a profile or region mistake.
 
-## Naming the deployment
+## Select your deployment
 
-Three environment variables name the parts of a deployment. A deployment that kept the default
-names needs none of them:
+Use these environment variables or command options to select the deployed resources. The database
+and workgroup have default names. Stored reads always need a summary bucket name:
 
 | Variable                    | Option        | Default      |
 | --------------------------- | ------------- | ------------ |
@@ -49,8 +49,8 @@ export RAINLYTICS_SUMMARY_BUCKET=rainlytics-summaries-1a2b
 rainlytics pageviews --last 7d
 ```
 
-The option wins where both name something. These are the same three variables `RollupSummaries`
-sets on its scheduled job. One set of names covers the deployment and the command line.
+Command options override environment variables. `RollupSummaries` uses the same variable names
+for its scheduled jobs.
 
 ## Read a named question
 
@@ -78,8 +78,8 @@ Use `--query` to run the same question against raw logs with Athena:
 rainlytics pageviews --last 2h --query
 ```
 
-This produces a fresh result and incurs Athena query cost. Rainlytics never falls back to Athena
-automatically when a stored summary is missing.
+This runs an Athena query over the available raw logs and incurs query cost. Missing summaries
+never trigger an automatic Athena query.
 
 ## Read a calendar report
 

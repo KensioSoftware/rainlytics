@@ -1,7 +1,7 @@
 # Getting started
 
-This guide deploys Rainlytics for one existing CloudFront distribution and reads the first stored
-pageview report.
+Deploy Rainlytics for an existing CloudFront distribution, then read your first pageview report
+from the command line. The deployment stores access logs and analytics in your AWS account.
 
 You need:
 
@@ -26,8 +26,9 @@ The package also installs the `rainlytics` command.
 
 ## Create the visitor salt
 
-The default pageview rollup counts visitors. It derives daily identifiers from a secret stored as
-an SSM Parameter Store `SecureString`.
+The default pageview rollup (a scheduled analytics query) also counts visitors. Rainlytics uses a
+secret to derive visitor identifiers for each reporting period. Store that secret in SSM Parameter
+Store as a `SecureString`.
 
 Create the secret once in the account and region where the scheduled jobs will run:
 
@@ -113,19 +114,17 @@ This stack creates:
 - scheduled summary and calendar-report jobs
 - a second S3 bucket for stored answers
 
-The log bucket is the source of record. Its objects are retained for 370 days by default. The
-summary and query result buckets are separate because they hold derived data with different
-retention rules.
+The raw log bucket holds the data needed to rebuild reports. It retains objects for 370 days by
+default. Separate buckets hold the precomputed summaries and Athena query results, each with its
+own retention settings.
 
-`RollupQueries` reads its questions off the summaries, so a deployment that adds one names it once.
-Give it a table and a workgroup instead where there are no summaries to read. The two shapes are
-exclusive. Passing `summaries` alongside a `table`, a `workgroup` or a list of its own is refused at
-synthesis and by the type.
+Passing `summaries` to `RollupQueries` saves the same queries that the summary jobs run. Configure
+the query list once on `RollupSummaries`. For a deployment without scheduled summaries, pass
+`table` and `workgroup` directly to `RollupQueries`. These configuration forms cannot be combined.
 
-Everything here is in us-east-1, which is the simplest arrangement and the one to start from. Only
-the delivery has to be there. A site whose data belongs in another region keeps the bucket, the
-table and the summaries where that region is and declares the delivery on its own, which
-[the log table page](../log-table/) covers.
+This example puts every resource in `us-east-1`. Only `CloudFrontLogDelivery` requires that region.
+To store and query data elsewhere, put the delivery in a separate stack. See
+[Log table](../log-table/#split-the-delivery-from-the-query-layer).
 
 ## Synthesize and deploy
 
@@ -146,8 +145,8 @@ path like this:
 s3://<log-bucket>/rainlytics/distributionid=E1EXAMPLE1234/year=2026/month=09/day=01/hour=14/
 ```
 
-The first scheduled summary is written after a complete hour closes and CloudFront delivers its
-logs. A new deployment therefore has no immediate historical summaries.
+The first scheduled summary covers a completed hour. It contains traffic only after CloudFront
+has delivered the logs for that hour. A new deployment has no historical summaries to read yet.
 
 ## Run the command line
 

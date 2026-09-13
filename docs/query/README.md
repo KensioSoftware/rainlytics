@@ -1,6 +1,7 @@
 # Query
 
-`rainlytics query` runs SQL through the Rainlytics Athena workgroup and prints every result row.
+Use `rainlytics query` for an ad-hoc SQL query over the raw access logs. It runs through the
+Rainlytics Athena workgroup and prints every result row.
 
 ```bash
 rainlytics query "SELECT cs_uri_stem, count(*) AS views
@@ -41,8 +42,9 @@ WHERE distributionid = 'E1EXAMPLE1234'
   AND hour IN ('13', '14')
 ```
 
-A condition on `timestamp_ms`, path, status or another normal column filters rows after Athena has
-read the partition. Add timestamp bounds for exact edges, but keep the partition conditions.
+A partition condition tells Athena which S3 paths to read. Conditions on `timestamp_ms`, path or
+status only filter rows within those paths. Use timestamp bounds for an exact time range as well
+as partition conditions to limit the scan.
 
 The workgroup stops a query that passes its byte limit. Athena charges for bytes read before a
 cancelled query stops. Narrow the partitions or raise `bytesScannedCutoff` when a legitimate report
@@ -77,8 +79,8 @@ rainlytics query "SELECT c_country, count(*) AS views
   GROUP BY 1" | jq '.[0]'
 ```
 
-Use `--output json`, `csv` or `table`. Athena returns results in pages, and Rainlytics fetches every
-page. Add a SQL `LIMIT` when the complete result is too large to be useful.
+Use `--output json`, `csv` or `table`. Rainlytics fetches all pages of Athena results. Add a SQL
+`LIMIT` to restrict the output. Keep partition conditions to restrict the scan cost.
 
 ## Permissions
 
