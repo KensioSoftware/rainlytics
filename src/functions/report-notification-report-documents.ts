@@ -2,6 +2,7 @@
 
 import type { S3Client } from "@aws-sdk/client-s3";
 
+import { reportComparison } from "../report-comparisons.js";
 import type { ReportNotificationManifestEntry } from "../report-notification-manifest.js";
 import type { ReportNotificationReport } from "../report-notification-message.js";
 import type { ReportDocument } from "../report-document.js";
@@ -12,7 +13,7 @@ import {
 } from "./report-notification-object.js";
 import { notificationReportDocumentFrom } from "./report-notification-report-reading.js";
 
-/** Current and optional previous documents for one manifest entry. */
+/** Current and optional previous documents for one manifest entry, compared. */
 export async function reportNotificationDocuments(
   client: S3Client,
   bucket: string,
@@ -28,7 +29,9 @@ export async function reportNotificationDocuments(
   return {
     entry,
     current,
-    ...(previous === undefined ? {} : { previous }),
+    ...(previous === undefined
+      ? {}
+      : { previous, comparison: reportComparison({ current, previous }) }),
   };
 }
 

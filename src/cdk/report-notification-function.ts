@@ -1,11 +1,6 @@
 // The function that publishes one completed report notification.
 
-import {
-  type IFunction,
-  Code,
-  Function,
-  Runtime,
-} from "aws-cdk-lib/aws-lambda";
+import type { IFunction } from "aws-cdk-lib/aws-lambda";
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
 import type { ITopic } from "aws-cdk-lib/aws-sns";
 import { Queue, QueueEncryption, type IQueue } from "aws-cdk-lib/aws-sqs";
@@ -14,10 +9,7 @@ import { Construct } from "constructs";
 
 import type { ReportNotificationConfiguration } from "./report-notification-configuration.js";
 import { reportNotificationLambdaEnvironment } from "./report-notification-environment.js";
-import {
-  reportNotificationHandlerName,
-  summaryCodePath,
-} from "./summary-code.js";
+import { reportNotificationPublisher } from "./report-notification-code.js";
 import { reportSourceReadStatements } from "./summary-permissions.js";
 import type { SummariesBucket } from "./summary-bucket.js";
 
@@ -47,23 +39,25 @@ export class ReportNotificationFunction extends Construct {
       retentionPeriod: Duration.days(14),
     });
 
-    this.lambda = new Function(this, "Function", {
-      runtime: Runtime.NODEJS_22_X,
-      handler: reportNotificationHandlerName,
-      code: Code.fromAsset(summaryCodePath()),
-      memorySize: 256,
-      timeout: Duration.seconds(30),
-      deadLetterQueue: this.deadLetterQueue,
-      logGroup: new LogGroup(this, "Logs", {
-        retention: props.logRetention ?? RetentionDays.ONE_MONTH,
-        removalPolicy: RemovalPolicy.DESTROY,
-      }),
-      environment: reportNotificationLambdaEnvironment(
-        props.bucket,
-        props.topic,
-        props.configuration,
-      ),
-    });
+    this.lambda = reportNotificationPublisher(
+      this,
+      "Function",
+      {
+        memorySize: 256,
+        timeout: Duration.seconds(30),
+        deadLetterQueue: this.deadLetterQueue,
+        logGroup: new LogGroup(this, "Logs", {
+          retention: props.logRetention ?? RetentionDays.ONE_MONTH,
+          removalPolicy: RemovalPolicy.DESTROY,
+        }),
+        environment: reportNotificationLambdaEnvironment(
+          props.bucket,
+          props.topic,
+          props.configuration,
+        ),
+      },
+      props.configuration.message,
+    );
 
     // Missing previous reports need a 404 so the first digest can be sent.
     // https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html

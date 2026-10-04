@@ -188,6 +188,14 @@ describe("calendar report notification infrastructure", () => {
       { emails: ["reports@example.com"], subjectPrefix: "" },
       { emails: ["reports@example.com"], subjectPrefix: "line\nbreak" },
       { emails: ["reports@example.com"], subjectPrefix: "x".repeat(71) },
+      { emails: ["reports@example.com"], message: { entry: " " } },
+      {
+        emails: ["reports@example.com"],
+        message: {
+          entry: "notifications.ts",
+          environment: { RAINLYTICS_REPORT_NOTIFICATION_TOPIC_ARN: "x" },
+        },
+      },
     ];
 
     // When each setting is settled, then no invalid template can be emitted.
