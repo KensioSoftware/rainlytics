@@ -27,7 +27,7 @@ export function publishableReportNotification(
 
   // Code points, so a character outside the Basic Multilingual Plane counts
   // once where `length` would count its two UTF-16 halves.
-  const characters = typeof subject === "string" ? [...subject].length : 0;
+  const characters = typeof subject === "string" ? codePoints(subject) : 0;
 
   if (
     typeof subject !== "string" ||
@@ -53,4 +53,13 @@ export function publishableReportNotification(
   }
 
   return { subject, message };
+}
+
+/** How many Unicode code points a string holds. */
+function codePoints(value: string): number {
+  let count = 0;
+  for (const _ of value) {
+    count += 1;
+  }
+  return count;
 }
