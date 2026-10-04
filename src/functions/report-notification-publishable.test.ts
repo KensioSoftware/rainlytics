@@ -24,6 +24,18 @@ describe("checking a notification before SNS sees it", () => {
     assertObjectEquals(checked, written);
   });
 
+  it("counts a subject's characters rather than its UTF-16 code units", () => {
+    // Given a 99-character subject made of characters outside the Basic
+    // Multilingual Plane, which JavaScript stores as two code units each.
+    const written = { subject: "\u{1F4C8}".repeat(99), message: "body" };
+
+    // When it is checked before publishing.
+    const checked = publishableReportNotification(written, "manifest.json");
+
+    // Then it is within the limit and published as written.
+    assertObjectEquals(checked, written);
+  });
+
   it("names the manifest and the rule a refused message breaks", () => {
     // Given messages SNS would refuse with a bare InvalidParameter.
     const manifestKey = `report-notifications/v1/UTC/${faker.string.uuid()}.json`;

@@ -25,10 +25,14 @@ export function publishableReportNotification(
         ` because ${reason}.`,
     );
 
+  // Code points, so a character outside the Basic Multilingual Plane counts
+  // once where `length` would count its two UTF-16 halves.
+  const characters = typeof subject === "string" ? [...subject].length : 0;
+
   if (
     typeof subject !== "string" ||
-    subject.length === 0 ||
-    subject.length >= 100 ||
+    characters === 0 ||
+    characters >= 100 ||
     /\p{Cc}/u.test(subject)
   ) {
     throw refuse(
