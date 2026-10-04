@@ -3,6 +3,14 @@
 import type { ITopic } from "aws-cdk-lib/aws-sns";
 
 import { type ReportPeriodUnit, reportPeriodUnits } from "../report-periods.js";
+import {
+  assertUniqueNonempty,
+  hasControlCharacter,
+} from "./report-notification-text-checks.js";
+import {
+  assertReportNotificationMessage,
+  type ReportNotificationMessageProps,
+} from "./report-notification-message-props.js";
 
 /** What report notifications need telling. */
 export interface ReportNotificationsProps {
@@ -44,6 +52,14 @@ export interface ReportNotificationsProps {
    * @default Rainlytics
    */
   readonly subjectPrefix?: string | undefined;
+
+  /**
+   * A publisher of the site's own, which writes the subject and body. Its
+   * entry exports `reportNotificationHandler` from
+   * `@kensio/rainlytics/notifications`. Leaving it out sends the default
+   * message.
+   */
+  readonly message?: ReportNotificationMessageProps | undefined;
 }
 
 /** Report notification settings after defaults and validation. */
@@ -54,6 +70,7 @@ export interface ReportNotificationConfiguration {
   readonly questions?: readonly string[] | undefined;
   readonly maxRowsPerQuestion: number;
   readonly subjectPrefix: string;
+  readonly message?: ReportNotificationMessageProps | undefined;
 }
 
 /** Fills and checks report notification settings. */
@@ -114,6 +131,10 @@ export function reportNotificationConfiguration(
     );
   }
 
+  if (props.message !== undefined) {
+    assertReportNotificationMessage(props.message);
+  }
+
   return {
     ...(props.topic === undefined ? {} : { topic: props.topic }),
     emails,
@@ -121,39 +142,6 @@ export function reportNotificationConfiguration(
     ...(props.questions === undefined ? {} : { questions: props.questions }),
     maxRowsPerQuestion,
     subjectPrefix,
+    ...(props.message === undefined ? {} : { message: props.message }),
   };
-}
-
-/** Whether a string contains a character SNS refuses in a subject. */
-function hasControlCharacter(value: string): boolean {
-  for (const character of value) {
-    const code = character.codePointAt(0) ?? 0;
-    if (code <= 31 || code === 127) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-/** Refuses blank or repeated string settings. */
-function assertUniqueNonempty(
-  values: readonly string[],
-  subject: string,
-): void {
-  const seen = new Set<string>();
-
-  for (const value of values) {
-    if (value.trim() === "") {
-      throw new Error(`A report notification ${subject} cannot be blank.`);
-    }
-
-    if (seen.has(value)) {
-      throw new Error(
-        `The report notification ${subject} ${JSON.stringify(value)}` +
-          " is repeated.",
-      );
-    }
-    seen.add(value);
-  }
 }

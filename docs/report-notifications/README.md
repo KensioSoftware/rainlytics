@@ -68,6 +68,81 @@ relative percentage. Ratios use percentage points. Metrics with a preferred dire
 `improvement` or `regression`. A missing previous report leaves the current values in place and
 marks the comparison unavailable.
 
+## Write the message
+
+A site can write the subject and body itself. Name a file of the site's own as `message.entry`, and
+Rainlytics builds the publisher Lambda from it with `NodejsFunction` (esbuild has to be installed in
+the site's CDK app).
+
+```typescript
+const summaries = new RollupSummaries(this, "Summaries", {
+  table,
+  workgroup,
+  reportNotifications: {
+    emails: ["analytics@example.com"],
+    periods: ["day"],
+    message: {
+      entry: "lib/analytics/report-message.ts",
+      environment: { USERS_TABLE: users.tableName },
+    },
+  },
+});
+
+const publisher = summaries.reportNotifications?.lambda;
+if (publisher !== undefined) {
+  users.grantReadData(publisher);
+}
+```
+
+The entry exports a handler built by `reportNotificationHandler` from
+`@kensio/rainlytics/notifications`. Rainlytics still reads the manifest, loads each report and its
+previous period, runs `reportComparison`, publishes to SNS and sends failures to the dead-letter
+queue. The message function receives the manifest, the reports, and the `questions`,
+`maxRowsPerQuestion` and `subjectPrefix` settings. It returns the subject and body, and it can await
+reads of its own.
+
+```typescript
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import {
+  reportNotificationHandler,
+  reportNotificationMessage,
+} from "@kensio/rainlytics/notifications";
+
+import { countSignUps } from "./sign-ups.js";
+
+const dynamo = new DynamoDBClient({});
+
+export const handler = reportNotificationHandler({
+  message: async (input) => {
+    const signUps = await countSignUps(dynamo, input.manifest.closingDay);
+    const standard = reportNotificationMessage(input);
+
+    return {
+      subject: standard.subject,
+      message: `Sign-ups: ${signUps}\n\n${standard.message}`,
+    };
+  },
+});
+```
+
+Each report carries `entry`, `current`, `previous` and `comparison`. The last two are absent for the
+first report of its kind. `comparison.sections[i]` compares `current.sections[i]`.
+
+The pieces of the default message are exported beside the handler, so a site can keep some sections
+as they are and write others itself. `reportNotificationReportLines` gives one period's whole block,
+and `reportNotificationHeading` its heading line. `reportNotificationSectionHeading` and
+`reportNotificationSectionLines` give one question's lines, with a row limit of the site's choosing.
+`reportNotificationSubject` gives the default subject. `limitedReportNotificationMessage` joins lines
+and stops short of the SNS size limit.
+
+The publisher checks what the function returns before publishing it. A subject has to be 1 to 99
+characters with no line breaks, and a body has to be non-empty and within 256 KB. A message that
+breaks either rule fails the invocation with the manifest key named, and Lambda retries it before it
+reaches the dead-letter queue. `environment` names starting `RAINLYTICS_` are refused at synthesis,
+because the publisher reads its own settings from them.
+
+Leaving `message` out deploys the publisher from Rainlytics' own package with the default message.
+
 ## Use an existing topic
 
 Pass a standard SNS topic to use subscriptions managed elsewhere:
@@ -146,7 +221,7 @@ alarm on its visible-message count if it wants active failure notification.
 
 ## Cost
 
-The topic, Lambda function and queue have no hourly charge. A send uses one small S3 manifest PUT,
+The topic, Lambda function and queue have no hourly charge. A site's own message adds whatever reads it makes. A send uses one small S3 manifest PUT,
 S3 GETs for the manifest and report documents, one Lambda invocation, one SNS publish and one SNS
 delivery per subscriber. The dead-letter queue has traffic only after a failed invocation. Amazon
 SNS prices standard topics by API request and endpoint delivery, with no minimum commitment. See the

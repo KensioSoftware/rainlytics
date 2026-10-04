@@ -31,6 +31,10 @@
       "types": "./dist/beacon/errors.d.ts",
       "import": "./dist/beacon/errors.js"
     },
+    "./notifications": {
+      "types": "./dist/notifications/index.d.ts",
+      "import": "./dist/notifications/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
