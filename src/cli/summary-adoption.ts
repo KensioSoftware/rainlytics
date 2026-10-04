@@ -133,9 +133,11 @@ function disagreedOn(
 
   return wanted.flatMap((option) => {
     const values = new Set(
-      between
-        .filter((difference) => difference.option === option)
-        .flatMap((difference) => [difference.asked, difference.computed]),
+      between.flatMap((difference) =>
+        difference.option === option
+          ? [difference.asked, difference.computed]
+          : [],
+      ),
     );
 
     return values.size === 0 ? [] : [{ option, computed: [...values] }];
