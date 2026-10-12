@@ -265,6 +265,31 @@ The path is a prefix. For example, `/do/checkout` also matches `/do/checkout/1a2
 The default rollup name is derived from the path. `/do/checkout` becomes `conversions-do-checkout`.
 Pass `name` if paths would produce duplicate names or if the path contains no usable name.
 
+Set `byDevice` to answer one row per device class instead of one row:
+
+```typescript
+conversionsOfPath({
+  path: "/do/checkout",
+  method: "POST",
+  statuses: ["303"],
+  byDevice: true,
+});
+```
+
+```bash
+rainlytics saved-query conversions-do-checkout-by-device
+```
+
+The name gains `-by-device`, so both forms can be deployed together. The classes are Tablet, Mobile,
+Desktop and Other, read from the user agent by the same rules as `browsers`. Each visitor is one
+address and one user agent, so each falls in exactly one class. The `converted` and `visitors`
+columns summed over the rows give the counts without the split. The percentages do not add. To get
+the overall rate, divide the summed `converted` by the summed `visitors`. Automated traffic that the bot filter misses lands in whatever class its user
+agent claims. That is usually Desktop.
+
+A site writing its own rollup can split by the same classes. `deviceClass` is the SQL expression,
+exported from the package root.
+
 ## Write a custom rollup
 
 A custom rollup supplies a name, help text and a function that builds SQL for one request.

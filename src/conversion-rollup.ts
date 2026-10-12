@@ -98,8 +98,8 @@ way, since the denominator is everybody the window saw.
 
 ${countingConvertedVisitors}`,
     body: (request) =>
-      conversionQuery(request, aConversion(request, event), [
-        beaconEventsJoin(),
-      ]),
+      conversionQuery(request, aConversion(request, event), {
+        joins: [beaconEventsJoin()],
+      }),
   };
 }

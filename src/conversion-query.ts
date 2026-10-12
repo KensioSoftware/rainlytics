@@ -18,7 +18,7 @@
 // writes an address into a summary, a result object or a reader's terminal.
 
 import { qualifiedTableName } from "./dataset.js";
-import { aPageView } from "./rollup-questions.js";
+import { aPageView, deviceClass } from "./rollup-questions.js";
 import type { RollupRequest } from "./rollups.js";
 import { rowsFor } from "./rollups.js";
 
@@ -55,6 +55,32 @@ function overOnePass(request: RollupRequest, aConversion: string): string {
   ]);
 }
 
+/** How a conversion question reads its rows, beyond the condition itself. */
+export interface ConversionQueryShape {
+  /**
+   * What goes between the table and the conditions.
+   *
+   * A question counting beacon events passes `beaconEventsJoin()`, since one
+   * row carries as many events as the request that wrote it did. A question
+   * over page requests alone passes nothing and pays for no unnesting.
+   * Neither the pageview half nor the visitor pair changes either way,
+   * because a row with no events to unnest still contributes exactly one.
+   */
+  readonly joins?: readonly string[] | undefined;
+
+  /**
+   * Whether the answer is one row per device class rather than one row.
+   *
+   * The class is {@link deviceClass}, the ladder `browsers` reads. A visitor
+   * is an address and a user agent, and the class is read off that same user
+   * agent, so one visitor falls in exactly one class. `converted` and
+   * `visitors` summed over the classes are the single-row counts. The
+   * percentages do not add, and the overall rate is the summed `converted`
+   * over the summed `visitors`.
+   */
+  readonly byDevice?: boolean | undefined;
+}
+
 /**
  * How many visitors converted, how many were seen, and the proportion.
  *
@@ -66,32 +92,38 @@ function overOnePass(request: RollupRequest, aConversion: string): string {
  * `aConversion` is the condition a converting row satisfies, already written
  * for the request being answered.
  *
- * `joins` goes between the table and the conditions. A question counting
- * beacon events passes `beaconEventsJoin()`, since one row carries as many
- * events as the request that wrote it did. A question over page requests
- * alone passes nothing and pays for no unnesting. Neither the pageview half
- * nor the visitor pair changes either way, because a row with no events to
- * unnest still contributes exactly one.
+ * Split by device, the inner select also carries the visitor's class and the
+ * outer one groups on it. The class is a function of the user agent the inner
+ * select already groups by, so it adds a column and splits no visitor.
  */
 export function conversionQuery(
   request: RollupRequest,
   aConversion: string,
-  joins: readonly string[] = [],
+  shape: ConversionQueryShape = {},
 ): string {
+  const byDevice = shape.byDevice === true;
+
   return [
     "SELECT",
+    ...(byDevice ? ["  device,"] : []),
     `  ${times("converted > 0 AND viewed > 0")} AS converted,`,
     `  ${times("viewed > 0")} AS visitors,`,
     `  round(100.0 * ${times("converted > 0 AND viewed > 0")}` +
       ` / nullif(${times("viewed > 0")}, 0), 1) AS converted_percent`,
     "  FROM (",
-    `  SELECT ${times(aViewedPage)} AS viewed,`,
+    ...(byDevice
+      ? [
+          `  SELECT ${deviceClass} AS device,`,
+          `    ${times(aViewedPage)} AS viewed,`,
+        ]
+      : [`  SELECT ${times(aViewedPage)} AS viewed,`]),
     `    ${times(aConversion)} AS converted`,
     `  FROM ${qualifiedTableName(request.dataset)}`,
-    ...joins,
+    ...(shape.joins ?? []),
     overOnePass(request, aConversion),
-    "  GROUP BY c_ip, cs_user_agent",
+    `  GROUP BY c_ip, cs_user_agent${byDevice ? ", 1" : ""}`,
     "  )",
+    ...(byDevice ? ["  GROUP BY 1", "  ORDER BY 1"] : []),
   ].join("\n");
 }
 
@@ -114,7 +146,8 @@ at 10:01 is split across two hourly windows and neither sees both halves.
 Read this at a day, where almost every visit fits inside one window, and
 treat an hour as an indication.
 
-One row, so \`--limit\` does nothing here.
+One row, or one per device class where the question is split by device, so
+\`--limit\` does nothing here.
 
 A distinct count belongs to one window. Two windows' counts do not add, the
 way two percentiles do not, so this answers from one stored window and offers
