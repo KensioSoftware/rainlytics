@@ -11,6 +11,7 @@ export {
   aPageView,
   browsers,
   cacheHitRatio,
+  deviceClass,
   pageviews,
   referrers,
   rollups,

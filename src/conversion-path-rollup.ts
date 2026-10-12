@@ -61,6 +61,17 @@ export interface ConvertingRequest {
    * where two paths would reduce to the same words.
    */
   readonly name?: string | undefined;
+
+  /**
+   * Whether to answer one row per device class, as Tablet, Mobile, Desktop or
+   * Other.
+   *
+   * The ladder is the one `browsers` reads. The question gains `-by-device`
+   * on its name, so a site can deploy it beside the single-row question and
+   * keep both summaries. A site whose paid clicks are mostly on phones wants
+   * to know whether phones convert, and one row over every device cannot say.
+   */
+  readonly byDevice?: boolean | undefined;
 }
 
 /**
@@ -80,6 +91,17 @@ const aConversion = (converting: ConvertingRequest): string =>
       ? []
       : [oneOf("sc_status", converting.statuses)]),
   ]);
+
+/** What a question split by device says about its rows. */
+const splitByDevice = `\
+Answers one row per device class, being Tablet, Mobile, Desktop or Other as
+\`browsers\` reads them off the user agent. A visitor is an address and a
+user agent, so each one falls in exactly one class and the rows add up to the
+question without the split. The classes inherit what \`browsers\` says about
+a user agent being the client's claim: iPadOS can present as macOS, and
+automated traffic the bot filter misses lands wherever its agent says.
+
+`;
 
 /**
  * The path as a rollup name, being its segments joined by hyphens.
@@ -143,7 +165,8 @@ function nameOf(converting: ConvertingRequest): string {
  *   logical id could carry.
  */
 export function conversionsOfPath(converting: ConvertingRequest): Rollup {
-  const name = `conversions-${converting.name ?? nameOf(converting)}`;
+  const split = converting.byDevice === true ? "-by-device" : "";
+  const name = `conversions-${converting.name ?? nameOf(converting)}${split}`;
   assertRollupName(name);
 
   const described = [
@@ -180,7 +203,10 @@ tried is not somebody who converted.`
 somebody who tried rather than somebody who converted.`
 }
 
-${countingConvertedVisitors}`,
-    body: (request) => conversionQuery(request, aConversion(converting)),
+${converting.byDevice === true ? splitByDevice : ""}${countingConvertedVisitors}`,
+    body: (request) =>
+      conversionQuery(request, aConversion(converting), {
+        byDevice: converting.byDevice,
+      }),
   };
 }

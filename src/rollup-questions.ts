@@ -131,8 +131,13 @@ const browserFamily = userAgentClassifier([
  * An explicit tablet wins over `mobile`. Android agents left after the
  * mobile branch are treated as tablets, following the convention that
  * Android phones carry `Mobile` and Android tablets do not.
+ *
+ * Exported for `conversion-query.ts`, which splits a conversion rate by it,
+ * and from the package root for a site splitting a question of its own. A
+ * second copy of the ladder would call a phone `Mobile` in one answer and
+ * `Tablet` in the one beside it.
  */
-const deviceClass = userAgentClassifier([
+export const deviceClass = userAgentClassifier([
   {
     when: `regexp_like(${userAgent}, 'ipad|tablet|kindle|silk/|playbook')`,
     value: "Tablet",

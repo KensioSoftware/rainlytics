@@ -42,13 +42,16 @@ describe("counting how many visitors converted on a path", () => {
 
     /** What came back, where the site answered a page rather than a redirect. */
     readonly contentType?: string;
+
+    /** The user agent, which is the other half of who they are. */
+    readonly agent?: string;
   }
 
   /** The rows one visitor's visit produces in the log. */
   const rowsFor = (visit: Visited): readonly Record<string, string>[] => {
     const common = {
       "timestamp(ms)": String(theBeaconHour.getTime()),
-      "cs(User-Agent)": "Mozilla/5.0",
+      "cs(User-Agent)": visit.agent ?? "Mozilla/5.0",
       "c-ip": visit.address,
       "cs-uri-query": "-",
     };
@@ -233,6 +236,94 @@ describe("counting how many visitors converted on a path", () => {
     assertObjectEquals(await answeredRows(deployed, conversionSql()), [
       ["1", "2", "50.0"],
     ]);
+  });
+
+  /** A phone, as CloudFront writes Safari on an iPhone. */
+  const aPhone =
+    "Mozilla/5.0%20(iPhone;%20CPU%20iPhone%20OS%2018_6%20like%20Mac%20OS%20X)" +
+    "%20AppleWebKit/605.1.15%20(KHTML,%20like%20Gecko)%20Version/18.6" +
+    "%20Mobile/15E148%20Safari/604.1";
+
+  /** A desktop, as CloudFront writes Chrome on Windows. */
+  const aDesktop =
+    "Mozilla/5.0%20(Windows%20NT%2010.0;%20Win64;%20x64)" +
+    "%20AppleWebKit/537.36%20(KHTML,%20like%20Gecko)" +
+    "%20Chrome/141.0.0.0%20Safari/537.36";
+
+  /** An Android tablet, which carries no `Mobile` token. */
+  const aTablet =
+    "Mozilla/5.0%20(Linux;%20Android%2015;%20SM-X710)" +
+    "%20AppleWebKit/537.36%20(KHTML,%20like%20Gecko)" +
+    "%20Chrome/141.0.0.0%20Safari/537.36";
+
+  it("splits the visitors by device class where asked", async () => {
+    // Given two people on phones, one of whom checked out, one person at a
+    // desktop who checked out, and one on a tablet who only looked.
+    const deployed = await deployBeaconTable();
+    await putDelivered(deployed, [
+      visitor(1, { agent: aPhone, posted: "/do/checkout" }),
+      visitor(2, { agent: aPhone }),
+      visitor(3, { agent: aDesktop, posted: "/do/checkout" }),
+      visitor(4, { agent: aTablet }),
+    ]);
+
+    // When the question split by device is asked of the day.
+    const rows = await answeredRows(
+      deployed,
+      conversionSql({ ...theCheckout, byDevice: true }),
+    );
+
+    // Then each class answers for its own visitors, read off the same ladder
+    // `browsers` uses, and the rows add up to the two out of four the
+    // question without the split would give.
+    assertObjectEquals(rows, [
+      ["Desktop", "1", "1", "100.0"],
+      ["Mobile", "1", "2", "50.0"],
+      ["Tablet", "0", "1", "0.0"],
+    ]);
+  });
+
+  it("counts one address on two devices as two visitors", async () => {
+    // Given one household address, browsing from a phone and checking out
+    // from a desktop.
+    const deployed = await deployBeaconTable();
+    await putDelivered(deployed, [
+      visitor(1, { agent: aPhone }),
+      visitor(1, { agent: aDesktop, posted: "/do/checkout" }),
+    ]);
+
+    // Then each device is a visitor of its own, which is what a visitor
+    // already was. The split adds a column and divides nobody.
+    assertObjectEquals(
+      await answeredRows(
+        deployed,
+        conversionSql({ ...theCheckout, byDevice: true }),
+      ),
+      [
+        ["Desktop", "1", "1", "100.0"],
+        ["Mobile", "0", "1", "0.0"],
+      ],
+    );
+  });
+
+  it("names the split question apart from the whole one", () => {
+    // Given one path asked about both ways.
+    const whole = conversionsOfPath(theCheckout);
+    const split = conversionsOfPath({ ...theCheckout, byDevice: true });
+
+    // Then the two get two names, so a site can deploy both and keep two
+    // summaries, and the split one still declares no totals and still says
+    // it identifies viewers.
+    assertObjectEquals(
+      [whole.name, split.name, split.totals, split.identifiesViewers],
+      [
+        "conversions-do-checkout",
+        "conversions-do-checkout-by-device",
+        undefined,
+        true,
+      ],
+    );
+    assertStringMatches(split.description, /Tablet, Mobile, Desktop or Other/u);
   });
 
   it("answers from one stored window rather than adding two", () => {
