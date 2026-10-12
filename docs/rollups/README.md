@@ -282,8 +282,9 @@ rainlytics saved-query conversions-do-checkout-by-device
 
 The name gains `-by-device`, so both forms can be deployed together. The classes are Tablet, Mobile,
 Desktop and Other, read from the user agent by the same rules as `browsers`. Each visitor is one
-address and one user agent, so each falls in exactly one class and the rows add up to the answer
-without the split. Automated traffic that the bot filter misses lands in whatever class its user
+address and one user agent, so each falls in exactly one class. The `converted` and `visitors`
+columns summed over the rows give the counts without the split. The percentages do not add. To get
+the overall rate, divide the summed `converted` by the summed `visitors`. Automated traffic that the bot filter misses lands in whatever class its user
 agent claims. That is usually Desktop.
 
 A site writing its own rollup can split by the same classes. `deviceClass` is the SQL expression,

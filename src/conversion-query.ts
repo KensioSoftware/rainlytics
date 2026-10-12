@@ -73,8 +73,10 @@ export interface ConversionQueryShape {
    *
    * The class is {@link deviceClass}, the ladder `browsers` reads. A visitor
    * is an address and a user agent, and the class is read off that same user
-   * agent, so one visitor falls in exactly one class and the classes add up
-   * to the single-row answer.
+   * agent, so one visitor falls in exactly one class. `converted` and
+   * `visitors` summed over the classes are the single-row counts. The
+   * percentages do not add, and the overall rate is the summed `converted`
+   * over the summed `visitors`.
    */
   readonly byDevice?: boolean | undefined;
 }

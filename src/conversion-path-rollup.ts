@@ -96,8 +96,10 @@ const aConversion = (converting: ConvertingRequest): string =>
 const splitByDevice = `\
 Answers one row per device class, being Tablet, Mobile, Desktop or Other as
 \`browsers\` reads them off the user agent. A visitor is an address and a
-user agent, so each one falls in exactly one class and the rows add up to the
-question without the split. The classes inherit what \`browsers\` says about
+user agent, so each one falls in exactly one class. \`converted\` and
+\`visitors\` summed over the rows are the counts of the question without the
+split. The percentages do not add. The overall rate is the summed
+\`converted\` over the summed \`visitors\`. The classes inherit what \`browsers\` says about
 a user agent being the client's claim: iPadOS can present as macOS, and
 automated traffic the bot filter misses lands wherever its agent says.
 
