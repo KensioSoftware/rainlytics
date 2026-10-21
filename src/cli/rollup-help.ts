@@ -22,9 +22,42 @@ export const lastOption: CliOption = {
   valueName: "span",
   description:
     `How far back to look, as a whole number of hours, days or weeks:` +
-    ` 24h, 7d, 2w. Defaults to ${defaultLast}. The span decides how many` +
-    ` stored summaries are read, and how many partitions a --query run` +
-    ` scans. A shorter one costs less either way.`,
+    ` 24h, 7d, 2w. Defaults to ${defaultLast} where no --day or --from is` +
+    ` given. The span decides how many stored summaries are read, and how` +
+    ` many partitions a --query run scans. A shorter one costs less either` +
+    ` way.`,
+};
+
+export const dayOption: CliOption = {
+  name: "day",
+  type: "string",
+  valueName: "date",
+  description:
+    "One UTC day, as YYYY-MM-DD, from its midnight to the next. Reads that" +
+    " day's stored summary and nothing either side of it, which is how a" +
+    " question answering from one stored window, such as a conversion rate," +
+    " is read for a day. Cannot be given with --last, --from or --until.",
+};
+
+export const fromOption: CliOption = {
+  name: "from",
+  type: "string",
+  valueName: "instant",
+  description:
+    "Where the span starts, as YYYY-MM-DD for midnight UTC or as an ISO 8601" +
+    " instant with its offset, such as 2026-10-01T06:00Z. Spans written as" +
+    " days read whole stored days and nothing short of them. Cannot be given" +
+    " with --last or --day.",
+};
+
+export const untilOption: CliOption = {
+  name: "until",
+  type: "string",
+  valueName: "instant",
+  description:
+    "Where the span ends, written the same way as --from and outside the" +
+    " span, so --from 2026-10-01 --until 2026-11-01 is October. Defaults to" +
+    " now. Needs --from.",
 };
 
 export const includeBotsOption: CliOption = {

@@ -39,6 +39,16 @@ rainlytics referrers --last 2w
 The suffix can be `h`, `d` or `w`. For stored reads, the range selects summary windows. With
 `--query`, it becomes time and partition filters that limit the logs Athena reads.
 
+Name UTC days with `--day`, or with `--from` and `--until` (`--until` is outside the span):
+
+```bash
+rainlytics pageviews --day 2026-10-11
+rainlytics pageviews --from 2026-10-01 --until 2026-11-01
+```
+
+A span written in whole days reads whole stored days. See
+[Name the days to read](../command-line/#name-the-days-to-read).
+
 Filter by path prefix or host:
 
 ```bash
@@ -303,6 +313,16 @@ Visitor counts from separate windows cannot be added. Two hours with ten visitor
 the same ten visitors or twenty different ones. Conversion rollups therefore declare no additive
 totals. Query the raw logs over the full period when you need a longer conversion window.
 
+A stored daily rate is read with `--day`, once the rollup has a command on your own command line
+(see [Add your own questions](../command-line/#add-your-own-questions)):
+
+```bash
+rainlytics conversions-purchase --day 2026-10-11
+```
+
+`--last` covers part hours at both ends and adds the daily window to hourly ones, so it is refused
+for a conversion rate.
+
 ### Measure conversions from access logs
 
 Use `conversionsOfPath` when a request to a particular URL represents a conversion. For example,
@@ -435,8 +455,9 @@ new RollupSummaries(this, "Summaries", {
 });
 ```
 
-Run it with `rainlytics saved-query countries`. The fixed CLI command list only contains questions
-shipped by the package.
+Run it with `rainlytics saved-query countries`, which runs the saved query in Athena. To read its
+stored summaries instead, add it to your own command line with `rollupCommand` from
+`@kensio/rainlytics/cli`. See [Add your own questions](../command-line/#add-your-own-questions).
 
 Names use lowercase words joined by hyphens. Each scheduled question must have a unique name because
 the name is part of its saved query and S3 key.

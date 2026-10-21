@@ -69,6 +69,9 @@ expected=(
   # runs in that site's own Lambda bundle rather than in a page.
   package/dist/notifications/index.js
   package/dist/notifications/index.d.ts
+  # What a site imports to run the command line with its own rollups added.
+  package/dist/cli/index.js
+  package/dist/cli/index.d.ts
   # The CLI's entry point. `bin` in package.json is a third list that has to
   # agree with `files` and with `exports`, and npm links it onto a consumer's
   # PATH without ever checking the target is there. A missing one shows up as
@@ -250,6 +253,24 @@ if ! grep --quiet --fixed-strings 'rainlytics <command> [options]' <<<"$cli_help
   sed 's/^/  /' <<<"$cli_help" >&2
   exit 1
 fi
+
+# The `./cli` entry point, loaded out of the tarball the same way. A site
+# imports it from a script of its own, and it carries the commands `bin`
+# runs, so it has to load with nothing installed beside it as well.
+if ! cli_exports="$(cd "$tmp/package" && node --input-type=module --eval \
+  'const cli = await import("./dist/cli/index.js"); console.log(Object.keys(cli).sort().join(" "));' 2>&1)"; then
+  echo "Importing dist/cli/index.js out of the tarball failed:" >&2
+  sed 's/^/  /' <<<"$cli_exports" >&2
+  exit 1
+fi
+
+for name in runCli rainlyticsCommands rollupCommand; do
+  if ! grep --quiet --word-regexp "$name" <<<"$cli_exports"; then
+    echo "dist/cli/index.js does not export $name. It exports:" >&2
+    echo "  $cli_exports" >&2
+    exit 1
+  fi
+done
 
 echo "Tarball looks right:"
 sed 's/^/  /' <<<"$contents" | sort

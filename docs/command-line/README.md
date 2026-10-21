@@ -81,6 +81,75 @@ rainlytics pageviews --last 2h --query
 This runs an Athena query over the available raw logs and incurs query cost. Missing summaries
 never trigger an automatic Athena query.
 
+## Name the days to read
+
+`--last` measures back from now. Its two ends fall part-way through an hour, so it never reads
+exactly one stored day. Name the days instead with `--day`, or with `--from` and `--until`:
+
+```bash
+rainlytics pageviews --day 2026-10-11
+rainlytics referrers --from 2026-10-01 --until 2026-11-01
+```
+
+`--day` is one UTC day, from its midnight to the next. `--from` and `--until` take a date for
+midnight UTC or an ISO 8601 instant with its offset, written as for `backfill`. `--until` is outside
+the span and defaults to now, so the second example is October. A span written in whole days reads
+whole stored days. Use one of `--last`, `--day` or `--from` on a command line, never two.
+
+A conversion rate answers from one stored window, because visitor counts from two windows cannot be
+added. `--day` reads one stored day of it:
+
+```bash
+rainlytics conversions-purchase --day 2026-10-11
+```
+
+The filters still apply. `--day 2026-10-11 --country GB` reads the day of the summary computed for
+GB. With `--query`, the day becomes the span Athena counts.
+
+## Add your own questions
+
+The `rainlytics` executable has a command for each question the package ships. A site's own
+rollups, such as `conversionsOf("purchase")`, reach it only through `saved-query`, which runs an
+Athena query. A role limited to reading summaries cannot start one.
+
+`@kensio/rainlytics/cli` exports the command line. Run it with your own rollups added to the
+shipped commands:
+
+```typescript
+import {
+  rainlyticsCommands,
+  rollupCommand,
+  runCli,
+} from "@kensio/rainlytics/cli";
+
+import { questions } from "./questions.js";
+
+const shipped = new Set(rainlyticsCommands.map((command) => command.name));
+
+process.exitCode = await runCli({
+  argv: process.argv.slice(2),
+  commands: [
+    ...rainlyticsCommands,
+    ...questions
+      .filter((rollup) => !shipped.has(rollup.name))
+      .map(rollupCommand),
+  ],
+  io: {
+    out: (text) => process.stdout.write(text),
+    error: (text) => process.stderr.write(text),
+    outIsTerminal: process.stdout.isTTY,
+  },
+});
+```
+
+`rollupCommand` builds the same command the shipped questions get. It reads stored summaries, takes
+the same options and refusals, and runs Athena with `--query`. Pass the same rollups given to
+`RollupSummaries`.
+
+A site can write a `Command` of its own as well. `run` receives the arguments, the parsed options
+and the two streams, and returns columns and rows. Throw `UsageError` for a mistake in what was
+typed, and the command exits with code 2.
+
 ## Read a calendar report
 
 `report` reads one stored report for a closed calendar period:

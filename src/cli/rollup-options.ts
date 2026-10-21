@@ -10,6 +10,7 @@ import type { Rollup, RollupRequest } from "../rollups.js";
 import { rollupRequest } from "../rollups.js";
 import type { TimeRange } from "../time-range.js";
 import type { CommandContext } from "./command.js";
+import { askedSpan } from "./asked-span.js";
 import { botUserAgentsFrom } from "./bot-user-agents.js";
 import {
   chosen,
@@ -17,7 +18,6 @@ import {
   counted,
   databaseFrom,
   eachChosen,
-  rangeFrom,
   statusesFrom,
   summaryBucketFrom,
   workgroupFrom,
@@ -32,7 +32,8 @@ export interface RollupAsked {
   readonly request: RollupRequest;
 
   /**
-   * The span `--last` named, as the summary reader needs it.
+   * The span `--last`, `--day` or `--from` named, as the summary reader
+   * needs it.
    *
    * The same value the request carries. `RollupRequest.range` widens to the
    * two standing ranges a saved query and a schedule use, and a command line
@@ -96,7 +97,7 @@ export function requestFrom(
   rollup: Rollup,
 ): RollupAsked {
   const database = databaseFrom(context.options["database"]);
-  const range = rangeFrom(context.options["last"], rollup.name);
+  const range = askedSpan(context.options, rollup.name, new Date());
 
   return {
     database,

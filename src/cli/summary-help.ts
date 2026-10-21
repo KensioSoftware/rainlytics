@@ -70,9 +70,14 @@ holding fewer rows than that cuts the answer down and says so, and a row count
 somebody typed is refused instead.
 
 A range is covered by whole UTC windows, days wherever a whole day fits and
-hours at the two edges. The part hours at either end have no stored window, so
-a span always reads a little short of the one asked for. Standard error names
-the span that answered.
+hours at the two edges. --last ends now, and the part hours at either end have
+no stored window, so it always reads a little short of the span asked for.
+--day, and --from and --until written as days, land on whole days and read
+exactly the span named. Standard error names the span that answered.
+
+A question whose rows do not add across windows, such as a conversion rate,
+answers from one stored window only. --day 2026-10-11 reads one stored day of
+it.
 
 A ranked answer assembled from several windows is approximate. A row that fell
 outside the stored rows of every window is missing from all of them, and
