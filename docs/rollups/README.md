@@ -58,6 +58,45 @@ rainlytics status-codes --last 7d --include-bots
 The filter is useful but cannot identify every automated client. Any client controls its own user
 agent.
 
+### Add crawlers to the bot filter
+
+Some crawlers name themselves without any of the four. A product crawler sent this user agent to one
+shop about 370 times a day, and every rollup counted it as a desktop visitor:
+
+```
+Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko; GeedoShopProductFinder) Chrome/142.0.0.0 Safari/537.36
+```
+
+Add part of its user agent to the filter with `--bot-user-agent`:
+
+```bash
+rainlytics pageviews --bot-user-agent productfinder --last 7d
+```
+
+Each substring is matched literally (a `.` is a dot) and without regard to case, anywhere in the
+user agent. Repeat the option to add several. The built-in four stay in the filter, and
+`--include-bots` still counts every request.
+
+The match runs against the user agent as CloudFront logged it. CloudFront writes a space as `%20`,
+so a substring with a space in it is refused. Pick one run of letters, such as `productfinder`.
+
+A stored or scheduled question takes the same list as `botUserAgents` in its request. A list that
+belongs to the whole site is a variable spread into each question:
+
+```typescript
+const site = { botUserAgents: ["productfinder"] };
+
+new RollupSummaries(this, "Summaries", {
+  table,
+  workgroup,
+  requests: Object.fromEntries(rollups.map((rollup) => [rollup.name, site])),
+});
+```
+
+The list applies to the counts and to the visitor count stored beside them. A named command that
+gives no `--bot-user-agent` takes the list the summaries were computed with, and standard error says
+so. Reading a span across the day a list changed stops with an error naming `--bot-user-agent`.
+
 ### Filter by country
 
 A site whose customers are all in one country can count visitors from that country alone:
@@ -356,8 +395,8 @@ const countries: Rollup = {
 };
 ```
 
-Use `rowsFor` for the `WHERE` clause. It adds the time partitions, timestamp bounds, bot filter,
-host filter, path filters and country filter from the request.
+Use `rowsFor` for the `WHERE` clause. It adds the time partitions, timestamp bounds, bot filter
+(with any added user agents), host filter, path filters and country filter from the request.
 
 `aPageView` contains the built-in pageview conditions (a `GET` with a `text/html` response and
 status 200 or 304). Include it to use the same pageview definition as the built-in rollup.

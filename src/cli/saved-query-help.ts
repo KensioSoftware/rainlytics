@@ -21,7 +21,8 @@ therefore reach the same saved query. A name matching nothing is answered
 with the names that are saved in the workgroup.
 
 What a saved query covers was settled when it was saved. There is no --last,
---limit, --include-bots, --path, --host, --country or --param here. The saved SQL
+--limit, --include-bots, --bot-user-agent, --path, --host, --country or
+--param here. The saved SQL
 carries a range, a row count and its filters already, and this command sends
 it as it was saved. A saved rollup covers the month you run it in, and the
 "requests" prop on the construct is where the rest of it is decided. Athena

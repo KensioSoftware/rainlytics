@@ -36,6 +36,22 @@ export const includeBotsOption: CliOption = {
     " about them than about anybody. See the docs for what is matched.",
 };
 
+export const botUserAgentOption: CliOption = {
+  name: "bot-user-agent",
+  type: "string",
+  multiple: true,
+  valueName: "text",
+  description:
+    "Treat a request whose user agent contains this as automated, beside" +
+    " the bot, crawl, spider and slurp the filter always matches. For a" +
+    " crawler that names itself without any of them, such as" +
+    " GeedoShopProductFinder. Matched literally and without regard to case," +
+    " against the user agent as CloudFront logged it, so it cannot hold a" +
+    " space." +
+    " Give it again for each crawler. --include-bots still counts them all." +
+    " Only a summary computed with the same list can answer it.",
+};
+
 export const limitOption: CliOption = {
   name: "limit",
   short: "n",

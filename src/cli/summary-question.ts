@@ -1,7 +1,8 @@
 // Whether a stored summary answers the question somebody typed.
 //
 // This is the hard part of reading summaries. `--path`, `--host`,
-// `--country`, `--include-bots` and `--param` each change the answer, and a schedule
+// `--country`, `--include-bots`, `--bot-user-agent` and `--param` each change
+// the answer, and a schedule
 // computes the questions its deployment named. Rainlytics precomputes the
 // unfiltered form, and a site adds a narrowed one through the `requests` prop
 // on `RollupSummaries`.
@@ -13,6 +14,13 @@
 
 import type { SummaryQuestion } from "../rollup-summaries.js";
 import type { Rollup, RollupRequest } from "../rollups.js";
+import {
+  botText,
+  botUserAgentText,
+  countryText,
+  hostText,
+  pathText,
+} from "./question-text.js";
 
 /**
  * The options deciding which requests a question counted.
@@ -29,6 +37,7 @@ export const countingOptions = [
   "--path",
   "--country",
   "--include-bots",
+  "--bot-user-agent",
   "--param",
   "--redirect-status",
 ] as const;
@@ -39,8 +48,8 @@ export type CountingOption = (typeof countingOptions)[number];
 /**
  * Those, and the row count.
  *
- * `--limit` is apart from the six above and stays apart the whole way down.
- * The six decide which requests were counted, and a run naming none of them
+ * `--limit` is apart from the seven above and stays apart the whole way down.
+ * The seven decide which requests were counted, and a run naming none of them
  * takes what the summaries counted. A row count decides how much of a ranked
  * answer is printed and leaves what was counted where it was. A run naming
  * none of it keeps the command's own default, cut to what the stored windows
@@ -94,6 +103,11 @@ export function askedQuestion(
  * cutting a stored answer down is the same arithmetic the query does. The
  * reverse loses rows nobody counted.
  *
+ * `--bot-user-agent` is compared only where neither side counted crawlers.
+ * A question counting everything has no use for a list of what to leave out,
+ * and one counting crawlers beside one leaving them out already differs on
+ * `--include-bots`.
+ *
  * Three fields are compared only for the questions that read them.
  * `rollupRequest` fills in a default for every field of every question, so a
  * deployment that set one on a rollup ignoring it changed no answer.
@@ -121,6 +135,13 @@ export function questionDifferences(
       botText(asked.includeBots),
       botText(computed.includeBots),
     ),
+    ...(asked.includeBots || computed.includeBots
+      ? []
+      : differing(
+          "--bot-user-agent",
+          botUserAgentText(asked.botUserAgents),
+          botUserAgentText(computed.botUserAgents),
+        )),
     ...(rollup.namesAParameter === true
       ? differing("--param", asked.param, computed.param)
       : []),
@@ -152,40 +173,4 @@ function differing(
   computed: string,
 ): readonly QuestionDifference[] {
   return asked === computed ? [] : [{ option, asked, computed }];
-}
-
-/** The host a question counted, as a sentence names it. */
-function hostText(host: string | undefined): string {
-  return host ?? "every host";
-}
-
-/** The sections a question counted, as a sentence names them. */
-function pathText(paths: readonly string[] | undefined): string {
-  const named = paths ?? [];
-
-  return named.length === 0 ? "the whole distribution" : named.join(" ");
-}
-
-/**
- * The countries a question counted, as a sentence names them.
- *
- * Sorted and each named once, since the list is a set. `GB IE` and `IE GB`
- * select the same rows, and comparing them as typed would refuse a summary
- * that answers the question. Paths keep their order, because the first of two
- * overlapping paths is the one `matchedPath` reports.
- */
-function countryText(countries: readonly string[] | undefined): string {
-  // `toSorted` is ES2023 and the compiler targets ES2022, so the copy is
-  // taken here and the sort runs over it.
-  // oxlint-disable-next-line unicorn/no-array-sort
-  const named = [...new Set(countries)].sort((left, right) =>
-    left.localeCompare(right),
-  );
-
-  return named.length === 0 ? "every country" : named.join(" ");
-}
-
-/** Whether a question counted automated traffic, as a sentence says it. */
-function botText(includeBots: boolean): string {
-  return includeBots ? "crawlers counted" : "crawlers left out";
 }

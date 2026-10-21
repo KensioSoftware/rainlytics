@@ -499,6 +499,75 @@ describe("computing rollup summaries on a schedule", () => {
     assertObjectEquals(summary.question.countries, ["GB"]);
   });
 
+  it("leaves a crawler a site named out of the counts and the visitors", async () => {
+    // Given a deployment adding a product crawler to the bot filter, written
+    // in the case its user agent uses, and an hour holding one view from a
+    // person beside two from the crawler. The crawler's user agent carries
+    // none of the four built-in substrings and reads as a desktop browser.
+    const deployed = await deployAnalytics({
+      requests: { pageviews: { botUserAgents: ["GeedoShopProductFinder"] } },
+    });
+    const crawler = {
+      "c-ip": "198.51.100.1",
+      "cs(User-Agent)":
+        "Mozilla/5.0%20(X11;%20Linux%20x86_64)%20AppleWebKit/537.36%20(KHTML,%20like%20Gecko;%20GeedoShopProductFinder)%20Chrome/142.0.0.0%20Safari/537.36",
+    };
+    await putDelivered(deployed, theClosedHour, [
+      aRecord(theClosedHour, { "c-ip": "203.0.113.7" }),
+      aRecord(theClosedHour, crawler),
+      aRecord(theClosedHour, { ...crawler, "cs-uri-stem": "/products/" }),
+    ]);
+
+    // When the schedule fires.
+    await deployed.simAws.clock().advanceBy({ minutes: 16 });
+    await deployed.simAws.backgroundTasksComplete();
+
+    // Then the summary holds the person's view and the person alone, and
+    // records the list it was computed with. A crawler filtered out of the
+    // views and left in the visitors would put two sets of rows under one
+    // window.
+    const summary = await summaryAt(deployed, closedHourKey);
+
+    assertObjectEquals(summary?.rows, [{ path: "/", views: "1" }]);
+    assertObjectEquals(summary.visitors, { distinct: 1, additive: false });
+    assertObjectEquals(summary.question.botUserAgents, [
+      "GeedoShopProductFinder",
+    ]);
+  });
+
+  it("counts a crawler a site named where it counts automated traffic", async () => {
+    // Given a deployment counting automated traffic that also names a
+    // crawler, and an hour holding one view from a person and one from the
+    // crawler.
+    const deployed = await deployAnalytics({
+      requests: {
+        pageviews: {
+          includeBots: true,
+          botUserAgents: ["GeedoShopProductFinder"],
+        },
+      },
+    });
+    await putDelivered(deployed, theClosedHour, [
+      aRecord(theClosedHour, { "c-ip": "203.0.113.7" }),
+      aRecord(theClosedHour, {
+        "c-ip": "198.51.100.1",
+        "cs(User-Agent)":
+          "Mozilla/5.0%20(X11;%20Linux%20x86_64)%20AppleWebKit/537.36%20(KHTML,%20like%20Gecko;%20GeedoShopProductFinder)%20Chrome/142.0.0.0%20Safari/537.36",
+      }),
+    ]);
+
+    // When the schedule fires.
+    await deployed.simAws.clock().advanceBy({ minutes: 16 });
+    await deployed.simAws.backgroundTasksComplete();
+
+    // Then both views and both visitors are counted. Counting automated
+    // traffic lifts the substrings a site added along with the four built in.
+    const summary = await summaryAt(deployed, closedHourKey);
+
+    assertObjectEquals(summary?.rows, [{ path: "/", views: "2" }]);
+    assertObjectEquals(summary.visitors, { distinct: 2, additive: false });
+  });
+
   it("asks Athena nothing where the salt parameter is missing", async () => {
     // Given a deployment naming a parameter nobody created, and an hour of
     // traffic waiting to be counted.

@@ -42,11 +42,13 @@ export function describing(rollup: Rollup, request: RollupRequest): string {
  * The clauses saying what one saved copy counts.
  *
  * The range, the host, the sections and the countries it was narrowed to,
- * the parameter a search reads, and whether automated traffic is counted. Each of those
+ * the parameter a search reads, whether automated traffic is counted, and any
+ * user agents a site added to the bot filter. Each of those
  * changes the answer, and a copy answering a narrower question than its name
  * promises is what the narrowing was added to say out loud.
  *
- * Several sections are joined by "or", and so are several countries. That is
+ * Several sections are joined by "or", and so are several countries and
+ * several user agents. That is
  * what the SQL underneath does with them, and it keeps them apart from the commas joining the clauses
  * around them.
  *
@@ -67,6 +69,7 @@ export function describing(rollup: Rollup, request: RollupRequest): string {
 function covering(rollup: Rollup, request: RollupRequest): readonly string[] {
   const paths = request.paths ?? [];
   const countries = request.countries ?? [];
+  const agents = request.botUserAgents ?? [];
 
   return [
     "Over the current month",
@@ -82,6 +85,9 @@ function covering(rollup: Rollup, request: RollupRequest): readonly string[] {
       ? [countingRedirects(request)]
       : []),
     ...(request.includeBots ? ["counting automated traffic"] : []),
+    ...(request.includeBots || agents.length === 0
+      ? []
+      : [`leaving out user agents containing ${agents.join(" or ")}`]),
   ];
 }
 
