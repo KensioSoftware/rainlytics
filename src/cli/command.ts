@@ -8,6 +8,7 @@ import { beaconTotals } from "../beacon-totals-rollup.js";
 import { javascriptErrors } from "../javascript-errors-rollup.js";
 import { rollups } from "../rollup-questions.js";
 import { webVitals } from "../web-vitals-rollup.js";
+import { backfillCommand } from "./backfill-command.js";
 import { queryCommand } from "./query-command.js";
 import { reportCommand } from "./report-command.js";
 import { rollupCommand } from "./rollup-commands.js";
@@ -61,8 +62,9 @@ export interface Command {
 /**
  * The commands `rainlytics` ships with.
  *
- * The named questions first, then a calendar report, then the two that take a
- * question of somebody else's. That order is the one a reader wants.
+ * The named questions first, then a calendar report, then the backfill that
+ * writes the summaries both read, then the two that take a question of
+ * somebody else's. That order is the one a reader wants.
  * Somebody arriving at `rainlytics --help` is far more likely to want a
  * pageview count than to want to write SQL.
  *
@@ -76,6 +78,7 @@ export const rainlyticsCommands: readonly Command[] = [
   rollupCommand(webVitals),
   rollupCommand(beaconTotals),
   reportCommand,
+  backfillCommand,
   savedQueryCommand,
   queryCommand,
 ];

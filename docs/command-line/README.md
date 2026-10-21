@@ -99,6 +99,19 @@ reports. Report commands never run Athena.
 Reports always use JSON because their period, source coverage and section metadata are part of the
 answer.
 
+## Fill in missed summaries
+
+`backfill` computes the stored summaries of one question over a range of closed windows. Use it
+after scheduled runs failed and left windows unwritten:
+
+```bash
+rainlytics backfill pageviews hourly --from 2026-09-11 --until 2026-10-12
+```
+
+It invokes the deployment's summary function, which runs Athena and writes the summaries. This is
+the one command that writes. See [Backfill missed windows](../summary-schedule/#backfill-missed-windows)
+for the reports step that follows it.
+
 ## Run saved SQL
 
 `RollupQueries` stores generated SQL in Athena. Run a saved query by name:
@@ -162,6 +175,9 @@ Run `rainlytics <command> --help` for the full option list and examples for one 
 
 Reading named questions and reports needs `s3:GetObject` on the summaries bucket. A normal AWS
 read-only role often has this access.
+
+`backfill` needs `scheduler:GetSchedule` on the question's schedule and `lambda:InvokeFunction`
+on the summary function.
 
 Athena operations need query access to the workgroup, Glue catalog reads, raw log reads and writes
 to the query results bucket. Grant the set with `workgroup.grantQuerying(role, table)`. See [Query

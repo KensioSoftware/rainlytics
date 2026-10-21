@@ -122,7 +122,9 @@
   "type": "module",
   "dependencies": {
     "@aws-sdk/client-athena": "^3.1118.0",
+    "@aws-sdk/client-lambda": "^3.1148.0",
     "@aws-sdk/client-s3": "^3.1119.0",
+    "@aws-sdk/client-scheduler": "^3.1148.0",
     "@aws-sdk/client-sns": "^3.1121.0"
   }
 }

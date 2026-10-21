@@ -156,6 +156,83 @@ stored window is missing.
 Rainlytics does not create an alarm by default. CloudWatch alarms can add a fixed monthly charge,
 so the deployment decides whether to add one.
 
+## Backfill missed windows
+
+A scheduled run computes the windows that have just closed. A window whose run failed stays missing
+after the next run succeeds. The raw logs are still in the log bucket for as long as its lifecycle
+keeps them, and the summaries can be computed from them afterwards. Fix whatever made the runs fail
+first, such as a missing visitor salt. Then backfill the summaries, and then the reports.
+
+### 1. Backfill the summaries
+
+Run `rainlytics backfill` once for each question and granularity that has a gap:
+
+```bash
+rainlytics backfill pageviews hourly --from 2026-09-11 --until 2026-10-12
+rainlytics backfill pageviews daily --from 2026-09-11 --until 2026-10-12
+```
+
+`--from` and `--until` take a date (midnight UTC) or an ISO 8601 instant with its offset. `--until`
+is outside the range and defaults to now. Every window that overlaps the range and has closed is
+computed. Pass `--schedule-prefix` where the deployment set `schedulePrefix`.
+
+The command reads the question's schedule and invokes the summary function with the schedule's own
+payload plus the range. The function computes each window with the code and SQL a scheduled run
+uses, and writes it under the same key. Running a backfill twice writes the same summaries again.
+
+One invocation computes windows oldest first and stops before the function's timeout. It answers
+with the payload that carries on from the next window, and the command invokes again with it until
+the range is done. A month of hourly windows takes several invocations at the default five-minute
+timeout. Each one is reported on standard error. After a failure, run the command again with
+`--from` set to where the last report reached.
+
+The identity running the command needs `scheduler:GetSchedule` on the schedule and
+`lambda:InvokeFunction` on the summary function. The function queries and writes with its own role.
+
+Each window runs one Athena query, and a second for a question that counts visitors. The command
+prints the window count and the minimum Athena charge before it starts. A month of hourly pageviews
+is 744 windows and 1,488 queries, about 7 cents at the 10 MB minimum.
+
+The same backfill works without the CLI. Add a `backfill` field to the schedule's input and invoke
+the function synchronously:
+
+```bash
+aws scheduler get-schedule --name rainlytics-pageviews-hourly \
+  --query Target.Input --output text \
+  | jq '.backfill = {from: "2026-09-11T00:00:00Z", until: "2026-10-12T00:00:00Z"}' \
+  > backfill.json
+aws lambda invoke \
+  --function-name "$(aws scheduler get-schedule --name rainlytics-pageviews-hourly --query Target.Arn --output text)" \
+  --cli-read-timeout 0 --cli-binary-format raw-in-base64-out \
+  --payload file://backfill.json progress.json
+```
+
+`progress.json` lists the windows written under `computed`. Where it has a `next` field, invoke again
+with that as the payload. `--cli-read-timeout 0` stops the AWS CLI giving up after its default 60
+seconds while the function is still working.
+
+### 2. Backfill the reports
+
+A calendar report composes its sections from the stored summaries. A report written before its
+summaries existed has empty sections, so the reports come second. The report schedule's input
+carries `recomputedDays`, the number of closed local days each run rewrites along with any week,
+month or year ending on them. Invoke the report function once with that raised to cover the gap:
+
+```bash
+aws scheduler get-schedule --name rainlytics-_reports-daily \
+  --query Target.Input --output text \
+  | jq '.recomputedDays = 41' > reports.json
+aws lambda invoke \
+  --function-name "$(aws scheduler get-schedule --name rainlytics-_reports-daily --query Target.Arn --output text)" \
+  --cli-read-timeout 0 --cli-binary-format raw-in-base64-out \
+  --payload file://reports.json reports-out.json
+```
+
+Count the days back from today to the first missing one. The report function has a 15-minute
+timeout, and its log group records each report as it is written. Report
+notifications only cover periods ending on the most recent closed day, and a manifest that already
+exists is left alone.
+
 ## Run more than one deployment
 
 Schedule names are unique in an account and region. Give another deployment a distinct prefix:

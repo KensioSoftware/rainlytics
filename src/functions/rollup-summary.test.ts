@@ -1,4 +1,5 @@
 import {
+  assertArrayLength,
   assertFalse,
   assertNonNullable,
   assertObjectEquals,
@@ -41,6 +42,7 @@ import {
 import { visitorCountSql } from "../visitor-counts.js";
 import { defaultVisitorSaltParameter } from "../visitor-identity.js";
 import { visitorSaltPlaceholder } from "../visitor-identity.js";
+import type { BackfillProgress } from "../summary-backfill.js";
 import { handler } from "./rollup-summary.js";
 import { summaryEnvironment } from "./summary-deployment.js";
 
@@ -437,6 +439,157 @@ describe("one run of the rollup summary job", () => {
       const error = await assertThrowsErrorAsync(() => running);
       assertStringMatches(error.message, /pageviews/u);
     }
+    assertUndefined(
+      await summaryAt(
+        deployed,
+        "summaries/v1/pageviews/hourly/2026-08-23T08Z.json",
+      ),
+    );
+  });
+
+  /** A backfill over the four hours before the one the clock is in. */
+  const aBackfill = (until = "2026-08-23T12:00:00.000Z"): unknown => ({
+    ...(aRun() as object),
+    visitorSql: aVisitorCount(),
+    backfill: { from: "2026-08-23T05:00:00.000Z", until },
+  });
+
+  /** A Lambda context with no time left after the window it is on. */
+  const outOfTime = { getRemainingTimeInMillis: () => 0 };
+
+  it("computes every closed window of a backfill range", async () => {
+    // Given traffic in two of four hours that closed long ago, and a range
+    // running on past the hour the clock is in.
+    const deployed = await deployAnalytics();
+    await putDelivered(deployed, new Date("2026-08-23T05:30:00.000Z"));
+    await putDelivered(deployed, new Date("2026-08-23T07:30:00.000Z"));
+    await atQuarterPast(deployed);
+
+    // When the job is asked to backfill it.
+    const progress = await handler(aBackfill());
+
+    // Then it wrote each closed hour oldest first, and nothing remains. The
+    // hour the clock is in is the schedule's to compute once it closes.
+    assertObjectEquals(progress, {
+      computed: [
+        "2026-08-23T05:00:00.000Z",
+        "2026-08-23T06:00:00.000Z",
+        "2026-08-23T07:00:00.000Z",
+        "2026-08-23T08:00:00.000Z",
+      ],
+    });
+    const summary = await summaryAt(
+      deployed,
+      "summaries/v1/pageviews/hourly/2026-08-23T05Z.json",
+    );
+    assertObjectEquals(summary?.rows, [{ path: "/", views: "1" }]);
+    assertObjectEquals(summary.visitors, { distinct: 1, additive: false });
+    assertObjectEquals(
+      await rowsIn(
+        deployed,
+        "summaries/v1/pageviews/hourly/2026-08-23T06Z.json",
+      ),
+      [],
+    );
+    assertUndefined(
+      await summaryAt(
+        deployed,
+        "summaries/v1/pageviews/hourly/2026-08-23T09Z.json",
+      ),
+    );
+  });
+
+  it("writes the scheduled run's summary for a window it backfills", async () => {
+    // Given an hour of traffic, already computed by a scheduled run.
+    const deployed = await deployAnalytics();
+    await putDelivered(deployed, anHour);
+    await atQuarterPast(deployed);
+    const key = "summaries/v1/pageviews/hourly/2026-08-23T08Z.json";
+    await handler({ ...(aRun() as object), visitorSql: aVisitorCount() });
+    const scheduled = await summaryAt(deployed, key);
+
+    // When a backfill covering it runs twice.
+    await handler(aBackfill());
+    await handler(aBackfill());
+
+    // Then the summary is the one the schedule wrote, apart from when it was
+    // computed.
+    const backfilled = await summaryAt(deployed, key);
+    assertNonNullable(scheduled);
+    assertNonNullable(backfilled);
+    assertObjectEquals(
+      { ...backfilled, computedAt: undefined },
+      { ...scheduled, computedAt: undefined },
+    );
+  });
+
+  it("hands the rest of the range on when time runs short", async () => {
+    // Given traffic in the last hour of a four-hour range, and an invocation
+    // with no time to spare.
+    const deployed = await deployAnalytics();
+    await putDelivered(deployed, anHour);
+    await atQuarterPast(deployed);
+
+    // When the job is invoked with that range, and again with whatever it
+    // hands back, until it hands back nothing.
+    const invocations: BackfillProgress[] = [];
+    let payload: unknown = aBackfill("2026-08-23T09:00:00.000Z");
+
+    while (payload !== undefined) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      const progress = await handler(payload, outOfTime);
+      assertNonNullable(progress);
+      invocations.push(progress);
+      payload = progress.next;
+    }
+
+    // Then each invocation wrote one window and carried on from the next,
+    // and the last hour's traffic is in its summary.
+    assertArrayLength(invocations, 4);
+    assertObjectEquals(invocations[0].next?.["backfill"], {
+      from: "2026-08-23T06:00:00.000Z",
+      until: "2026-08-23T09:00:00.000Z",
+    });
+    assertObjectEquals(
+      invocations.flatMap((progress) => progress.computed),
+      [
+        "2026-08-23T05:00:00.000Z",
+        "2026-08-23T06:00:00.000Z",
+        "2026-08-23T07:00:00.000Z",
+        "2026-08-23T08:00:00.000Z",
+      ],
+    );
+    assertObjectEquals(
+      await rowsIn(
+        deployed,
+        "summaries/v1/pageviews/hourly/2026-08-23T08Z.json",
+      ),
+      [{ path: "/", views: "1" }],
+    );
+  });
+
+  it("refuses a backfill range it cannot read", async () => {
+    // Given a deployment with traffic in it.
+    const deployed = await deployAnalytics();
+    await putDelivered(deployed, anHour);
+    await atQuarterPast(deployed);
+
+    for (const unreadable of [
+      { from: "2026-08-23T09:00:00.000Z", until: "2026-08-23T05:00:00.000Z" },
+      { from: "yesterday", until: "2026-08-23T09:00:00.000Z" },
+      { from: 1_787_461_200_000, until: "2026-08-23T09:00:00.000Z" },
+      "the whole of August",
+    ]) {
+      // When the job is asked to backfill a range it cannot read.
+      const running = handler({ ...(aRun() as object), backfill: unreadable });
+
+      // Then it fails saying what a range looks like.
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      const error = await assertThrowsErrorAsync(() => running);
+      assertStringIncludes(error.message, '"from" the earlier');
+    }
+
+    // And it wrote nothing.
     assertUndefined(
       await summaryAt(
         deployed,
