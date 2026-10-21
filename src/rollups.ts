@@ -27,6 +27,11 @@ import type { TimeRange } from "./time-range.js";
  * both ways with `--include-bots` and see how much of the difference is
  * theirs.
  *
+ * A crawler matching none of the four is added per site, through
+ * `RollupRequest.botUserAgents` and `--bot-user-agent`, rather than here.
+ * Every deployment reads this list, and a word broad enough to catch one
+ * site's crawler is likelier to catch somebody's phone on another.
+ *
  * Lowercase, and matched against a lowercased user agent. Trino reads an
  * inline `(?i)` and would take the flag on the pattern, but folding the case
  * of both sides says the same thing in a form every engine reads the same
@@ -88,8 +93,31 @@ export interface RollupRequest {
   /** The span the question covers. */
   readonly range: RollupRange;
 
-  /** Whether automated traffic is counted. */
+  /**
+   * Whether automated traffic is counted.
+   *
+   * Left out, it is whatever {@link botUserAgentPattern} matches and whatever
+   * {@link botUserAgents} names besides.
+   */
   readonly includeBots: boolean;
+
+  /**
+   * Substrings marking a user agent as automated, on top of the four in
+   * {@link botUserAgentPattern}. Matched the same way, without regard to case
+   * and anywhere in the user agent, and ignored where `includeBots` counts
+   * everything.
+   *
+   * For a crawler that names itself without saying bot. One fetched about 370
+   * pages a day from a shop in October 2026 as
+   * `(KHTML, like Gecko; GeedoShopProductFinder) Chrome/142.0.0.0`, and every
+   * rollup counted it as somebody on a desktop.
+   *
+   * Taken literally rather than as a pattern, so a `.` or a `+` in a crawler's
+   * name means itself. Matched against the user agent as CloudFront logged
+   * it, which writes a space as `%20`, so a substring holding whitespace is
+   * refused rather than left to match nothing.
+   */
+  readonly botUserAgents?: readonly string[] | undefined;
 
   /** How many rows a ranked rollup answers with. */
   readonly limit: number;
@@ -209,9 +237,8 @@ export interface RollupTotals {
  * write its own. A rollup writes what it selects and groups by, and calls
  * {@link rowsFor} for the rows underneath.
  * That is where the partition
- * predicate, the bot filter and the host, paths and countries a caller
- * narrowed to are
- * written, and a question filtering its own way would answer a different
+ * predicate, the bot filter with any substrings a site added to it, and the
+ * host, paths and countries a caller narrowed to are written, and a question filtering its own way would answer a different
  * question from its neighbours without saying so.
  *
  * ```typescript

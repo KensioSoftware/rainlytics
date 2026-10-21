@@ -969,6 +969,64 @@ describe("the named questions, answered from stored summaries", () => {
     assertStringIncludes(run.error, "Took --include-bots from the summaries");
   });
 
+  it("takes the crawlers a deployment added to the bot filter", async () => {
+    // Given a deployment adding a product crawler to the bot filter, and an
+    // hour holding a view from a person and one from the crawler.
+    const deployed = await deployAnalytics({
+      requests: { pageviews: { botUserAgents: ["productfinder"] } },
+    });
+    await putDelivered(deployed, anHour, [
+      aRecord(anHour),
+      aRecord(anHour, {
+        "cs(User-Agent)": "Mozilla/5.0%20(GeedoShopProductFinder)",
+      }),
+    ]);
+    await untilTheScheduleFires(deployed);
+
+    // When the question is asked with no --bot-user-agent.
+    const run = await cli([
+      "pageviews",
+      "--last",
+      "2h",
+      "--summaries",
+      deployed.summariesBucketName,
+    ]);
+
+    // Then the crawler is left out, and standard error spells the list as
+    // the command line that would have asked for it. The deployment's list
+    // is the one a reader gets without carrying a copy of it in an alias.
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [{ path: "/", views: "1" }]);
+    assertStringIncludes(
+      run.error,
+      "Took --bot-user-agent productfinder from the summaries",
+    );
+  });
+
+  it("refuses a crawler the stored summaries counted as a person", async () => {
+    // Given a deployment using the built-in bot filter alone.
+    const deployed = await deployAnalytics();
+    await putDelivered(deployed, anHour, [aRecord(anHour)]);
+    await untilTheScheduleFires(deployed);
+
+    // When a crawler is named on the command line.
+    const run = await cli([
+      "pageviews",
+      "--last",
+      "2h",
+      "--bot-user-agent",
+      "productfinder",
+      "--summaries",
+      deployed.summariesBucketName,
+    ]);
+
+    // Then it names the difference rather than answering with the crawler
+    // still counted under a command line that left it out.
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "--bot-user-agent");
+    assertStringIncludes(run.error, "the built-in four alone");
+  });
+
   it("says nothing about filters where the command line matched", async () => {
     // Given a deployment left to the defaults. That is what
     // RollupSummaries computes where nobody narrows it.

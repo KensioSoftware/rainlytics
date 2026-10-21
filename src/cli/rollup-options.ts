@@ -10,6 +10,7 @@ import type { Rollup, RollupRequest } from "../rollups.js";
 import { rollupRequest } from "../rollups.js";
 import type { TimeRange } from "../time-range.js";
 import type { CommandContext } from "./command.js";
+import { botUserAgentsFrom } from "./bot-user-agents.js";
 import {
   chosen,
   countriesFrom,
@@ -87,8 +88,8 @@ function namedOn(context: CommandContext): ReadonlySet<NarrowingOption> {
 /**
  * One command line, read as a rollup request.
  *
- * @throws {UsageError} for a range, a row count, a list of statuses or a
- *   country nobody could act on.
+ * @throws {UsageError} for a range, a row count, a list of statuses, a
+ *   country or a bot user agent nobody could act on.
  */
 export function requestFrom(
   context: CommandContext,
@@ -108,6 +109,10 @@ export function requestFrom(
     request: rollupRequest({
       range,
       includeBots: context.options["include-bots"] === true,
+      botUserAgents: botUserAgentsFrom(
+        context.options["bot-user-agent"],
+        rollup.name,
+      ),
       limit: counted(
         context.options["limit"],
         "limit",

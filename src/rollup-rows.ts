@@ -16,11 +16,8 @@
 // filter under it hold one definition of a prefix match between them.
 
 import { decodedColumn } from "./log-encoding.js";
-import {
-  botUserAgentPattern,
-  currentMonth,
-  summarisedWindow,
-} from "./rollups.js";
+import { automatedLeftOut } from "./bot-filter.js";
+import { currentMonth, summarisedWindow } from "./rollups.js";
 import type { RollupRequest } from "./rollups.js";
 import { quoted } from "./sql-text.js";
 import type { TimeRange } from "./time-range.js";
@@ -33,7 +30,8 @@ import { partitionValuesCovering } from "./time-range.js";
  * is read. Everything after it narrows rows that have already been paid for.
  *
  * `extra` holds whatever else one question needs, joined on after the
- * partitions, the bot filter and the host, paths and countries a caller
+ * partitions, the bot filter with any substrings a site added to it, and the
+ * host, paths and countries a caller
  * narrowed to. The pageview rollup passes the three conditions that separate
  * a page from the assets beside it in the log.
  *
@@ -143,12 +141,7 @@ function conditions(
 ): readonly string[] {
   return [
     ...partitionsOf(request),
-    ...(request.includeBots
-      ? []
-      : [
-          `NOT regexp_like(lower(cs_user_agent),` +
-            ` ${quoted(botUserAgentPattern)})`,
-        ]),
+    ...(request.includeBots ? [] : automatedLeftOut(request)),
     ...narrowedTo(request),
     ...extra,
   ];

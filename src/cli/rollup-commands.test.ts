@@ -820,6 +820,65 @@ describe("the named questions, run through Athena", () => {
     ]);
   });
 
+  it("leaves out a crawler it was told about until it is told to count bots", async () => {
+    // Given a view from a person and one from a product crawler whose user
+    // agent carries none of the four built-in substrings.
+    const deployed = await deployAnalytics();
+    await putDelivered(deployed, rightNow, [
+      aRecord(rightNow),
+      aRecord(rightNow, {
+        "cs(User-Agent)":
+          "Mozilla/5.0%20(X11;%20Linux%20x86_64)%20AppleWebKit/537.36%20(KHTML,%20like%20Gecko;%20GeedoShopProductFinder)%20Chrome/142.0.0.0%20Safari/537.36",
+      }),
+    ]);
+
+    // When the pages are counted without naming it, naming it in lower case,
+    // and naming it while counting bots.
+    const unnamed = await cli(["pageviews", "--query", "--last", "24h"]);
+    const named = await cli([
+      "pageviews",
+      "--query",
+      "--last",
+      "24h",
+      "--bot-user-agent",
+      "productfinder",
+    ]);
+    const everything = await cli([
+      "pageviews",
+      "--query",
+      "--last",
+      "24h",
+      "--bot-user-agent",
+      "productfinder",
+      "--include-bots",
+    ]);
+
+    // Then the built-in filter counts it as a person, the added substring
+    // leaves it out whatever its case, and --include-bots counts it again.
+    assertIdentical(named.code, 0);
+    assertObjectEquals(unnamed.rows, [{ path: "/", views: "2" }]);
+    assertObjectEquals(named.rows, [{ path: "/", views: "1" }]);
+    assertObjectEquals(everything.rows, [{ path: "/", views: "2" }]);
+  });
+
+  it("refuses a bot user agent holding a space", async () => {
+    // Given a crawler named with a space in it, which CloudFront would have
+    // logged as %20.
+    const run = await cli([
+      "pageviews",
+      "--query",
+      "--bot-user-agent",
+      "Geedo Shop",
+    ]);
+
+    // Then it says what it takes before anything reaches Athena. A substring
+    // no logged user agent can contain would leave the crawler counted and
+    // look like a filter that worked.
+    assertIdentical(run.code, 2);
+    assertStringIncludes(run.error, "--bot-user-agent takes one run");
+    assertStringIncludes(run.error, 'Run "rainlytics pageviews --help"');
+  });
+
   it("answers with as many rows as it was asked for", async () => {
     // Given traffic across three pages.
     const deployed = await deployAnalytics();

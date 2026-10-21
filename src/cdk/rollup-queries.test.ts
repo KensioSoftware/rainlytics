@@ -291,6 +291,27 @@ describe("the rollups saved in Athena", () => {
     assertStringIncludes(views.queryString, "c_country IN ('GB', 'IE')");
   });
 
+  it("says which crawlers a saved copy added to the bot filter", async () => {
+    // Given a deployment adding two crawlers to the bot filter.
+    // When the stack is deployed.
+    const views = await named("pageviews", {
+      requests: {
+        pageviews: { botUserAgents: ["GeedoShopProductFinder", "acmefetch"] },
+      },
+    });
+
+    // Then the description names both, and the SQL holds the filter it
+    // describes, folded to the case the column is compared in.
+    assertStringIncludes(
+      views?.description,
+      "leaving out user agents containing GeedoShopProductFinder or acmefetch",
+    );
+    assertStringIncludes(
+      views.queryString,
+      "strpos(lower(cs_user_agent), 'geedoshopproductfinder') = 0",
+    );
+  });
+
   it("names the parameter a search reads even where nobody chose one", async () => {
     // Given a deployment that narrowed nothing.
     // When the stack is deployed.

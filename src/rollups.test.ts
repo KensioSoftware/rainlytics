@@ -608,6 +608,41 @@ describe("a rollup a site wrote for itself", () => {
     assertStringNotIncludes(sqlFor({ countries: [] }), "AND c_country");
   });
 
+  it("adds the user agents a caller named to the bot filter", () => {
+    // Given a question naming a crawler as its user agent spells it.
+    const sql = sqlFor({ botUserAgents: ["GeedoShopProductFinder"] });
+
+    // Then the four built in stay, and the crawler is a literal test beside
+    // them in the case the column is folded to.
+    assertStringIncludes(sql, "NOT regexp_like(lower(cs_user_agent)");
+    assertStringIncludes(
+      sql,
+      "strpos(lower(cs_user_agent), 'geedoshopproductfinder') = 0",
+    );
+  });
+
+  it("drops the user agents a caller named where it counts bots", () => {
+    // Given a question counting automated traffic that also names a crawler.
+    // Then neither the four built in nor the crawler are filtered on.
+    const sql = sqlFor({
+      includeBots: true,
+      botUserAgents: ["GeedoShopProductFinder"],
+    });
+
+    assertStringNotIncludes(sql, "cs_user_agent");
+  });
+
+  it("refuses a user agent the log could never hold", () => {
+    // Given substrings that are empty or hold a space, which CloudFront logs
+    // as %20.
+    // Then the SQL is not written. The first would leave nothing counted and
+    // the second would leave the crawler counted.
+    for (const agent of ["", "Geedo Shop"]) {
+      const error = assertThrowsError(() => sqlFor({ botUserAgents: [agent] }));
+      assertStringIncludes(error.message, "cannot be matched");
+    }
+  });
+
   it("carries the conditions its own question adds", () => {
     // Given a question that reads the HTML responses alone.
     // Then its own condition joins the rest.
