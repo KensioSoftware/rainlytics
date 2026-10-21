@@ -111,8 +111,8 @@ The `rainlytics-` prefix is optional. `countries` and `rainlytics-countries` sel
 query.
 
 A saved query already contains its range, row limit and filters. It accepts `--region`,
-`--workgroup` and output options, but it does not accept named-rollup filters such as `--last` or
-`--path`.
+`--workgroup` and output options, but it does not accept named-rollup filters such as `--last`,
+`--path` or `--country`.
 
 Use `rainlytics query` for SQL written at the terminal. See [Query](../query/).
 

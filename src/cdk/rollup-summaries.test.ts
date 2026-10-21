@@ -468,6 +468,37 @@ describe("computing rollup summaries on a schedule", () => {
     assertObjectEquals(summary.visitors, { distinct: 2, additive: false });
   });
 
+  it("leaves a visitor from another country out of the counts and the visitors", async () => {
+    // Given a shop delivering only to the UK, narrowed to visitors there, and
+    // an hour holding two views from one British address beside three from
+    // two Brazilian ones. The second pair is the automated traffic an
+    // ordinary browser user agent carries past the bot filter.
+    const deployed = await deployAnalytics({
+      requests: { pageviews: { countries: ["GB"] } },
+    });
+    await putDelivered(deployed, theClosedHour, [
+      aRecord(theClosedHour, { "c-ip": "203.0.113.7" }),
+      aRecord(theClosedHour, { "c-ip": "203.0.113.7" }),
+      aRecord(theClosedHour, { "c-country": "BR", "c-ip": "198.51.100.1" }),
+      aRecord(theClosedHour, { "c-country": "BR", "c-ip": "198.51.100.1" }),
+      aRecord(theClosedHour, { "c-country": "BR", "c-ip": "198.51.100.2" }),
+    ]);
+
+    // When the schedule fires.
+    await deployed.simAws.clock().advanceBy({ minutes: 16 });
+    await deployed.simAws.backgroundTasksComplete();
+
+    // Then the summary holds the British views and the British visitor alone,
+    // and records the narrowing it was computed under. A count narrowed
+    // beside a visitor count that was not would put two different sets of
+    // rows under one window.
+    const summary = await summaryAt(deployed, closedHourKey);
+
+    assertObjectEquals(summary?.rows, [{ path: "/", views: "2" }]);
+    assertObjectEquals(summary.visitors, { distinct: 1, additive: false });
+    assertObjectEquals(summary.question.countries, ["GB"]);
+  });
+
   it("asks Athena nothing where the salt parameter is missing", async () => {
     // Given a deployment naming a parameter nobody created, and an hour of
     // traffic waiting to be counted.

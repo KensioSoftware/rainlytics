@@ -39,6 +39,10 @@ const narrowings: Readonly<Record<CountingOption, Narrowing>> = {
     taken: (asked, stored) => ({ ...asked, paths: stored.paths }),
     value: (stored) => stored.paths?.join(" "),
   },
+  "--country": {
+    taken: (asked, stored) => ({ ...asked, countries: stored.countries }),
+    value: (stored) => stored.countries?.join(" --country "),
+  },
   "--include-bots": {
     taken: (asked, stored) => ({ ...asked, includeBots: stored.includeBots }),
   },

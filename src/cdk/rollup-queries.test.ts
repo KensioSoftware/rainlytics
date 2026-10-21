@@ -278,6 +278,19 @@ describe("the rollups saved in Athena", () => {
     assertStringIncludes(search.queryString, "AS section");
   });
 
+  it("says which countries a saved copy was narrowed to", async () => {
+    // Given a deployment counting visitors from two countries.
+    // When the stack is deployed.
+    const views = await named("pageviews", {
+      requests: { pageviews: { countries: ["GB", "IE"] } },
+    });
+
+    // Then the description names both, and the SQL holds the narrowing it
+    // describes.
+    assertStringIncludes(views?.description, "from visitors in GB or IE");
+    assertStringIncludes(views.queryString, "c_country IN ('GB', 'IE')");
+  });
+
   it("names the parameter a search reads even where nobody chose one", async () => {
     // Given a deployment that narrowed nothing.
     // When the stack is deployed.

@@ -137,6 +137,20 @@ export interface RollupRequest {
    */
   readonly host?: string | undefined;
 
+  /**
+   * The countries counted, as the two-letter codes CloudFront writes into
+   * `c-country`. A request counts when its country is any of them, and an
+   * empty list counts every country.
+   *
+   * For a site whose customers are all in one place. Automated traffic sent
+   * with an ordinary browser user agent passes the bot filter, and on such a
+   * site most of it arrives from somewhere else.
+   *
+   * CloudFront resolves the country from the viewer's address. A customer
+   * abroad or behind a VPN is left out of an answer narrowed this way.
+   */
+  readonly countries?: readonly string[] | undefined;
+
   /** Where the table is, which is one definition for every reader. */
   readonly dataset: LogDataset;
 }
@@ -195,7 +209,8 @@ export interface RollupTotals {
  * write its own. A rollup writes what it selects and groups by, and calls
  * {@link rowsFor} for the rows underneath.
  * That is where the partition
- * predicate, the bot filter and the host and paths a caller narrowed to are
+ * predicate, the bot filter and the host, paths and countries a caller
+ * narrowed to are
  * written, and a question filtering its own way would answer a different
  * question from its neighbours without saying so.
  *

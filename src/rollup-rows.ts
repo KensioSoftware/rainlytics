@@ -33,9 +33,9 @@ import { partitionValuesCovering } from "./time-range.js";
  * is read. Everything after it narrows rows that have already been paid for.
  *
  * `extra` holds whatever else one question needs, joined on after the
- * partitions, the bot filter and the host and paths a caller narrowed to. The
- * pageview rollup passes the three conditions that separate a page from the
- * assets beside it in the log.
+ * partitions, the bot filter and the host, paths and countries a caller
+ * narrowed to. The pageview rollup passes the three conditions that separate
+ * a page from the assets beside it in the log.
  *
  * ```typescript
  * `SELECT count(*) FROM ${qualifiedTableName(request.dataset)}\n` +
@@ -155,13 +155,16 @@ function conditions(
 }
 
 /**
- * The host and the sections a request was narrowed to, where it named either.
+ * The host, the sections and the countries a request was narrowed to, where
+ * it named any of them.
  *
- * Both sit here with the bot filter rather than beside a question, because
- * every rollup takes them and one that narrowed differently would answer a
- * different question from its neighbours without saying so.
+ * All three sit here with the bot filter rather than beside a question,
+ * because every rollup takes them and one that narrowed differently would
+ * answer a different question from its neighbours without saying so. The
+ * visitor count and both halves of a conversion rate read through here too,
+ * so a narrowed visitor is left out of every number at once.
  *
- * Neither changes what a query reads. The partition predicate has already
+ * None of them changes what a query reads. The partition predicate has already
  * decided that, and these narrow rows that are paid for either way.
  */
 function narrowedTo(request: RollupRequest): readonly string[] {
@@ -170,7 +173,27 @@ function narrowedTo(request: RollupRequest): readonly string[] {
       ? []
       : [`x_host_header = ${quoted(request.host)}`]),
     ...startingWithAny(request.paths ?? []),
+    ...fromAny(request.countries ?? []),
   ];
+}
+
+/**
+ * A row from any one of the countries, where the request named some.
+ *
+ * An exact match on the code CloudFront wrote. One country is an equality
+ * and several are an `IN` list, which needs no bracket of its own under the
+ * `AND` above it.
+ */
+function fromAny(countries: readonly string[]): readonly string[] {
+  const [only, ...others] = countries;
+
+  if (only === undefined) {
+    return [];
+  }
+
+  return others.length === 0
+    ? [`c_country = ${quoted(only)}`]
+    : [`c_country IN (${countries.map((code) => quoted(code)).join(", ")})`];
 }
 
 /**
