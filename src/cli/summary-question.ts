@@ -166,9 +166,21 @@ function pathText(paths: readonly string[] | undefined): string {
   return named.length === 0 ? "the whole distribution" : named.join(" ");
 }
 
-/** The countries a question counted, as a sentence names them. */
+/**
+ * The countries a question counted, as a sentence names them.
+ *
+ * Sorted and each named once, since the list is a set. `GB IE` and `IE GB`
+ * select the same rows, and comparing them as typed would refuse a summary
+ * that answers the question. Paths keep their order, because the first of two
+ * overlapping paths is the one `matchedPath` reports.
+ */
 function countryText(countries: readonly string[] | undefined): string {
-  const named = countries ?? [];
+  // `toSorted` is ES2023 and the compiler targets ES2022, so the copy is
+  // taken here and the sort runs over it.
+  // oxlint-disable-next-line unicorn/no-array-sort
+  const named = [...new Set(countries)].sort((left, right) =>
+    left.localeCompare(right),
+  );
 
   return named.length === 0 ? "every country" : named.join(" ");
 }

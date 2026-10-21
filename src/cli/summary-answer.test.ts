@@ -889,6 +889,35 @@ describe("the named questions, answered from stored summaries", () => {
     );
   });
 
+  it("answers countries named in another order from the same summary", async () => {
+    // Given a deployment counting visitors from two countries.
+    const deployed = await deployAnalytics({
+      requests: { pageviews: { countries: ["GB", "IE"] } },
+    });
+    await putDelivered(deployed, anHour, [
+      aRecord(anHour),
+      aRecord(anHour, { "c-country": "IE" }),
+    ]);
+    await untilTheScheduleFires(deployed);
+
+    // When the same two are typed the other way round.
+    const run = await cli([
+      "pageviews",
+      "--last",
+      "2h",
+      "--country",
+      "IE",
+      "--country",
+      "GB",
+      "--summaries",
+      deployed.summariesBucketName,
+    ]);
+
+    // Then the summary answers it. The two lists select the same rows.
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [{ path: "/", views: "2" }]);
+  });
+
   it("refuses a country the stored summaries were not computed with", async () => {
     // Given a deployment counting every country.
     const deployed = await deployAnalytics();
