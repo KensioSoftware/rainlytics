@@ -68,9 +68,11 @@ export interface Command {
  * Somebody arriving at `rainlytics --help` is far more likely to want a
  * pageview count than to want to write SQL.
  *
- * `saved-query` is what a site's own rollup runs through. The list here is
- * the questions this package ships, and a question deployed from somewhere
- * else reaches the command line by name.
+ * The list here is the questions this package ships. A site adds its own by
+ * running `runCli` over this list and `rollupCommand` of each of them, both
+ * exported as `@kensio/rainlytics/cli`, and its questions then read their
+ * stored summaries the way these do. `saved-query` reaches one by name
+ * without that, at the cost of an Athena query.
  */
 export const rainlyticsCommands: readonly Command[] = [
   ...rollups.map((rollup) => rollupCommand(rollup)),

@@ -2,18 +2,15 @@
 //
 // Apart from `rollup-options.ts`, which assembles a whole command line into
 // one request. Each of these takes what one option collected and hands back
-// something a request can carry, and the four that can be given nonsense
+// something a request can carry, and the three that can be given nonsense
 // refuse it before anything reaches Athena.
 
 import { defaultLogDataset, defaultWorkgroupName } from "../dataset.js";
 import { defaultRedirectStatuses } from "../rollups.js";
-import type { TimeRange } from "../time-range.js";
-import { lastRange } from "../time-range.js";
 import type { OptionValue } from "./command-line.js";
 import { valuesOf } from "./command-line.js";
 import { UsageError } from "./failure.js";
 import { databaseVariable, workgroupVariable } from "./query-help.js";
-import { defaultLast } from "./rollup-help.js";
 import { summaryBucketVariable } from "./summary-help.js";
 
 /** The text of an option, where one was given. */
@@ -116,23 +113,6 @@ export function statusesFrom(
   }
 
   return statuses;
-}
-
-/**
- * The range `--last` asked for, or the default span.
- *
- * @throws {UsageError} for a span the parser cannot read, so a mistyped
- *   range is reported as the command-line mistake it is.
- */
-export function rangeFrom(value: unknown, command: string): TimeRange {
-  try {
-    return lastRange(chosen(value) ?? defaultLast, new Date());
-  } catch (error) {
-    throw new UsageError(
-      error instanceof Error ? error.message : String(error),
-      command,
-    );
-  }
 }
 
 /**

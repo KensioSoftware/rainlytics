@@ -10,6 +10,8 @@ import { databaseOption, regionOption, workgroupOption } from "./query-help.js";
 import {
   botUserAgentOption,
   countryOption,
+  dayOption,
+  fromOption,
   hostOption,
   includeBotsOption,
   lastOption,
@@ -17,6 +19,7 @@ import {
   paramOption,
   pathOption,
   redirectStatusOption,
+  untilOption,
 } from "./rollup-help.js";
 import { queryOption, summariesOption } from "./summary-help.js";
 
@@ -37,6 +40,9 @@ import { queryOption, summariesOption } from "./summary-help.js";
 export function rollupOptions(rollup: Rollup): readonly CliOption[] {
   return [
     lastOption,
+    dayOption,
+    fromOption,
+    untilOption,
     pathOption,
     hostOption,
     countryOption,
