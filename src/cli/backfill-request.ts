@@ -101,6 +101,17 @@ export function backfillRequestFrom(
   };
 }
 
+/**
+ * Whether a YYYY-MM-DD names a day the calendar has.
+ *
+ * `Date` rolls 2026-02-30 on into March in either form, offset or not. The
+ * date part is checked on its own, since an offset can move the instant onto
+ * another day.
+ */
+function isCalendarDay(day: string): boolean {
+  return new Date(`${day}T00:00:00Z`).toISOString().startsWith(day);
+}
+
 /** One end of the range, or a refusal naming the option. */
 function instantFrom(text: string, option: string): Date {
   const instant = aDay.test(text)
@@ -109,11 +120,10 @@ function instantFrom(text: string, option: string): Date {
       ? new Date(text)
       : undefined;
 
-  // `Date` rolls 2026-02-30 on into March rather than refusing it.
   if (
     instant === undefined ||
     Number.isNaN(instant.getTime()) ||
-    (aDay.test(text) && !instant.toISOString().startsWith(text))
+    !isCalendarDay(text.slice(0, 10))
   ) {
     throw new UsageError(
       `--${option} takes YYYY-MM-DD for midnight UTC, or an ISO 8601 instant` +

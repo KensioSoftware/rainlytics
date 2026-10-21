@@ -364,6 +364,10 @@ describe("rainlytics backfill", () => {
         "earlier",
       ],
       [["backfill", "pageviews", "--from", "2026-09-11"], "granularity"],
+      [
+        ["backfill", "pageviews", "hourly", "--from", "2026-02-30T06:00Z"],
+        "--from",
+      ],
       [["backfill", "pageviews", "daily", "--from", "2999-01-01"], "earlier"],
       [
         [

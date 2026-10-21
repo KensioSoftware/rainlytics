@@ -13,7 +13,7 @@ import type * as Lambda from "@aws-sdk/client-lambda";
 import type * as Scheduler from "@aws-sdk/client-scheduler";
 
 import type { BackfillProgress } from "../summary-backfill.js";
-import { messageOf } from "../thrown-message.js";
+import { failureMessage, progressFrom } from "./backfill-answer.js";
 import type { BackfillRequest } from "./backfill-request.js";
 
 /** What a summary schedule invokes, and with what. */
@@ -125,21 +125,10 @@ export async function openBackfillInvoker(
         );
       }
 
-      return JSON.parse(body) as BackfillProgress;
+      return progressFrom(body);
     },
     close: () => {
       client.destroy();
     },
   };
-}
-
-/** What Lambda reports a handler threw, out of its error payload. */
-function failureMessage(body: string): string {
-  try {
-    const { errorMessage } = JSON.parse(body) as { errorMessage?: unknown };
-
-    return typeof errorMessage === "string" ? errorMessage : body;
-  } catch (error) {
-    return `${body} (${messageOf(error)})`;
-  }
 }
