@@ -11,8 +11,14 @@ importers:
       '@aws-sdk/client-athena':
         specifier: ^3.1118.0
         version: 3.1148.0
+      '@aws-sdk/client-lambda':
+        specifier: ^3.1148.0
+        version: 3.1148.0
       '@aws-sdk/client-s3':
         specifier: ^3.1119.0
+        version: 3.1148.0
+      '@aws-sdk/client-scheduler':
+        specifier: ^3.1148.0
         version: 3.1148.0
       '@aws-sdk/client-sns':
         specifier: ^3.1121.0
@@ -123,8 +129,16 @@ packages:
     resolution: {integrity: sha512-JE+wjpbasoG5M/LI6pgOLrSjEukOU3o7Mj0zjwCLRfZicZsUkylXnGk6u4i/SL1ghrTRykqwCQkIRRIRO69VsQ==}
     engines: {node: '>=20.0.0'}
 
+  '@aws-sdk/client-lambda@3.1148.0':
+    resolution: {integrity: sha512-OxuAfcL/qKV25vgr3sn4LzgueD8SMz0sDzoF7l41qvC4pjC1UgK5scwEpGtwCj/buaCC16+rYoGVCgcH4wlE2w==}
+    engines: {node: '>=20.0.0'}
+
   '@aws-sdk/client-s3@3.1148.0':
     resolution: {integrity: sha512-d2AcfJCZTi4w5zJZD7H/XeVRgJy1vOD5EfO1Y3pKAwfp8pWz2dyJ8Q3vOJFbRiTIQF7c4mB+aptNUyCE4i4kqw==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/client-scheduler@3.1148.0':
+    resolution: {integrity: sha512-XSZYeIag2imiVncOxd0AedmG0lzdngsVJmAWgxlh/EgutKkrCwl+DXr7mzYbrb1Knfs8FEgoHBcIshJ7XgVwMw==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/client-sns@3.1148.0':
@@ -2639,6 +2653,17 @@ snapshots:
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
+  '@aws-sdk/client-lambda@3.1148.0':
+    dependencies:
+      '@aws-sdk/core': 3.978.3
+      '@aws-sdk/credential-provider-node': 3.972.86
+      '@aws-sdk/types': 3.974.6
+      '@smithy/core': 3.36.0
+      '@smithy/fetch-http-handler': 5.8.0
+      '@smithy/node-http-handler': 4.12.1
+      '@smithy/types': 4.19.0
+      tslib: 2.8.1
+
   '@aws-sdk/client-s3@3.1148.0':
     dependencies:
       '@aws-sdk/checksums': 3.1001.3
@@ -2646,6 +2671,17 @@ snapshots:
       '@aws-sdk/credential-provider-node': 3.972.86
       '@aws-sdk/middleware-sdk-s3': 3.972.79
       '@aws-sdk/signature-v4-multi-region': 3.996.48
+      '@aws-sdk/types': 3.974.6
+      '@smithy/core': 3.36.0
+      '@smithy/fetch-http-handler': 5.8.0
+      '@smithy/node-http-handler': 4.12.1
+      '@smithy/types': 4.19.0
+      tslib: 2.8.1
+
+  '@aws-sdk/client-scheduler@3.1148.0':
+    dependencies:
+      '@aws-sdk/core': 3.978.3
+      '@aws-sdk/credential-provider-node': 3.972.86
       '@aws-sdk/types': 3.974.6
       '@smithy/core': 3.36.0
       '@smithy/fetch-http-handler': 5.8.0

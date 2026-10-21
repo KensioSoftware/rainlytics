@@ -16,6 +16,9 @@ The defaults use UTC and Monday. A daily schedule runs 30 minutes after local mi
 recomputes the two most recently closed days. It also writes a week, month or year when that period
 has just closed.
 
+Reports for days whose summaries were missing can be rewritten once the summaries exist. See
+[Backfill missed windows](../summary-schedule/#backfill-missed-windows).
+
 ## Read a report
 
 ```bash
