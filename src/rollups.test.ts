@@ -590,6 +590,24 @@ describe("a rollup a site wrote for itself", () => {
     assertStringIncludes(sql, "'/words/') = 1");
   });
 
+  it("takes the countries a caller narrowed to", () => {
+    // Given one question narrowed to one country and another to two.
+    // Then one is an exact match and two are a list. Neither is a prefix
+    // or a pattern, since a country code is a whole value.
+    assertStringIncludes(sqlFor({ countries: ["GB"] }), "c_country = 'GB'");
+    assertStringIncludes(
+      sqlFor({ countries: ["GB", "IE"] }),
+      "c_country IN ('GB', 'IE')",
+    );
+  });
+
+  it("narrows to no country where it was given none", () => {
+    // Given a question with an empty list of countries.
+    // Then every country is counted, the way an empty list of paths counts
+    // the whole distribution.
+    assertStringNotIncludes(sqlFor({ countries: [] }), "AND c_country");
+  });
+
   it("carries the conditions its own question adds", () => {
     // Given a question that reads the HTML responses alone.
     // Then its own condition joins the rest.

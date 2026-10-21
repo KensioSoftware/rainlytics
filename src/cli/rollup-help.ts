@@ -60,6 +60,23 @@ export const pathOption: CliOption = {
     " counted and leaves the bytes scanned where they were.",
 };
 
+export const countryOption: CliOption = {
+  name: "country",
+  type: "string",
+  multiple: true,
+  valueName: "code",
+  description:
+    "Count only requests from this country, as the two-letter code" +
+    " CloudFront writes, such as GB. Give it again for each country that" +
+    " belongs in one answer, and a request counts when it came from any of" +
+    " them. For a site whose customers are all in one place, where" +
+    " automated traffic from elsewhere passes the bot filter. CloudFront" +
+    " reads the country off the address, so a customer abroad or on a VPN" +
+    " is left out. Only a summary computed for the same countries can answer" +
+    " it, and a --query run narrows the rows counted and leaves the bytes" +
+    " scanned where they were.",
+};
+
 export const paramOption: CliOption = {
   name: "param",
   type: "string",

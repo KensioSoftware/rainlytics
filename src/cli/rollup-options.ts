@@ -12,6 +12,7 @@ import type { TimeRange } from "../time-range.js";
 import type { CommandContext } from "./command.js";
 import {
   chosen,
+  countriesFrom,
   counted,
   databaseFrom,
   eachChosen,
@@ -86,8 +87,8 @@ function namedOn(context: CommandContext): ReadonlySet<NarrowingOption> {
 /**
  * One command line, read as a rollup request.
  *
- * @throws {UsageError} for a range, a row count or a list of statuses
- *   nobody could act on.
+ * @throws {UsageError} for a range, a row count, a list of statuses or a
+ *   country nobody could act on.
  */
 export function requestFrom(
   context: CommandContext,
@@ -120,6 +121,7 @@ export function requestFrom(
       ),
       paths: eachChosen(context.options["path"]),
       host: chosen(context.options["host"]),
+      countries: countriesFrom(context.options["country"], rollup.name),
       dataset: {
         databaseName: database,
         tableName: defaultLogDataset.tableName,

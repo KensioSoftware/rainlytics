@@ -857,6 +857,91 @@ describe("the named questions, answered from stored summaries", () => {
     assertStringIncludes(run.error, "Took --path /grammar/ from the summaries");
   });
 
+  it("takes the countries a deployment narrowed to", async () => {
+    // Given a deployment counting visitors from two countries, and a view
+    // from each of them beside one from somewhere else.
+    const deployed = await deployAnalytics({
+      requests: { pageviews: { countries: ["GB", "IE"] } },
+    });
+    await putDelivered(deployed, anHour, [
+      aRecord(anHour),
+      aRecord(anHour, { "c-country": "IE" }),
+      aRecord(anHour, { "c-country": "BR" }),
+    ]);
+    await untilTheScheduleFires(deployed);
+
+    // When the question is asked with no --country.
+    const run = await cli([
+      "pageviews",
+      "--last",
+      "2h",
+      "--summaries",
+      deployed.summariesBucketName,
+    ]);
+
+    // Then the narrowed answer comes back, and standard error spells the
+    // filter it took as a command line that would take it.
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [{ path: "/", views: "2" }]);
+    assertStringIncludes(
+      run.error,
+      "Took --country GB --country IE from the summaries",
+    );
+  });
+
+  it("answers countries named in another order from the same summary", async () => {
+    // Given a deployment counting visitors from two countries.
+    const deployed = await deployAnalytics({
+      requests: { pageviews: { countries: ["GB", "IE"] } },
+    });
+    await putDelivered(deployed, anHour, [
+      aRecord(anHour),
+      aRecord(anHour, { "c-country": "IE" }),
+    ]);
+    await untilTheScheduleFires(deployed);
+
+    // When the same two are typed the other way round.
+    const run = await cli([
+      "pageviews",
+      "--last",
+      "2h",
+      "--country",
+      "IE",
+      "--country",
+      "GB",
+      "--summaries",
+      deployed.summariesBucketName,
+    ]);
+
+    // Then the summary answers it. The two lists select the same rows.
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [{ path: "/", views: "2" }]);
+  });
+
+  it("refuses a country the stored summaries were not computed with", async () => {
+    // Given a deployment counting every country.
+    const deployed = await deployAnalytics();
+    await putDelivered(deployed, anHour, [aRecord(anHour)]);
+    await untilTheScheduleFires(deployed);
+
+    // When one country is asked about.
+    const run = await cli([
+      "pageviews",
+      "--last",
+      "2h",
+      "--country",
+      "GB",
+      "--summaries",
+      deployed.summariesBucketName,
+    ]);
+
+    // Then it names the difference rather than answering for every country
+    // under a command line naming one.
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "--country");
+    assertStringIncludes(run.error, "every country");
+  });
+
   it("takes a bot filter as the flag that would have set it", async () => {
     // Given a deployment counting crawlers, and an hour holding one.
     const deployed = await deployAnalytics({

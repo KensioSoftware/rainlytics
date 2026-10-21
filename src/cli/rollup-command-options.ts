@@ -8,6 +8,7 @@ import type { Rollup } from "../rollups.js";
 import type { CliOption } from "./option.js";
 import { databaseOption, regionOption, workgroupOption } from "./query-help.js";
 import {
+  countryOption,
   hostOption,
   includeBotsOption,
   lastOption,
@@ -37,6 +38,7 @@ export function rollupOptions(rollup: Rollup): readonly CliOption[] {
     lastOption,
     pathOption,
     hostOption,
+    countryOption,
     ...(rollup.namesAParameter === true ? [paramOption] : []),
     ...(rollup.countsRedirects === true ? [redirectStatusOption] : []),
     includeBotsOption,

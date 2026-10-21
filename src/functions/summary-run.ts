@@ -80,9 +80,9 @@ export function runFrom(payload: unknown): SummaryRun {
  * commands is a filter recorded in the document without anybody remembering.
  * A list of names typed out here would undo that, and the copy that drifts is
  * always the one nothing deploys. `rollupRequest` fills in every field that
- * has a default, so its keys are the ones a payload has to carry. The two
- * that have no default, `paths` and `host`, are optional in the type and are
- * absent from a question that did not narrow.
+ * has a default, so its keys are the ones a payload has to carry. The three
+ * that have no default, `paths`, `host` and `countries`, are optional in the
+ * type and are absent from a question that did not narrow.
  */
 const questionFields: readonly string[] = Object.keys(
   rollupRequest({ range: currentMonth }),

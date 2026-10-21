@@ -675,6 +675,46 @@ describe("the named questions, run through Athena", () => {
     assertObjectEquals(run.rows, [{ status: "200", responses: "2" }]);
   });
 
+  it("counts the countries it was given and leaves the rest out", async () => {
+    // Given views from the UK, from Ireland and from Brazil.
+    const deployed = await deployAnalytics();
+
+    await putDelivered(deployed, rightNow, [
+      aRecord(rightNow, { "c-country": "GB" }),
+      aRecord(rightNow, { "c-country": "IE" }),
+      aRecord(rightNow, { "c-country": "BR" }),
+    ]);
+
+    // When two of them are asked for, one typed in lower case.
+    const run = await cli([
+      "pageviews",
+      "--query",
+      "--last",
+      "24h",
+      "--country",
+      "GB",
+      "--country",
+      "ie",
+    ]);
+
+    // Then a view from either counts and the third is left out. The code is
+    // read as CloudFront writes it, and `ie` matching nothing would have
+    // looked like a quiet day in Ireland.
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [{ path: "/", views: "2" }]);
+  });
+
+  it("refuses a country that is not a two-letter code", async () => {
+    // Given a country spelled out rather than coded.
+    const run = await cli(["pageviews", "--query", "--country", "Britain"]);
+
+    // Then it says what it takes before anything reaches Athena. A narrowing
+    // to a value CloudFront never writes would count nothing.
+    assertIdentical(run.code, 2);
+    assertStringIncludes(run.error, "--country takes a two-letter");
+    assertStringIncludes(run.error, 'Run "rainlytics pageviews --help"');
+  });
+
   it("reads a path back out of CloudFront's encoding", async () => {
     // Given two views of a page whose address holds characters outside
     // ASCII, delivered the way CloudFront delivers one. The browser encodes

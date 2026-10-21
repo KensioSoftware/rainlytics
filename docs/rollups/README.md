@@ -58,6 +58,42 @@ rainlytics status-codes --last 7d --include-bots
 The filter is useful but cannot identify every automated client. Any client controls its own user
 agent.
 
+### Filter by country
+
+A site whose customers are all in one country can count visitors from that country alone:
+
+```bash
+rainlytics pageviews --country GB --last 7d
+```
+
+Each code is the two-letter value CloudFront writes to `c-country`, matched exactly. Repeat
+`--country` to count several countries in one answer. A stored or scheduled question takes the same
+filter as `countries` in its request:
+
+```typescript
+new RollupSummaries(this, "Summaries", {
+  table,
+  workgroup,
+  rollups: [
+    ...rollups,
+    conversionsOfPath({ path: "/do/checkout", method: "POST" }),
+  ],
+  requests: { "conversions-do-checkout": { countries: ["GB"] } },
+});
+```
+
+The filter applies to every rollup, to the visitor count stored beside it, and to both halves of a
+conversion rate. It suits a shop with a single delivery country, where automated traffic with an
+ordinary browser user agent passes the bot filter and mostly arrives from abroad.
+
+CloudFront resolves the country from the viewer's IP address. A customer travelling abroad or
+connected through a VPN is left out of a filtered answer. Athena reads the same partitions with or
+without the filter. Bytes scanned (and the cost of a `--query` run or a scheduled summary) stay
+where they were.
+
+A stored series that gains the filter partway through answers a different question either side of
+that day. Reading a span across the change stops with an error naming `--country`.
+
 ## Read stored or fresh data
 
 Named commands read [rollup summaries](../summaries/) from S3:
@@ -216,7 +252,7 @@ are excluded from the result. The rollup declares `identifiesViewers`, and synth
 delivery omits the address.
 
 The request's path filter selects the beacon collection path. Page visitors are counted across
-all page paths under the same host and time filters.
+all page paths under the same host, country and time filters.
 
 ### Choose a window that includes the visit
 
@@ -321,7 +357,7 @@ const countries: Rollup = {
 ```
 
 Use `rowsFor` for the `WHERE` clause. It adds the time partitions, timestamp bounds, bot filter,
-host filter and path filters from the request.
+host filter, path filters and country filter from the request.
 
 `aPageView` contains the built-in pageview conditions (a `GET` with a `text/html` response and
 status 200 or 304). Include it to use the same pageview definition as the built-in rollup.

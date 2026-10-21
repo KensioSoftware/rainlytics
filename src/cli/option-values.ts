@@ -2,7 +2,7 @@
 //
 // Apart from `rollup-options.ts`, which assembles a whole command line into
 // one request. Each of these takes what one option collected and hands back
-// something a request can carry, and the three that can be given nonsense
+// something a request can carry, and the four that can be given nonsense
 // refuse it before anything reaches Athena.
 
 import { defaultLogDataset, defaultWorkgroupName } from "../dataset.js";
@@ -26,6 +26,33 @@ export function eachChosen(value: OptionValue): readonly string[] {
   return valuesOf(value).filter(
     (given): given is string => typeof given === "string",
   );
+}
+
+/**
+ * The countries `--country` named, as the codes CloudFront writes.
+ *
+ * Upper case whatever was typed, since `c-country` holds `GB` and a narrowing
+ * to `gb` would match nothing and answer with an empty table.
+ *
+ * @throws {UsageError} for anything that is not a two-letter code, which
+ *   would otherwise count nothing and look like a quiet day.
+ */
+export function countriesFrom(
+  value: OptionValue,
+  command: string,
+): readonly string[] {
+  const countries = eachChosen(value).map((code) => code.trim().toUpperCase());
+  const refused = countries.find((code) => !/^[A-Z]{2}$/u.test(code));
+
+  if (refused !== undefined) {
+    throw new UsageError(
+      `--country takes a two-letter country code, as in GB. Got` +
+        ` "${refused}".`,
+      command,
+    );
+  }
+
+  return countries;
 }
 
 /**

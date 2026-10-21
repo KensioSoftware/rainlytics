@@ -41,13 +41,13 @@ export function describing(rollup: Rollup, request: RollupRequest): string {
 /**
  * The clauses saying what one saved copy counts.
  *
- * The range, the host and the sections it was narrowed to, the parameter a
- * search reads, and whether automated traffic is counted. Each of those
+ * The range, the host, the sections and the countries it was narrowed to,
+ * the parameter a search reads, and whether automated traffic is counted. Each of those
  * changes the answer, and a copy answering a narrower question than its name
  * promises is what the narrowing was added to say out loud.
  *
- * Several sections are joined by "or". That is what the SQL underneath does
- * with them, and it keeps them apart from the commas joining the clauses
+ * Several sections are joined by "or", and so are several countries. That is
+ * what the SQL underneath does with them, and it keeps them apart from the commas joining the clauses
  * around them.
  *
  * The parameter is named on every copy of a rollup that reads one, whether
@@ -66,11 +66,15 @@ export function describing(rollup: Rollup, request: RollupRequest): string {
  */
 function covering(rollup: Rollup, request: RollupRequest): readonly string[] {
   const paths = request.paths ?? [];
+  const countries = request.countries ?? [];
 
   return [
     "Over the current month",
     ...(request.host === undefined ? [] : [`on ${request.host}`]),
     ...(paths.length === 0 ? [] : [`under ${paths.join(" or ")}`]),
+    ...(countries.length === 0
+      ? []
+      : [`from visitors in ${countries.join(" or ")}`]),
     ...(rollup.namesAParameter === true
       ? [`reading the "${request.param}" parameter`]
       : []),

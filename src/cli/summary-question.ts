@@ -1,7 +1,7 @@
 // Whether a stored summary answers the question somebody typed.
 //
 // This is the hard part of reading summaries. `--path`, `--host`,
-// `--include-bots` and `--param` each change the answer, and a schedule
+// `--country`, `--include-bots` and `--param` each change the answer, and a schedule
 // computes the questions its deployment named. Rainlytics precomputes the
 // unfiltered form, and a site adds a narrowed one through the `requests` prop
 // on `RollupSummaries`.
@@ -27,6 +27,7 @@ import type { Rollup, RollupRequest } from "../rollups.js";
 export const countingOptions = [
   "--host",
   "--path",
+  "--country",
   "--include-bots",
   "--param",
   "--redirect-status",
@@ -38,8 +39,8 @@ export type CountingOption = (typeof countingOptions)[number];
 /**
  * Those, and the row count.
  *
- * `--limit` is apart from the five above and stays apart the whole way down.
- * The five decide which requests were counted, and a run naming none of them
+ * `--limit` is apart from the six above and stays apart the whole way down.
+ * The six decide which requests were counted, and a run naming none of them
  * takes what the summaries counted. A row count decides how much of a ranked
  * answer is printed and leaves what was counted where it was. A run naming
  * none of it keeps the command's own default, cut to what the stored windows
@@ -111,6 +112,11 @@ export function questionDifferences(
     ...differing("--host", hostText(asked.host), hostText(computed.host)),
     ...differing("--path", pathText(asked.paths), pathText(computed.paths)),
     ...differing(
+      "--country",
+      countryText(asked.countries),
+      countryText(computed.countries),
+    ),
+    ...differing(
       "--include-bots",
       botText(asked.includeBots),
       botText(computed.includeBots),
@@ -158,6 +164,25 @@ function pathText(paths: readonly string[] | undefined): string {
   const named = paths ?? [];
 
   return named.length === 0 ? "the whole distribution" : named.join(" ");
+}
+
+/**
+ * The countries a question counted, as a sentence names them.
+ *
+ * Sorted and each named once, since the list is a set. `GB IE` and `IE GB`
+ * select the same rows, and comparing them as typed would refuse a summary
+ * that answers the question. Paths keep their order, because the first of two
+ * overlapping paths is the one `matchedPath` reports.
+ */
+function countryText(countries: readonly string[] | undefined): string {
+  // `toSorted` is ES2023 and the compiler targets ES2022, so the copy is
+  // taken here and the sort runs over it.
+  // oxlint-disable-next-line unicorn/no-array-sort
+  const named = [...new Set(countries)].sort((left, right) =>
+    left.localeCompare(right),
+  );
+
+  return named.length === 0 ? "every country" : named.join(" ");
 }
 
 /** Whether a question counted automated traffic, as a sentence says it. */

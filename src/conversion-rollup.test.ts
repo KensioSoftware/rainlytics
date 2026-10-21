@@ -36,6 +36,9 @@ describe("counting how many visitors converted", () => {
 
     /** The path the beacon reported to. */
     readonly beaconPath?: string;
+
+    /** Where CloudFront placed their address. */
+    readonly country?: string;
   }
 
   /** The rows one visitor's visit produces in the log. */
@@ -45,6 +48,7 @@ describe("counting how many visitors converted", () => {
       "cs-method": "GET",
       "cs(User-Agent)": "Mozilla/5.0",
       "c-ip": visit.address,
+      "c-country": visit.country ?? "GB",
     };
     const rows: Record<string, string>[] = [];
 
@@ -204,6 +208,33 @@ describe("counting how many visitors converted", () => {
     assertObjectEquals(await answeredRows(deployed, conversionSql()), [
       ["0", "0", ""],
     ]);
+  });
+
+  it("leaves visitors from other countries out of both counts", async () => {
+    // Given two British visitors, one of whom bought, and three from Brazil,
+    // one of whom raised the event as well.
+    const deployed = await deployBeaconTable();
+    const abroad = (index: number, raised?: string): Visited => ({
+      ...visitor(index, raised),
+      country: "BR",
+    });
+    await putDelivered(deployed, [
+      visitor(1, "purchase"),
+      visitor(2),
+      abroad(3, "purchase"),
+      abroad(4),
+      abroad(5),
+    ]);
+
+    // When the question is narrowed to the UK.
+    const rows = await answeredRows(
+      deployed,
+      conversionSql("purchase", { countries: ["GB"] }),
+    );
+
+    // Then the answer is one out of two. Narrowing the visitors alone would
+    // have answered two out of two, and narrowing neither two out of five.
+    assertObjectEquals(rows, [["1", "2", "50.0"]]);
   });
 
   it("answers from one stored window rather than adding two", () => {
