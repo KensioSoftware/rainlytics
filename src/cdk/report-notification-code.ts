@@ -32,7 +32,7 @@ export function reportNotificationPublisher(
   },
   message: ReportNotificationMessageProps | undefined,
 ): IFunction {
-  const runtime = Runtime.NODEJS_22_X;
+  const runtime = Runtime.NODEJS_24_X;
 
   return message === undefined
     ? new Function(scope, id, {

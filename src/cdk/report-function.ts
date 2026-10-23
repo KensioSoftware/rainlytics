@@ -44,7 +44,7 @@ export class ReportFunction extends Construct {
       props.visitorSaltParameter ?? defaultVisitorSaltParameter;
 
     this.lambda = new LambdaFunction(this, "Function", {
-      runtime: Runtime.NODEJS_22_X,
+      runtime: Runtime.NODEJS_24_X,
       handler: reportHandlerName,
       code: Code.fromAsset(summaryCodePath()),
       memorySize: 512,
