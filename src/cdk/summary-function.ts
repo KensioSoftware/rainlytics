@@ -102,7 +102,7 @@ export class SummaryFunction extends Construct {
       props.visitorSaltParameter ?? defaultVisitorSaltParameter;
 
     this.lambda = new LambdaFunction(this, "Function", {
-      runtime: Runtime.NODEJS_22_X,
+      runtime: Runtime.NODEJS_24_X,
       handler: summaryHandlerName,
       code: Code.fromAsset(summaryCodePath()),
       memorySize: 256,
