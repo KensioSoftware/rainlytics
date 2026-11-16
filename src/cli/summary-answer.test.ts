@@ -1058,13 +1058,13 @@ describe("the named questions, answered from stored summaries", () => {
     // came from the summaries, and the visitor line counts the client it
     // left out. A filter dropping people unseen is the failure that number
     // is there to show.
-    assertIdentical(run.code, 0);
-    assertObjectEquals(run.rows, [{ path: "/", views: "1" }]);
     assertStringIncludes(run.error, "Took --rendered-only from the summaries");
     assertStringIncludes(
       run.error,
       "1 visitors in that window, leaving out 1 who rendered no page",
     );
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [{ path: "/", views: "1" }]);
   });
 
   it("refuses the rendered filter where the summaries counted everybody", async () => {
