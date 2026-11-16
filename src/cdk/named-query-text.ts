@@ -6,6 +6,7 @@
 // puts a resource in a template. The limits in particular are the API's, and
 // they would go on being the API's if nothing ever saved a rollup again.
 
+import { renderedBeaconPath } from "../rendered-visitors.js";
 import { rollups } from "../rollup-questions.js";
 import type { Rollup, RollupRequest } from "../rollups.js";
 import { defaultRedirectStatuses } from "../rollups.js";
@@ -89,9 +90,7 @@ function covering(rollup: Rollup, request: RollupRequest): readonly string[] {
     ...(request.includeBots || agents.length === 0
       ? []
       : [`leaving out user agents containing ${agents.join(" or ")}`]),
-    ...(request.renderedOnly === true
-      ? ["counting only visitors who rendered a page"]
-      : []),
+    ...renderedClause(request),
   ];
 }
 
@@ -131,4 +130,13 @@ export function assertAthenaLength(
         ` ${what === "name" ? "name" : "summary"}: ${value.slice(0, 60)}`,
     );
   }
+}
+
+/** What a copy counting rendering visitors only says, where it does. */
+function renderedClause(request: RollupRequest): readonly string[] {
+  const path = renderedBeaconPath(request.renderedOnly);
+
+  return path === undefined
+    ? []
+    : [`counting only visitors who rendered a page or reached ${path}`];
 }

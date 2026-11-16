@@ -17,9 +17,12 @@ import type { CfnSchedule } from "aws-cdk-lib/aws-scheduler";
 import { App, Stack } from "aws-cdk-lib/core";
 import { describe, it } from "vitest";
 
-import { logFieldNamesWithoutAddress } from "../log-fields.js";
+import {
+  deliveredLogFieldNames,
+  logFieldNamesWithoutAddress,
+} from "../log-fields.js";
 import { beaconEvents } from "../beacon-rollup.js";
-import { pageviews, rollups } from "../rollup-questions.js";
+import { cacheHitRatio, pageviews, rollups } from "../rollup-questions.js";
 import { withoutVisitorCount } from "../rollups.js";
 import { CloudFrontLogDelivery } from "./log-delivery.js";
 import { LogTable } from "./log-table.js";
@@ -274,6 +277,28 @@ describe("what a deployment of the summaries computes", () => {
     const error = assertThrowsError(building);
     assertStringMatches(error.message, /pageviews counts only visitors who/u);
     assertStringMatches(error.message, /c-ip/u);
+  });
+
+  it("refuses the rendered filter where the table holds no request path", () => {
+    // Given a delivery keeping the address and the user agent and dropping
+    // the path, under a question that never reads it.
+    const fields = deliveredLogFieldNames.filter(
+      (name) => name !== "cs-uri-stem",
+    );
+    const building = (): unknown =>
+      summariesIn(
+        {
+          rollups: [cacheHitRatio],
+          granularities: ["hourly"],
+          requests: { "cache-hit-ratio": { renderedOnly: true } },
+        },
+        fields,
+      );
+
+    // Then it is refused at synthesis. The filter reads the path of every
+    // request a visitor made, and the question alone never would.
+    const error = assertThrowsError(building);
+    assertStringMatches(error.message, /leaves out cs-uri-stem/u);
   });
 
   it("names the identifying field a narrowed delivery actually left out", () => {

@@ -180,9 +180,16 @@ new RollupSummaries(this, "Summaries", {
 });
 ```
 
+A site whose [`BeaconPath`](../beacon-path/) reports somewhere other than the default names that
+path instead of `true`:
+
+```typescript
+const site = { renderedOnly: { beaconPath: "/telemetry" } };
+```
+
 The filter applies to every rollup, to the visitor count stored beside it, and to both halves of a
-conversion rate. It needs the viewer's address, and a deployment whose delivery leaves out `c-ip` is
-refused at synthesis.
+conversion rate. It needs the viewer's address, user agent and request path, and a deployment whose
+delivery leaves out `c-ip`, `cs(User-Agent)` or `cs-uri-stem` is refused at synthesis.
 
 #### What the filter misses
 

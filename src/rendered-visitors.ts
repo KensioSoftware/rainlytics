@@ -6,9 +6,10 @@
 // behind the row against every other row of the window, and it is the only
 // condition in a `WHERE` clause that reads the table a second time.
 
-import type { LogDataset } from "./dataset.js";
 import { qualifiedTableName } from "./dataset.js";
+import { defaultBeaconPath } from "./beacon-events.js";
 import { onTheBeaconPath } from "./beacon-rows.js";
+import type { RenderedBy, RollupRequest } from "./rollups.js";
 import { quoted } from "./sql-text.js";
 
 /**
@@ -43,7 +44,7 @@ const visitorPair = "concat(c_ip, '|', cs_user_agent)";
  *
  * True where the visitor made any request in the partitions being read for a
  * file matching {@link renderingAssetPattern}, or for anything on the
- * beacon's default path. A site that sends the beacon is therefore covered
+ * beacon's path. {@link renderedBeaconPath} says which path that is. A site that sends the beacon is therefore covered
  * for a returning browser whose assets all came out of its cache.
  *
  * `partitions` are the conditions saying which partitions and which span the
@@ -62,12 +63,15 @@ const visitorPair = "concat(c_ip, '|', cs_user_agent)";
  * query reads. `docs/rollups/` has what that costs.
  */
 export function renderedVisitor(
-  dataset: LogDataset,
+  request: RollupRequest,
   partitions: readonly string[],
 ): string {
+  const { dataset } = request;
+  const beaconPath =
+    renderedBeaconPath(request.renderedOnly) ?? defaultBeaconPath;
   const rendering = [
     `regexp_like(lower(cs_uri_stem), ${quoted(renderingAssetPattern)})`,
-    onTheBeaconPath(),
+    onTheBeaconPath(beaconPath),
   ].join(" OR ");
 
   return [
@@ -78,4 +82,47 @@ export function renderedVisitor(
       "\n        AND ",
     )})`,
   ].join("\n");
+}
+
+/**
+ * The beacon path a `renderedOnly` request looks for, or nothing where the
+ * filter is off.
+ *
+ * `true` is the default path. A site that moved its beacon names the path it
+ * moved it to. A path that does not start with `/` is refused, since an empty
+ * one would match every request and mark every visitor as rendered.
+ *
+ * @throws {Error} for a beacon path that does not start with `/`.
+ */
+export function renderedBeaconPath(
+  renderedOnly: boolean | RenderedBy | undefined,
+): string | undefined {
+  if (renderedOnly === undefined || renderedOnly === false) {
+    return undefined;
+  }
+
+  const path =
+    renderedOnly === true ? defaultBeaconPath : renderedOnly.beaconPath;
+
+  if (!path.startsWith("/")) {
+    throw new Error(
+      `The beacon path "${path}" cannot be matched. Give the path the` +
+        ` site's BeaconPath sends to, starting with "/".`,
+    );
+  }
+
+  return path;
+}
+
+/**
+ * The rendered test as the conditions of a `WHERE` clause, which is none
+ * where the request leaves the filter off.
+ */
+export function renderedOnlyFor(
+  request: RollupRequest,
+  partitions: readonly string[],
+): readonly string[] {
+  return renderedBeaconPath(request.renderedOnly) === undefined
+    ? []
+    : [renderedVisitor(request, partitions)];
 }

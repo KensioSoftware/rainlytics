@@ -88,6 +88,15 @@ export type RollupRange =
   | typeof currentMonth
   | typeof summarisedWindow;
 
+/**
+ * How `RollupRequest.renderedOnly` recognises a rendered page, where the
+ * site's beacon reports somewhere other than the default path.
+ */
+export interface RenderedBy {
+  /** The path the site's beacon sends to, as `BeaconPath` was given it. */
+  readonly beaconPath: string;
+}
+
 /** What a rollup needs telling before its SQL can be written. */
 export interface RollupRequest {
   /** The span the question covers. */
@@ -202,8 +211,12 @@ export interface RollupRequest {
    *
    * The test reads the window's partitions a second time, so a query asking
    * it scans up to three more columns. It needs the viewer's address.
+   *
+   * `true` looks for the beacon on its default path. A site whose
+   * `BeaconPath` reports somewhere else names that path with
+   * `{ beaconPath: "/telemetry" }`.
    */
-  readonly renderedOnly?: boolean | undefined;
+  readonly renderedOnly?: boolean | RenderedBy | undefined;
 
   /** Where the table is, which is one definition for every reader. */
   readonly dataset: LogDataset;

@@ -3,6 +3,7 @@ import {
   assertObjectEquals,
   assertStringIncludes,
   assertStringNotIncludes,
+  assertThrowsError,
 } from "@kensio/smartass";
 import { faker } from "@faker-js/faker";
 import { describe, it } from "vitest";
@@ -164,6 +165,53 @@ describe("counting only visitors who rendered a page", () => {
     // Then they are counted. The beacon runs in the page, so a request to its
     // path is a page that rendered whatever the cache did.
     assertObjectEquals(rows, [["/cards/robin/", "1"]]);
+  });
+
+  it("looks for the beacon where a site moved it", async () => {
+    // Given a returning browser whose assets all came from its cache, on a
+    // site whose BeaconPath reports to /telemetry.
+    const deployed = await deployBeaconTable();
+    await putVisits(deployed, [visitor({ fetched: [["/telemetry", "204"]] })]);
+
+    // When the pages are counted looking for the default path, and for the
+    // site's own.
+    const atDefault = await answeredRows(
+      deployed,
+      rollupSql(
+        pageviews,
+        rollupRequest({ range: theBeaconDay, renderedOnly: true }),
+      ),
+    );
+    const atTelemetry = await answeredRows(
+      deployed,
+      rollupSql(
+        pageviews,
+        rollupRequest({
+          range: theBeaconDay,
+          renderedOnly: { beaconPath: "/telemetry" },
+        }),
+      ),
+    );
+
+    // Then only the second counts them. A beacon the filter is not looking
+    // for leaves its sender judged on the cache alone.
+    assertObjectEquals(atDefault, []);
+    assertObjectEquals(atTelemetry, [["/cards/robin/", "1"]]);
+  });
+
+  it("refuses a beacon path that does not start with a slash", () => {
+    // Given a beacon path written without its leading slash, or empty. An
+    // empty one would match every request and mark every visitor rendered.
+    for (const beaconPath of ["", "telemetry"]) {
+      const writing = (): string =>
+        rollupSql(
+          pageviews,
+          rollupRequest({ range: theBeaconDay, renderedOnly: { beaconPath } }),
+        );
+
+      // Then the SQL is not written.
+      assertStringIncludes(assertThrowsError(writing).message, "starting with");
+    }
   });
 
   it("leaves out a visitor who fetched only an image", async () => {

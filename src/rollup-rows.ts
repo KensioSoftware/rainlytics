@@ -17,7 +17,7 @@
 
 import { decodedColumn } from "./log-encoding.js";
 import { automatedLeftOut } from "./bot-filter.js";
-import { renderedVisitor } from "./rendered-visitors.js";
+import { renderedOnlyFor, renderedVisitor } from "./rendered-visitors.js";
 import { currentMonth, summarisedWindow } from "./rollups.js";
 import type { RollupRequest } from "./rollups.js";
 import { quoted } from "./sql-text.js";
@@ -144,7 +144,7 @@ function conditions(
     ...partitionsOf(request),
     ...(request.includeBots ? [] : automatedLeftOut(request)),
     ...narrowedTo(request),
-    ...(request.renderedOnly === true ? [aRenderedVisitor(request)] : []),
+    ...renderedOnlyFor(request, partitionsOf(request)),
     ...extra,
   ];
 }
@@ -158,7 +158,7 @@ function conditions(
  * left out. `renderedVisitor` has what counts as rendering.
  */
 export function aRenderedVisitor(request: RollupRequest): string {
-  return renderedVisitor(request.dataset, partitionsOf(request));
+  return renderedVisitor(request, partitionsOf(request));
 }
 
 /**

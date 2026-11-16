@@ -12,6 +12,7 @@
 
 import { qualifiedTableName } from "./dataset.js";
 import { aPageView } from "./rollup-questions.js";
+import { renderedBeaconPath } from "./rendered-visitors.js";
 import { aRenderedVisitor } from "./rollup-rows.js";
 import type { RollupRequest } from "./rollups.js";
 import { rowsFor } from "./rollups.js";
@@ -89,7 +90,7 @@ export function visitorRows(request: RollupRequest): string {
  * ```
  */
 export function visitorCountSql(request: RollupRequest): string {
-  if (request.renderedOnly === true) {
+  if (renderedBeaconPath(request.renderedOnly) !== undefined) {
     return renderedVisitorCountSql(request);
   }
 
