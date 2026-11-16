@@ -57,6 +57,19 @@ function setText(values: readonly string[], none: string): string {
   return named.length === 0 ? none : named.join(" ");
 }
 
+/**
+ * Whether a question counted only visitors who rendered a page, as a
+ * sentence says it.
+ *
+ * Absent and false read the same. A summary computed before the filter
+ * existed carries no field, and it counted every visitor.
+ */
+export function renderedText(renderedOnly: boolean | undefined): string {
+  return renderedOnly === true
+    ? "rendering visitors only"
+    : "every visitor, rendering or not";
+}
+
 /** Whether a question counted automated traffic, as a sentence says it. */
 export function botText(includeBots: boolean): string {
   return includeBots ? "crawlers counted" : "crawlers left out";

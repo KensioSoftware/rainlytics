@@ -12,12 +12,21 @@
 
 import { qualifiedTableName } from "./dataset.js";
 import { aPageView } from "./rollup-questions.js";
+import { aRenderedVisitor } from "./rollup-rows.js";
 import type { RollupRequest } from "./rollups.js";
 import { rowsFor } from "./rollups.js";
 import { visitorIdentifier } from "./visitor-identity.js";
 
 /** What the column holding the count is called. */
 export const visitorColumn = "visitors";
+
+/**
+ * What the column holding the visitors `renderedOnly` left out is called.
+ *
+ * Present in the answer of a count asked with `renderedOnly` and absent
+ * otherwise. `VisitorCount.unrendered` is where it lands.
+ */
+export const unrenderedColumn = "unrendered";
 
 /**
  * The rows a visitor is counted over, on top of what `rowsFor` writes.
@@ -68,14 +77,50 @@ export function visitorRows(request: RollupRequest): string {
  * Exact counting holds the distinct digests of one window in memory, which
  * for a site of this size is thousands.
  *
+ * A request asked with `renderedOnly` gets a second column, being the
+ * visitors the filter left out. The rows are read without the filter and
+ * each digest is counted in one column or the other, by whether its visitor
+ * rendered a page. One visitor is one pair, and the test is a function of
+ * the pair, so nobody is in both. The second column costs no further scan,
+ * since the filter's own subquery is what both columns read.
+ *
  * ```typescript
  * visitorCountSql(rollupRequest({ range: summarisedWindow }));
  * ```
  */
 export function visitorCountSql(request: RollupRequest): string {
+  if (request.renderedOnly === true) {
+    return renderedVisitorCountSql(request);
+  }
+
   return `${[
     `SELECT count(DISTINCT ${visitorIdentifier}) AS ${visitorColumn}`,
     `  FROM ${qualifiedTableName(request.dataset)}`,
     visitorRows(request),
+  ].join("\n")}\n`;
+}
+
+/**
+ * The visitors who rendered a page, and the ones who did not, as SQL.
+ *
+ * The rendered test sits in a column rather than the `WHERE` clause, so the
+ * visitors it drops are counted rather than lost. A site reading 317
+ * visitors and 28 dropped can tell a filter removing a script from one
+ * removing its customers.
+ *
+ * The inner select works the test out once per row and the outer one counts
+ * each digest under whichever answer it got. Written into both aggregates
+ * instead, the subquery would appear twice and could be read twice.
+ */
+function renderedVisitorCountSql(request: RollupRequest): string {
+  return `${[
+    `SELECT count(DISTINCT if(rendered, visitor)) AS ${visitorColumn},`,
+    `  count(DISTINCT if(NOT rendered, visitor)) AS ${unrenderedColumn}`,
+    "  FROM (",
+    `  SELECT ${visitorIdentifier} AS visitor,`,
+    `    ${aRenderedVisitor(request)} AS rendered`,
+    `  FROM ${qualifiedTableName(request.dataset)}`,
+    visitorRows({ ...request, renderedOnly: false }),
+    "  )",
   ].join("\n")}\n`;
 }

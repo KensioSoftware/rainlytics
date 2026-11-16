@@ -10,6 +10,7 @@
 
 import type { RollupSummary } from "../rollup-summaries.js";
 import { inDollars } from "./query-report.js";
+import { visitorCountText } from "./visitor-count-text.js";
 import {
   count,
   getChargeInDollars,
@@ -154,7 +155,7 @@ function visitorLines(read: SummaryRead): readonly string[] {
   }
 
   return counted.length === 1
-    ? [`${String(only.visitors.distinct)} visitors in that window.\n`]
+    ? [visitorCountText(only.visitors)]
     : [
         `Visitors are counted per window and do not add, so this range has no` +
           ` visitor count. A visitor carries a new identifier every day.\n`,

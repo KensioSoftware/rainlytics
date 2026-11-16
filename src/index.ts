@@ -126,7 +126,9 @@ export {
 } from "./reports.js";
 export { hoursIn, summaryCoverage } from "./summary-coverage.js";
 export { totalledRows } from "./summary-totals.js";
+export { renderingAssetPattern } from "./rendered-visitors.js";
 export {
+  unrenderedColumn,
   visitorColumn,
   visitorCountSql,
   visitorRows,

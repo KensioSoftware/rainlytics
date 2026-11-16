@@ -42,8 +42,9 @@ export function describing(rollup: Rollup, request: RollupRequest): string {
  * The clauses saying what one saved copy counts.
  *
  * The range, the host, the sections and the countries it was narrowed to,
- * the parameter a search reads, whether automated traffic is counted, and any
- * user agents a site added to the bot filter. Each of those
+ * the parameter a search reads, whether automated traffic is counted, any
+ * user agents a site added to the bot filter, and whether only visitors who
+ * rendered a page are counted. Each of those
  * changes the answer, and a copy answering a narrower question than its name
  * promises is what the narrowing was added to say out loud.
  *
@@ -88,6 +89,9 @@ function covering(rollup: Rollup, request: RollupRequest): readonly string[] {
     ...(request.includeBots || agents.length === 0
       ? []
       : [`leaving out user agents containing ${agents.join(" or ")}`]),
+    ...(request.renderedOnly === true
+      ? ["counting only visitors who rendered a page"]
+      : []),
   ];
 }
 

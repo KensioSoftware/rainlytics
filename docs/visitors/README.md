@@ -23,6 +23,15 @@ The number is most useful when compared with the same site and configuration ove
 Automated traffic is omitted by default. The user-agent filter cannot identify every bot, and a
 client can send any user agent it chooses.
 
+A question asked with
+[`renderedOnly`](../rollups/#count-only-visitors-who-rendered-a-page) counts only visitors who
+fetched a stylesheet, script or font, or sent a beacon, in the same window. Its count carries
+`unrendered`, the number of visitors the filter left out:
+
+```json
+"visitors": { "distinct": 317, "additive": false, "unrendered": 28 }
+```
+
 ## How the identifier is built
 
 A salt is a value added to the address and user agent before hashing. Rainlytics derives a

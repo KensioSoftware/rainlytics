@@ -11,6 +11,7 @@ import {
 } from "../log-fields.js";
 import { type Rollup, withoutVisitorCount } from "../rollups.js";
 import { rollups } from "../rollup-questions.js";
+import type { SavedRollupRequest } from "./saved-query-configuration.js";
 import type { RollupSummariesProps } from "./summary-configuration.js";
 
 /**
@@ -119,5 +120,43 @@ function assertNothingCountsVisitors(
       ` user agent, and both have to be delivered for one to be counted.` +
       ` Either add ${missing} to the delivered field set, or wrap the` +
       ` question in withoutVisitorCount.`,
+  );
+}
+
+/**
+ * Refuses a question asked with `renderedOnly` over a table that cannot tell
+ * one visitor from another.
+ *
+ * The filter judges a visitor by the address and user agent behind a row, and
+ * a delivery without both has no column for the test to read. Athena would
+ * refuse the query once an hour in a bucket nobody is watching, so this
+ * refuses it at synthesis instead.
+ *
+ * @throws {Error} naming the questions and what is missing.
+ */
+export function assertRenderedOnlyIdentifies(
+  requests: Readonly<Record<string, SavedRollupRequest>> | undefined,
+  fields: readonly string[],
+): void {
+  if (countsVisitorsFrom(fields)) {
+    return;
+  }
+
+  const asked = Object.entries(requests ?? {})
+    .filter(([, request]) => request.renderedOnly === true)
+    .map(([name]) => name);
+
+  if (asked.length === 0) {
+    return;
+  }
+
+  const missing = missingVisitorCountFields(fields).join(" and ");
+
+  throw new Error(
+    `${asked.join(", ")} counts only visitors who rendered a page, and this` +
+      ` deployment's delivery leaves out ${missing}. The filter tells one` +
+      ` visitor from another by the address and user agent behind a row.` +
+      ` Either add ${missing} to the delivered field set, or leave` +
+      ` renderedOnly off.`,
   );
 }

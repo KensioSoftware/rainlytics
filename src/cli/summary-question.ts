@@ -1,8 +1,8 @@
 // Whether a stored summary answers the question somebody typed.
 //
 // This is the hard part of reading summaries. `--path`, `--host`,
-// `--country`, `--include-bots`, `--bot-user-agent` and `--param` each change
-// the answer, and a schedule
+// `--country`, `--include-bots`, `--bot-user-agent`, `--rendered-only` and
+// `--param` each change the answer, and a schedule
 // computes the questions its deployment named. Rainlytics precomputes the
 // unfiltered form, and a site adds a narrowed one through the `requests` prop
 // on `RollupSummaries`.
@@ -14,13 +14,8 @@
 
 import type { SummaryQuestion } from "../rollup-summaries.js";
 import type { Rollup, RollupRequest } from "../rollups.js";
-import {
-  botText,
-  botUserAgentText,
-  countryText,
-  hostText,
-  pathText,
-} from "./question-text.js";
+import { countryText, hostText, pathText } from "./question-text.js";
+import { visitorFilterDifferences } from "./visitor-filter-differences.js";
 
 /**
  * The options deciding which requests a question counted.
@@ -38,6 +33,7 @@ export const countingOptions = [
   "--country",
   "--include-bots",
   "--bot-user-agent",
+  "--rendered-only",
   "--param",
   "--redirect-status",
 ] as const;
@@ -48,8 +44,8 @@ export type CountingOption = (typeof countingOptions)[number];
 /**
  * Those, and the row count.
  *
- * `--limit` is apart from the seven above and stays apart the whole way down.
- * The seven decide which requests were counted, and a run naming none of them
+ * `--limit` is apart from the eight above and stays apart the whole way down.
+ * The eight decide which requests were counted, and a run naming none of them
  * takes what the summaries counted. A row count decides how much of a ranked
  * answer is printed and leaves what was counted where it was. A run naming
  * none of it keeps the command's own default, cut to what the stored windows
@@ -130,18 +126,7 @@ export function questionDifferences(
       countryText(asked.countries),
       countryText(computed.countries),
     ),
-    ...differing(
-      "--include-bots",
-      botText(asked.includeBots),
-      botText(computed.includeBots),
-    ),
-    ...(asked.includeBots || computed.includeBots
-      ? []
-      : differing(
-          "--bot-user-agent",
-          botUserAgentText(asked.botUserAgents),
-          botUserAgentText(computed.botUserAgents),
-        )),
+    ...visitorFilterDifferences(asked, computed),
     ...(rollup.namesAParameter === true
       ? differing("--param", asked.param, computed.param)
       : []),
@@ -167,7 +152,7 @@ export function questionDifferences(
 }
 
 /** The difference between two values, where there is one. */
-function differing(
+export function differing(
   option: NarrowingOption,
   asked: string,
   computed: string,

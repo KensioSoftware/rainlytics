@@ -114,6 +114,7 @@ export function requestFrom(
         context.options["bot-user-agent"],
         rollup.name,
       ),
+      renderedOnly: context.options["rendered-only"] === true,
       limit: counted(
         context.options["limit"],
         "limit",

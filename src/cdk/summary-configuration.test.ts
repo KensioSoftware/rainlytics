@@ -254,6 +254,28 @@ describe("what a deployment of the summaries computes", () => {
     }
   });
 
+  it("refuses the rendered filter where the table cannot identify viewers", () => {
+    // Given a site delivering the field set that holds no personal data, and
+    // asking for its page views from rendering visitors only.
+    const building = (): unknown =>
+      summariesIn(
+        {
+          rollups: [withoutVisitorCount(pageviews)],
+          granularities: ["hourly"],
+          requests: { pageviews: { renderedOnly: true } },
+        },
+        logFieldNamesWithoutAddress,
+      );
+
+    // Then it is refused at synthesis, naming the question and the field.
+    // The filter judges a visitor by their address and user agent, and the
+    // query would otherwise fail every hour against a column that is not
+    // there.
+    const error = assertThrowsError(building);
+    assertStringMatches(error.message, /pageviews counts only visitors who/u);
+    assertStringMatches(error.message, /c-ip/u);
+  });
+
   it("names the identifying field a narrowed delivery actually left out", () => {
     // Given a delivery keeping the address and dropping the user agent, which
     // counts nobody just as surely.

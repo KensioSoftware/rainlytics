@@ -143,6 +143,96 @@ where they were.
 A stored series that gains the filter partway through answers a different question either side of
 that day. Reading a span across the change stops with an error naming `--country`.
 
+### Count only visitors who rendered a page
+
+Some automated traffic passes every filter above. In November 2026, 28 of the 53 UK visitors who
+added a card to one shop's basket were scripts. They sent ordinary browser user agents from UK
+addresses, fetched one product page, and posted the add a few seconds later. None of them requested
+a stylesheet, a script or a font (a real visit to that shop requests about 35). Each of their rows
+looks like a person's, so a filter testing one row at a time cannot remove them.
+
+`--rendered-only` judges the visitor behind the row:
+
+```bash
+rainlytics conversions-do-basket-add --rendered-only --last 7d
+```
+
+A visitor is the viewer's address and user agent, the same pair a [visitor count](../visitors/)
+hashes. A row counts when its visitor made a request in the same window for a file ending in `.css`,
+`.js`, `.mjs`, `.woff`, `.woff2`, `.ttf` or `.otf`, or for anything on the
+[beacon path](../beacon-path/). A request answered 304 counts. Images do not count, because link
+previews fetch the image a page names in its metadata without rendering the page.
+
+A stored or scheduled question takes the same filter as `renderedOnly` in its request. It sits
+beside the other filters on a site's shared request:
+
+```typescript
+const site = {
+  botUserAgents: ["productfinder"],
+  countries: ["GB"],
+  renderedOnly: true,
+};
+
+new RollupSummaries(this, "Summaries", {
+  table,
+  workgroup,
+  requests: Object.fromEntries(rollups.map((rollup) => [rollup.name, site])),
+});
+```
+
+The filter applies to every rollup, to the visitor count stored beside it, and to both halves of a
+conversion rate. It needs the viewer's address, and a deployment whose delivery leaves out `c-ip` is
+refused at synthesis.
+
+#### What the filter misses
+
+A browser can reuse a cached asset without asking the server. CloudFront logs nothing for that
+asset. A returning visitor whose stylesheets, scripts and fonts all came out of the cache, and who
+sends no beacon, is left out with the scripts.
+
+How often that happens depends on the site's caching headers. An asset served with an `ETag` and no
+`Cache-Control` is usually revalidated with a conditional request, which is logged as a 304 and
+counts. A long `max-age` lets a browser skip the request for as long as it lasts. A site using this
+filter should do one of these:
+
+- send the [beacon](../beacon/), whose request counts whatever the cache did
+- set `Cache-Control` on its assets deliberately, knowing what it does to this filter
+
+The judgement is made inside each window. A visit that loaded its assets at 09:59 and posted to the
+basket at 10:01 is dropped from the 10:00 hour and counted in the day.
+
+#### See what the filter dropped
+
+A visitor count computed with the filter records the visitors it left out:
+
+```json
+"visitors": { "distinct": 317, "additive": false, "unrendered": 28 }
+```
+
+`unrendered` counts distinct visitors who viewed a page in the window and rendered nothing. Like
+`distinct`, two windows' numbers do not add. A named command reading one window prints both on
+standard error. A rise in `unrendered` with no matching change in traffic is the sign to check
+whether the filter has begun dropping customers. Calendar reports carry `distinct` only.
+
+#### What it costs
+
+The filter adds no query. Each query that uses it reads the window's partitions a second time, for
+the `c_ip`, `cs_user_agent` and `cs_uri_stem` columns. A scheduled question with the filter makes
+the same 50 queries a day under the default schedule (and the visitor count another 50), and each of
+them scans more bytes.
+
+Athena bills each query for at least 10 MB. A window whose two reads together stay under that costs
+the same with or without the filter. Above it, the second read adds those three columns over the
+window at $5 per TB.
+
+Take a site whose three columns come to 100 MB a day. The daily window reads 100 MB more, and the
+24 hourly windows read 100 MB more between them. Each window is computed twice, and the visitor
+count reads the same again. That is at most 800 MB a day per question, or about 12 cents a month.
+Hourly windows small enough to stay under the minimum bring it lower.
+
+A stored series that gains the filter partway through answers a different question either side of
+that day. Reading a span across the change stops with an error naming `--rendered-only`.
+
 ## Read stored or fresh data
 
 Named commands read [rollup summaries](../summaries/) from S3:

@@ -12,7 +12,7 @@ import { runAthenaQuery } from "../athena/athena-query.js";
 import type { VisitorCount } from "../rollup-summaries.js";
 import { windowedSql } from "../summary-runs.js";
 import type { SummaryWindow } from "../summary-windows.js";
-import { visitorColumn } from "../visitor-counts.js";
+import { unrenderedColumn, visitorColumn } from "../visitor-counts.js";
 import { saltedSql } from "../visitor-identity.js";
 import type { SummaryDeployment } from "./summary-deployment.js";
 import { summaryFailure } from "./summary-failure.js";
@@ -99,14 +99,24 @@ export async function visitorsIn(
     );
   }
 
+  const unrendered =
+    outcome.rows[0]?.[unrenderedColumn] === undefined
+      ? undefined
+      : countIn(outcome.rows, unrenderedColumn, counting, window);
+
   return {
-    distinct: distinctIn(outcome.rows, counting, window),
+    distinct: countIn(outcome.rows, visitorColumn, counting, window),
     additive: false,
+    ...(unrendered === undefined ? {} : { unrendered }),
   };
 }
 
 /**
- * The number one answer holds.
+ * The number one column of an answer holds.
+ *
+ * The visitors, and beside them the visitors `renderedOnly` left out where
+ * the question was asked that way. The second column is read only where the
+ * answer carries it, and then refused on the same terms as the first.
  *
  * Athena hands every value back as text and a count arrives as digits. An
  * answer of no rows, an empty cell and anything that is not a whole number
@@ -116,12 +126,13 @@ export async function visitorsIn(
  *
  * @throws {Error} naming the question and the window.
  */
-function distinctIn(
+function countIn(
   rows: readonly Readonly<Record<string, string | undefined>>[],
+  column: string,
   counting: VisitorRun,
   window: SummaryWindow,
 ): number {
-  const counted = rows[0]?.[visitorColumn];
+  const counted = rows[0]?.[column];
 
   if (
     counted === undefined ||
@@ -129,7 +140,7 @@ function distinctIn(
     !Number.isSafeInteger(Number(counted))
   ) {
     throw new Error(
-      `The visitor count for ${counting.question} at` +
+      `The ${column} column of the visitor count for ${counting.question} at` +
         ` ${window.at.toISOString()} came back as ${JSON.stringify(counted)},` +
         ` which is not a number of visitors. A summary carrying zero here` +
         ` would read as a window nobody visited.`,

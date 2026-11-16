@@ -179,6 +179,32 @@ export interface RollupRequest {
    */
   readonly countries?: readonly string[] | undefined;
 
+  /**
+   * Whether a row counts only where its visitor rendered a page in the same
+   * window. Off where left out.
+   *
+   * A visitor is the address and user agent a visitor count is hashed from.
+   * One rendered a page when any of their requests in the window fetched a
+   * stylesheet, a script or a font, or reached the beacon's path.
+   * `renderingAssetPattern` in `rendered-visitors.ts` has the extensions. A
+   * request answered 304 counts, since the browser asked for the file.
+   *
+   * For automated traffic that passes every filter testing one row. In
+   * November 2026, 28 of the 53 visitors adding to one shop's basket were
+   * scripts with ordinary browser user agents and UK addresses. Each fetched
+   * a product page and posted the add, and none of them ever requested a
+   * stylesheet or a script. A real visit requests about 35.
+   *
+   * A returning browser that reuses every cached asset without asking makes
+   * no such request, and a visitor like that who sends no beacon is left
+   * out. The visitor count of a question asked this way records how many
+   * visitors were dropped, as `VisitorCount.unrendered`.
+   *
+   * The test reads the window's partitions a second time, so a query asking
+   * it scans up to three more columns. It needs the viewer's address.
+   */
+  readonly renderedOnly?: boolean | undefined;
+
   /** Where the table is, which is one definition for every reader. */
   readonly dataset: LogDataset;
 }

@@ -85,6 +85,20 @@ export const botUserAgentOption: CliOption = {
     " Only a summary computed with the same list can answer it.",
 };
 
+export const renderedOnlyOption: CliOption = {
+  name: "rendered-only",
+  type: "boolean",
+  description:
+    "Count only visitors who rendered a page in the window, by fetching a" +
+    " stylesheet, a script or a font, or by sending the beacon. A visitor is" +
+    " an address and a user agent. For automated traffic sent with an" +
+    " ordinary browser user agent, which reads the HTML and nothing else." +
+    " A returning browser that took every asset from its cache without" +
+    " asking, and sent no beacon, is left out too. A stored visitor count" +
+    " says how many were left out. Reads the window a second time. Only a" +
+    " summary computed with it can answer it.",
+};
+
 export const limitOption: CliOption = {
   name: "limit",
   short: "n",
