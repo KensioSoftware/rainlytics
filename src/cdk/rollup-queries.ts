@@ -14,6 +14,7 @@ import type {
   RollupQueriesProps,
   SummarisedRollups,
 } from "./saved-query-configuration.js";
+import { assertRenderedOnlyIdentifies } from "./computed-questions.js";
 import { savedFrom } from "./saved-query-configuration.js";
 import {
   assertOneQueryEach,
@@ -84,6 +85,7 @@ export class RollupQueries extends Construct {
 
     assertOneQueryEach(saved.rollups);
     assertRequestedNames(saved.rollups, Object.keys(saved.requests ?? {}));
+    assertRenderedOnlyIdentifies(saved.requests, saved.table.fields);
 
     this.queries = saved.rollups.map((rollup) => this.save(rollup, saved));
   }

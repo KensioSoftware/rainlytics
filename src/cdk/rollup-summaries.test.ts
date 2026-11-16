@@ -6,6 +6,7 @@ import {
   assertObjectEquals,
   assertObjectMatches,
   assertStringIncludes,
+  assertTrue,
   assertUndefined,
 } from "@kensio/smartass";
 import type { Readable } from "node:stream";
@@ -566,6 +567,47 @@ describe("computing rollup summaries on a schedule", () => {
 
     assertObjectEquals(summary?.rows, [{ path: "/", views: "2" }]);
     assertObjectEquals(summary.visitors, { distinct: 2, additive: false });
+  });
+
+  it("counts only the visitors who rendered a page, and says how many it dropped", async () => {
+    // Given a deployment counting rendering visitors only, and an hour holding
+    // two people who loaded the page's stylesheet beside three clients that
+    // read the HTML alone.
+    const deployed = await deployAnalytics({
+      requests: { pageviews: { renderedOnly: true } },
+    });
+    const rendering = [faker.internet.ipv4(), faker.internet.ipv4()];
+    await putDelivered(deployed, theClosedHour, [
+      ...rendering.flatMap((address) => [
+        aRecord(theClosedHour, { "c-ip": address }),
+        aRecord(theClosedHour, {
+          "c-ip": address,
+          "cs-uri-stem": "/wa/site.css",
+          "sc-content-type": "text/css",
+        }),
+      ]),
+      aRecord(theClosedHour),
+      aRecord(theClosedHour),
+      aRecord(theClosedHour),
+    ]);
+
+    // When the schedule fires.
+    await deployed.simAws.clock().advanceBy({ minutes: 16 });
+    await deployed.simAws.backgroundTasksComplete();
+
+    // Then the views and the visitors are the two people's, the three left
+    // out are counted beside them, and the summary records the filter. A
+    // reader comparing the two numbers over a month can see whether the
+    // filter is dropping scripts or customers.
+    const summary = await summaryAt(deployed, closedHourKey);
+
+    assertObjectEquals(summary?.rows, [{ path: "/", views: "2" }]);
+    assertObjectEquals(summary.visitors, {
+      distinct: 2,
+      additive: false,
+      unrendered: 3,
+    });
+    assertTrue(summary.question.renderedOnly);
   });
 
   it("asks Athena nothing where the salt parameter is missing", async () => {

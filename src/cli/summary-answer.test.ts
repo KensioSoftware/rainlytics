@@ -1027,6 +1027,69 @@ describe("the named questions, answered from stored summaries", () => {
     assertStringIncludes(run.error, "the built-in four alone");
   });
 
+  it("takes the rendered filter from the summaries and says what it dropped", async () => {
+    // Given a deployment counting rendering visitors only, and an hour
+    // holding a person who loaded the stylesheet beside a client that read
+    // the HTML alone.
+    const deployed = await deployAnalytics({
+      requests: { pageviews: { renderedOnly: true } },
+    });
+    await putDelivered(deployed, anHour, [
+      aRecord(anHour, { "c-ip": "203.0.113.7" }),
+      aRecord(anHour, {
+        "c-ip": "203.0.113.7",
+        "cs-uri-stem": "/site.css",
+        "sc-content-type": "text/css",
+      }),
+      aRecord(anHour, { "c-ip": "198.51.100.1" }),
+    ]);
+    await untilTheScheduleFires(deployed);
+
+    // When the question is asked of that hour with no --rendered-only.
+    const run = await cli([
+      "pageviews",
+      "--last",
+      "2h",
+      "--summaries",
+      deployed.summariesBucketName,
+    ]);
+
+    // Then the person's view is the answer, standard error says the filter
+    // came from the summaries, and the visitor line counts the client it
+    // left out. A filter dropping people unseen is the failure that number
+    // is there to show.
+    assertStringIncludes(run.error, "Took --rendered-only from the summaries");
+    assertStringIncludes(
+      run.error,
+      "1 visitors in that window, leaving out 1 who rendered no page",
+    );
+    assertIdentical(run.code, 0);
+    assertObjectEquals(run.rows, [{ path: "/", views: "1" }]);
+  });
+
+  it("refuses the rendered filter where the summaries counted everybody", async () => {
+    // Given a deployment left to the defaults.
+    const deployed = await deployAnalytics();
+    await putDelivered(deployed, anHour, [aRecord(anHour)]);
+    await untilTheScheduleFires(deployed);
+
+    // When --rendered-only is asked of it.
+    const run = await cli([
+      "pageviews",
+      "--last",
+      "2h",
+      "--rendered-only",
+      "--summaries",
+      deployed.summariesBucketName,
+    ]);
+
+    // Then it names the difference rather than answering with every visitor
+    // under a command line that asked for rendering ones.
+    assertIdentical(run.code, 1);
+    assertStringIncludes(run.error, "--rendered-only");
+    assertStringIncludes(run.error, "every visitor, rendering or not");
+  });
+
   it("says nothing about filters where the command line matched", async () => {
     // Given a deployment left to the defaults. That is what
     // RollupSummaries computes where nobody narrows it.

@@ -861,6 +861,37 @@ describe("the named questions, run through Athena", () => {
     assertObjectEquals(everything.rows, [{ path: "/", views: "2" }]);
   });
 
+  it("counts only visitors who rendered a page when told to", async () => {
+    // Given a person who loaded the page and its script, answered 304 from a
+    // revalidated cache, beside a client that read the HTML alone.
+    const deployed = await deployAnalytics();
+    await putDelivered(deployed, rightNow, [
+      aRecord(rightNow, { "c-ip": "203.0.113.7" }),
+      aRecord(rightNow, {
+        "c-ip": "203.0.113.7",
+        "cs-uri-stem": "/app.js",
+        "sc-status": "304",
+        "sc-content-type": "-",
+      }),
+      aRecord(rightNow, { "c-ip": "198.51.100.1" }),
+    ]);
+
+    // When the pages are counted with and without --rendered-only.
+    const everybody = await cli(["pageviews", "--query", "--last", "24h"]);
+    const rendering = await cli([
+      "pageviews",
+      "--query",
+      "--last",
+      "24h",
+      "--rendered-only",
+    ]);
+
+    // Then the flag leaves the client out.
+    assertIdentical(rendering.code, 0);
+    assertObjectEquals(everybody.rows, [{ path: "/", views: "2" }]);
+    assertObjectEquals(rendering.rows, [{ path: "/", views: "1" }]);
+  });
+
   it("refuses a bot user agent holding a space", async () => {
     // Given a crawler named with a space in it, which CloudFront would have
     // logged as %20.

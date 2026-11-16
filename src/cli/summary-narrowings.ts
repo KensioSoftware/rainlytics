@@ -53,6 +53,12 @@ const narrowings: Readonly<Record<CountingOption, Narrowing>> = {
     }),
     value: (stored) => stored.botUserAgents?.join(" --bot-user-agent "),
   },
+  "--rendered-only": {
+    taken: (asked, stored) => ({
+      ...asked,
+      renderedOnly: stored.renderedOnly,
+    }),
+  },
   "--param": {
     taken: (asked, stored) => ({ ...asked, param: stored.param }),
     value: (stored) => stored.param,

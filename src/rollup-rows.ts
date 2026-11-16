@@ -17,6 +17,7 @@
 
 import { decodedColumn } from "./log-encoding.js";
 import { automatedLeftOut } from "./bot-filter.js";
+import { renderedOnlyFor, renderedVisitor } from "./rendered-visitors.js";
 import { currentMonth, summarisedWindow } from "./rollups.js";
 import type { RollupRequest } from "./rollups.js";
 import { quoted } from "./sql-text.js";
@@ -30,9 +31,9 @@ import { partitionValuesCovering } from "./time-range.js";
  * is read. Everything after it narrows rows that have already been paid for.
  *
  * `extra` holds whatever else one question needs, joined on after the
- * partitions, the bot filter with any substrings a site added to it, and the
- * host, paths and countries a caller
- * narrowed to. The pageview rollup passes the three conditions that separate
+ * partitions, the bot filter with any substrings a site added to it, the
+ * host, paths and countries a caller narrowed to, and the test that the
+ * visitor rendered a page where the request asked for it. The pageview rollup passes the three conditions that separate
  * a page from the assets beside it in the log.
  *
  * ```typescript
@@ -143,8 +144,21 @@ function conditions(
     ...partitionsOf(request),
     ...(request.includeBots ? [] : automatedLeftOut(request)),
     ...narrowedTo(request),
+    ...renderedOnlyFor(request, partitionsOf(request)),
     ...extra,
   ];
+}
+
+/**
+ * A row whose visitor rendered a page in the window the request reads.
+ *
+ * `rowsFor` writes this for every question asked with `renderedOnly`. It is
+ * exported for the visitor count, which asks it of every visitor rather than
+ * filtering on it, so that a summary can say how many visitors the filter
+ * left out. `renderedVisitor` has what counts as rendering.
+ */
+export function aRenderedVisitor(request: RollupRequest): string {
+  return renderedVisitor(request, partitionsOf(request));
 }
 
 /**

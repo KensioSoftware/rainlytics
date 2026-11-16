@@ -6,6 +6,7 @@
 // puts a resource in a template. The limits in particular are the API's, and
 // they would go on being the API's if nothing ever saved a rollup again.
 
+import { renderedBeaconPath } from "../rendered-visitors.js";
 import { rollups } from "../rollup-questions.js";
 import type { Rollup, RollupRequest } from "../rollups.js";
 import { defaultRedirectStatuses } from "../rollups.js";
@@ -42,8 +43,9 @@ export function describing(rollup: Rollup, request: RollupRequest): string {
  * The clauses saying what one saved copy counts.
  *
  * The range, the host, the sections and the countries it was narrowed to,
- * the parameter a search reads, whether automated traffic is counted, and any
- * user agents a site added to the bot filter. Each of those
+ * the parameter a search reads, whether automated traffic is counted, any
+ * user agents a site added to the bot filter, and whether only visitors who
+ * rendered a page are counted. Each of those
  * changes the answer, and a copy answering a narrower question than its name
  * promises is what the narrowing was added to say out loud.
  *
@@ -88,6 +90,7 @@ function covering(rollup: Rollup, request: RollupRequest): readonly string[] {
     ...(request.includeBots || agents.length === 0
       ? []
       : [`leaving out user agents containing ${agents.join(" or ")}`]),
+    ...renderedClause(request),
   ];
 }
 
@@ -127,4 +130,13 @@ export function assertAthenaLength(
         ` ${what === "name" ? "name" : "summary"}: ${value.slice(0, 60)}`,
     );
   }
+}
+
+/** What a copy counting rendering visitors only says, where it does. */
+function renderedClause(request: RollupRequest): readonly string[] {
+  const path = renderedBeaconPath(request.renderedOnly);
+
+  return path === undefined
+    ? []
+    : [`counting only visitors who rendered a page or reached ${path}`];
 }

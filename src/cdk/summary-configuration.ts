@@ -13,7 +13,10 @@ import type { Rollup } from "../rollups.js";
 import { defaultRecomputedWindows } from "../summary-runs.js";
 import type { SummaryGranularity } from "../summary-windows.js";
 import { summaryGranularities } from "../summary-windows.js";
-import { computedQuestions } from "./computed-questions.js";
+import {
+  assertRenderedOnlyIdentifies,
+  computedQuestions,
+} from "./computed-questions.js";
 import type { LogTable } from "./log-table.js";
 import type { QueryWorkgroup } from "./query-workgroup.js";
 import {
@@ -193,6 +196,7 @@ export function summaryConfiguration(
   assertSomethingToCompute(computing, granularities);
   assertOneSummaryEach(computing);
   assertRequestedNames(computing, Object.keys(props.requests ?? {}));
+  assertRenderedOnlyIdentifies(props.requests, props.table.fields);
   return {
     rollups: computing,
     countsVisitors: computing.some((rollup) => rollup.countsVisitors === true),

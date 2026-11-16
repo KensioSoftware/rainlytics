@@ -19,6 +19,7 @@ import {
   paramOption,
   pathOption,
   redirectStatusOption,
+  renderedOnlyOption,
   untilOption,
 } from "./rollup-help.js";
 import { queryOption, summariesOption } from "./summary-help.js";
@@ -50,6 +51,7 @@ export function rollupOptions(rollup: Rollup): readonly CliOption[] {
     ...(rollup.countsRedirects === true ? [redirectStatusOption] : []),
     includeBotsOption,
     botUserAgentOption,
+    renderedOnlyOption,
     ...(rollup.isRanked ? [limitOption] : []),
     summariesOption,
     queryOption,

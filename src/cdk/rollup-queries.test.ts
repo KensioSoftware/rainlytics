@@ -312,6 +312,24 @@ describe("the rollups saved in Athena", () => {
     );
   });
 
+  it("says when a saved copy counts rendering visitors only", async () => {
+    // Given a deployment counting page views from rendering visitors only.
+    // When the stack is deployed.
+    const views = await named("pageviews", {
+      requests: { pageviews: { renderedOnly: true } },
+    });
+
+    // Then the description says so, and the SQL holds the test it describes.
+    assertStringIncludes(
+      views?.description,
+      "counting only visitors who rendered a page",
+    );
+    assertStringIncludes(
+      views.queryString,
+      "concat(c_ip, '|', cs_user_agent) IN (",
+    );
+  });
+
   it("names the parameter a search reads even where nobody chose one", async () => {
     // Given a deployment that narrowed nothing.
     // When the stack is deployed.

@@ -102,6 +102,17 @@ export interface VisitorCount {
 
   /** Always false. Two windows' counts do not add. */
   readonly additive: false;
+
+  /**
+   * Distinct visitors the window saw who rendered no page, and whom
+   * `renderedOnly` therefore left out of {@link distinct}.
+   *
+   * Present only on a question asked with `renderedOnly`. It is how a site
+   * tells whether the filter is removing automated traffic or its own
+   * returning customers, whose browsers reused every cached asset without
+   * asking. Like {@link distinct}, two windows' numbers do not add.
+   */
+  readonly unrendered?: number | undefined;
 }
 
 /** One question, answered over one window, as it lands on S3. */

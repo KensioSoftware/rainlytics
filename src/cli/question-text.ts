@@ -4,6 +4,9 @@
 // these. A filter compares equal when its text does, so the text is where a
 // list read as a set gets sorted and a case-blind one gets folded.
 
+import { renderedBeaconPath } from "../rendered-visitors.js";
+import type { RenderedBy } from "../rollups.js";
+
 /** The host a question counted, as a sentence names it. */
 export function hostText(host: string | undefined): string {
   return host ?? "every host";
@@ -55,6 +58,23 @@ function setText(values: readonly string[], none: string): string {
   );
 
   return named.length === 0 ? none : named.join(" ");
+}
+
+/**
+ * Whether a question counted only visitors who rendered a page, as a
+ * sentence says it.
+ *
+ * Absent and false read the same. A summary computed before the filter
+ * existed carries no field, and it counted every visitor.
+ */
+export function renderedText(
+  renderedOnly: boolean | RenderedBy | undefined,
+): string {
+  const path = renderedBeaconPath(renderedOnly);
+
+  return path === undefined
+    ? "every visitor, rendering or not"
+    : `rendering visitors only, with the beacon at ${path}`;
 }
 
 /** Whether a question counted automated traffic, as a sentence says it. */

@@ -9,8 +9,10 @@ import {
   countsVisitorsFrom,
   missingVisitorCountFields,
 } from "../log-fields.js";
+import { renderedBeaconPath } from "../rendered-visitors.js";
 import { type Rollup, withoutVisitorCount } from "../rollups.js";
 import { rollups } from "../rollup-questions.js";
+import type { SavedRollupRequest } from "./saved-query-configuration.js";
 import type { RollupSummariesProps } from "./summary-configuration.js";
 
 /**
@@ -119,5 +121,46 @@ function assertNothingCountsVisitors(
       ` user agent, and both have to be delivered for one to be counted.` +
       ` Either add ${missing} to the delivered field set, or wrap the` +
       ` question in withoutVisitorCount.`,
+  );
+}
+
+/**
+ * Refuses a question asked with `renderedOnly` over a table that cannot
+ * answer it.
+ *
+ * The filter judges a visitor by the address and user agent behind a row, and
+ * reads the path of every request that visitor made. A delivery without all
+ * three has no column for the test to read. Athena would refuse the query
+ * once an hour in a bucket nobody is watching, so this refuses it at
+ * synthesis instead. A beacon path that cannot be matched is refused here
+ * too, by `renderedBeaconPath`.
+ *
+ * @throws {Error} naming the questions and what is missing.
+ */
+export function assertRenderedOnlyIdentifies(
+  requests: Readonly<Record<string, SavedRollupRequest>> | undefined,
+  fields: readonly string[],
+): void {
+  const asked = Object.entries(requests ?? {})
+    .filter(
+      ([, request]) => renderedBeaconPath(request.renderedOnly) !== undefined,
+    )
+    .map(([name]) => name);
+  const missing = [
+    ...missingVisitorCountFields(fields),
+    ...(fields.includes("cs-uri-stem") ? [] : ["cs-uri-stem"]),
+  ];
+
+  if (asked.length === 0 || missing.length === 0) {
+    return;
+  }
+
+  throw new Error(
+    `${asked.join(", ")} counts only visitors who rendered a page, and this` +
+      ` deployment's delivery leaves out ${missing.join(" and ")}. The filter` +
+      ` tells one visitor from another by the address and user agent behind a` +
+      ` row, and reads the path of each request they made. Either add` +
+      ` ${missing.join(" and ")} to the delivered field set, or leave` +
+      ` renderedOnly off.`,
   );
 }
