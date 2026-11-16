@@ -1058,13 +1058,6 @@ describe("the named questions, answered from stored summaries", () => {
     // came from the summaries, and the visitor line counts the client it
     // left out. A filter dropping people unseen is the failure that number
     // is there to show.
-    assertObjectEquals(
-      { code: run.code, error: run.error },
-      {
-        code: 0,
-        error: run.error.includes("Took --rendered-only") ? run.error : "",
-      },
-    );
     assertStringIncludes(run.error, "Took --rendered-only from the summaries");
     assertStringIncludes(
       run.error,

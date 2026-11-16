@@ -69,16 +69,19 @@ export function renderedVisitor(
   const { dataset } = request;
   const beaconPath =
     renderedBeaconPath(request.renderedOnly) ?? defaultBeaconPath;
-  const rendering = [
-    `regexp_like(lower(cs_uri_stem), ${quoted(renderingAssetPattern)})`,
-    onTheBeaconPath(beaconPath),
-  ].join(" OR ");
+  // A `CASE` where an `OR` would read more naturally. Athena treats the two
+  // the same. Yulin's simulated engine ran this subquery about thirty times
+  // slower with the `OR`, enough to time the tests out on a slow runner.
+  const rendering =
+    `CASE WHEN ${onTheBeaconPath(beaconPath)} THEN true` +
+    ` ELSE regexp_like(lower(cs_uri_stem), ${quoted(renderingAssetPattern)})` +
+    ` END`;
 
   return [
     `${visitorPair} IN (`,
     `      SELECT ${visitorPair}`,
     `        FROM ${qualifiedTableName(dataset)}`,
-    `        WHERE ${[...partitions, "c_ip <> '-'", `(${rendering})`].join(
+    `        WHERE ${[...partitions, "c_ip <> '-'", rendering].join(
       "\n        AND ",
     )})`,
   ].join("\n");
