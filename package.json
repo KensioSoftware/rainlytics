@@ -104,7 +104,7 @@
     "fta-cli": "^3.0.0",
     "happy-dom": "^21.0.1",
     "node-sql-parser": "^5.4.0",
-    "oxfmt": "^0.76.0",
+    "oxfmt": "^0.78.0",
     "oxlint": "^1.77.0",
     "oxlint-tsgolint": "^7.0.2001",
     "semantic-release": "25.0.9",
